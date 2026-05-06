@@ -11,12 +11,26 @@ import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
 } from "@/lib/providers-dlmm";
+import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
 import type { PoolReport, SourceStatus, DlmmPairInfo } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
+  try {
+    return await handlePairScan(request);
+  } catch (err) {
+    console.error("Unhandled pair scan error", err);
+    return apiErrorResponse(
+      "INTERNAL_ERROR",
+      "Unable to complete pair scan right now.",
+      500,
+    );
+  }
+}
+
+async function handlePairScan(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
 
   const pool = searchParams.get("pool")?.trim() || searchParams.get("pair")?.trim();
@@ -25,34 +39,35 @@ export async function GET(request: Request): Promise<Response> {
 
   // Determine mode
   if (!pool && (!mintA || !mintB)) {
-    return Response.json(
-      {
-        error:
-          "Missing required query parameters: provide ?pool=<address> or ?mintA=<address>&mintB=<address>",
-      },
-      { status: 400 },
+    return apiErrorResponse(
+      "MISSING_PARAMETER",
+      "Missing required query parameters: provide ?pool=<address> or ?mintA=<address>&mintB=<address>",
+      400,
     );
   }
 
   // Validate addresses
   if (pool) {
     if (!isValidSolanaMint(pool)) {
-      return Response.json(
-        { error: "Invalid Solana address for pool parameter" },
-        { status: 400 },
+      return apiErrorResponse(
+        "INVALID_PARAMETER",
+        "Invalid Solana address for pool parameter",
+        400,
       );
     }
   } else {
     if (!isValidSolanaMint(mintA!)) {
-      return Response.json(
-        { error: "Invalid Solana address for mintA parameter" },
-        { status: 400 },
+      return apiErrorResponse(
+        "INVALID_PARAMETER",
+        "Invalid Solana address for mintA parameter",
+        400,
       );
     }
     if (!isValidSolanaMint(mintB!)) {
-      return Response.json(
-        { error: "Invalid Solana address for mintB parameter" },
-        { status: 400 },
+      return apiErrorResponse(
+        "INVALID_PARAMETER",
+        "Invalid Solana address for mintB parameter",
+        400,
       );
     }
   }
@@ -68,13 +83,13 @@ export async function GET(request: Request): Promise<Response> {
   const sources: SourceStatus[] = [source];
 
   if (result.status === "rejected") {
-    return Response.json(
-      {
-        error: result.reason?.message ?? String(result.reason),
-        sources,
-      },
-      { status: 502 },
-    );
+    const rawError = result.reason?.message ?? String(result.reason);
+    const sanitized = classifyProviderError(rawError);
+    const body = {
+      error: { code: sanitized.code, message: sanitized.message },
+      sources,
+    };
+    return Response.json(body, { status: sanitized.status });
   }
 
   const pair: DlmmPairInfo = result.value.data;
@@ -125,9 +140,10 @@ function buildSourceStatus(
       latencyMs: result.value.latencyMs,
     };
   }
+  const rawError = result.reason?.message ?? String(result.reason);
   return {
     provider,
     success: false,
-    error: result.reason?.message ?? String(result.reason),
+    error: sanitizeSourceError(rawError),
   };
 }

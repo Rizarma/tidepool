@@ -70,6 +70,10 @@ export interface PoolReport {
   fetchedAt?: string;
 }
 
+// ─── API Error ───────────────────────────────────────────────────────────────
+
+export type { ApiErrorCode, ApiErrorBody } from "./api-errors";
+
 // ─── Union ───────────────────────────────────────────────────────────────────
 
 export type ScanReport = TokenReport | PoolReport;

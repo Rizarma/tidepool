@@ -13,6 +13,7 @@ import {
   fetchSolanaRpc,
 } from "@/lib/providers";
 import { computeRisk } from "@/lib/risk";
+import { apiErrorResponse, sanitizeSourceError } from "@/lib/api-errors";
 import type {
   TokenReport,
   TokenIdentity,
@@ -26,20 +27,35 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
+  try {
+    return await handleScan(request);
+  } catch (err) {
+    console.error("Unhandled token scan error", err);
+    return apiErrorResponse(
+      "INTERNAL_ERROR",
+      "Unable to complete scan right now.",
+      500,
+    );
+  }
+}
+
+async function handleScan(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const mint = searchParams.get("mint")?.trim();
 
   if (!mint) {
-    return Response.json(
-      { error: "Missing required query parameter: mint" },
-      { status: 400 },
+    return apiErrorResponse(
+      "MISSING_PARAMETER",
+      "Missing required query parameter: mint",
+      400,
     );
   }
 
   if (!isValidSolanaMint(mint)) {
-    return Response.json(
-      { error: "Invalid Solana mint address" },
-      { status: 400 },
+    return apiErrorResponse(
+      "INVALID_PARAMETER",
+      "Invalid Solana mint address",
+      400,
     );
   }
 
@@ -152,9 +168,10 @@ function buildSourceStatus(
       latencyMs: result.value.latencyMs,
     };
   }
+  const rawError = result.reason?.message ?? String(result.reason);
   return {
     provider,
     success: false,
-    error: result.reason?.message ?? String(result.reason),
+    error: sanitizeSourceError(rawError),
   };
 }

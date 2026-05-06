@@ -24,6 +24,7 @@ import {
   short,
   yesNo,
 } from "@/lib/format";
+import { parseApiError } from "@/lib/api-errors";
 import { SourcesList } from "@/components/report/SourcesList";
 import { TokenImage } from "@/components/report/TokenImage";
 
@@ -59,7 +60,7 @@ export default function ScanClient() {
     try {
       const response = await fetch(`/api/scan?mint=${encodeURIComponent(trimmed)}`);
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error ?? "Scan failed");
+      if (!response.ok) throw new Error(parseApiError(data, "Scan failed"));
       setReport(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Scan failed");
@@ -93,7 +94,7 @@ export default function ScanClient() {
           : `mintA=${encodeURIComponent(trimmedMintA)}&mintB=${encodeURIComponent(trimmedMintB)}`;
       const response = await fetch(`/api/scan/pair?${query}`);
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error ?? "Pair scan failed");
+      if (!response.ok) throw new Error(parseApiError(data, "Pair scan failed"));
       setPoolAddress(trimmedPool);
       setMintA(trimmedMintA);
       setMintB(trimmedMintB);
