@@ -37,6 +37,7 @@ const EXAMPLES = [
 
 export default function ScanClient() {
   const poolInputRef = useRef<HTMLInputElement>(null);
+  const scanRequestIdRef = useRef(0);
   const [mint, setMint] = useState("");
   const [mode, setMode] = useState<ScanMode>("pair");
   const [pairInputMode, setPairInputMode] = useState<PairInputMode>("pool");
@@ -46,8 +47,10 @@ export default function ScanClient() {
   const [report, setReport] = useState<ScanReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedPoolAddress, setSelectedPoolAddress] = useState<string | null>(null);
 
   async function scanToken(nextMint = mint) {
+    const requestId = ++scanRequestIdRef.current;
     const trimmed = nextMint.trim();
     if (!trimmed) {
       setError("Paste a Solana mint address to scan.");
@@ -58,26 +61,30 @@ export default function ScanClient() {
     setLoading(true);
     setError(null);
     setReport(null);
+    setSelectedPoolAddress(null);
 
     try {
       const response = await fetch(`/api/scan?mint=${encodeURIComponent(trimmed)}`);
       const data = await response.json();
       if (!response.ok) throw new Error(parseApiError(data, "Scan failed"));
+      if (requestId !== scanRequestIdRef.current) return;
       setReport(data);
     } catch (err) {
+      if (requestId !== scanRequestIdRef.current) return;
       setError(err instanceof Error ? err.message : "Scan failed");
     } finally {
-      setLoading(false);
+      if (requestId === scanRequestIdRef.current) setLoading(false);
     }
   }
 
   async function scanPair() {
+    const requestId = ++scanRequestIdRef.current;
     const trimmedPool = poolAddress.trim();
     const trimmedMintA = mintA.trim();
     const trimmedMintB = mintB.trim();
 
     if (pairInputMode === "pool" && !trimmedPool) {
-      setError("Paste a Meteora DLMM pool address to scan.");
+      setError("Paste a Meteora DLMM pool address or token mint to scan.");
       return;
     }
     if (pairInputMode === "mints" && (!trimmedMintA || !trimmedMintB)) {
@@ -88,6 +95,7 @@ export default function ScanClient() {
     setLoading(true);
     setError(null);
     setReport(null);
+    setSelectedPoolAddress(null);
 
     try {
       const query =
@@ -110,7 +118,9 @@ export default function ScanClient() {
             throw new Error(parseApiError(discoveryData, "Pool discovery failed"));
           }
 
+          if (requestId !== scanRequestIdRef.current) return;
           setPoolAddress(trimmedPool);
+          setSelectedPoolAddress(getInitialDiscoveryPoolAddress(discoveryData));
           setReport(discoveryData);
           return;
         }
@@ -118,14 +128,16 @@ export default function ScanClient() {
         throw new Error(parseApiError(data, "Pool scan failed"));
       }
 
+      if (requestId !== scanRequestIdRef.current) return;
       setPoolAddress(trimmedPool);
       setMintA(trimmedMintA);
       setMintB(trimmedMintB);
       setReport(data);
     } catch (err) {
+      if (requestId !== scanRequestIdRef.current) return;
       setError(err instanceof Error ? err.message : "Pool scan failed");
     } finally {
-      setLoading(false);
+      if (requestId === scanRequestIdRef.current) setLoading(false);
     }
   }
 
@@ -316,7 +328,17 @@ export default function ScanClient() {
         ) : "kind" in report && report.kind === "pair" ? (
           <PairReportLayout report={report} />
         ) : "kind" in report && report.kind === "pool_discovery" ? (
-          <PairReportLayout report={poolReportFromDiscovery(report)} discovery={report} />
+          <PairReportLayout
+            report={poolReportFromDiscovery(report, selectedPoolAddress)}
+            discovery={report}
+            selectedPoolAddress={selectedPoolAddress}
+            onSelectPool={setSelectedPoolAddress}
+            onRunTokenScan={(mintAddress: string) => {
+              setMode("token");
+              setMint(mintAddress);
+              void scanToken(mintAddress);
+            }}
+          />
         ) : (
           <TokenReportLayout report={report as TokenReport} />
         )}
@@ -414,7 +436,19 @@ function TokenReportLayout({ report }: { report: TokenReport }) {
 
 // ─── Pool Report Layout ─────────────────────────────────────────────────────
 
-function PairReportLayout({ report, discovery }: { report: PoolReport; discovery?: PoolDiscoveryReport }) {
+function PairReportLayout({
+  report,
+  discovery,
+  selectedPoolAddress,
+  onSelectPool,
+  onRunTokenScan,
+}: {
+  report: PoolReport;
+  discovery?: PoolDiscoveryReport;
+  selectedPoolAddress?: string | null;
+  onSelectPool?: (poolAddress: string) => void;
+  onRunTokenScan?: (mint: string) => void;
+}) {
   const pair = report.pair;
   const tokenX = pair?.tokenX;
   const tokenY = pair?.tokenY;
@@ -454,9 +488,12 @@ function PairReportLayout({ report, discovery }: { report: PoolReport; discovery
       {/* ─── Center: Metrics + Price + Fees ─── */}
       <section className="border-b xl:border-b-0 xl:border-r border-[var(--panel-border)] panel-scroll p-3">
         {discovery && (
-          <div className="mb-3 rounded border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-            Showing the highest-TVL Meteora DLMM pool for this token. {discovery.totalMatched ?? discovery.pools?.length ?? 1} matching {((discovery.totalMatched ?? discovery.pools?.length ?? 1) === 1) ? "pool" : "pools"} found.
-          </div>
+          <DiscoveryPanel
+            discovery={discovery}
+            selectedPoolAddress={selectedPoolAddress ?? pair?.poolAddress ?? null}
+            onSelectPool={onSelectPool}
+            onRunTokenScan={onRunTokenScan}
+          />
         )}
 
         {/* Key metrics */}
@@ -514,6 +551,128 @@ function PairReportLayout({ report, discovery }: { report: PoolReport; discovery
   );
 }
 
+// ─── Discovery Panel ────────────────────────────────────────────────────────
+
+function DiscoveryPanel({
+  discovery,
+  selectedPoolAddress,
+  onSelectPool,
+  onRunTokenScan,
+}: {
+  discovery: PoolDiscoveryReport;
+  selectedPoolAddress: string | null;
+  onSelectPool?: (poolAddress: string) => void;
+  onRunTokenScan?: (mint: string) => void;
+}) {
+  const pools = discovery.pools ?? [];
+  const poolCount = discovery.totalMatched ?? pools.length;
+  const hasMultiple = pools.length > 1;
+  const discoveredMint = discovery.query?.mint;
+
+  return (
+    <div className="mb-4 space-y-2">
+      {/* Detection copy */}
+      <div className="rounded border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+        <p className="text-xs text-cyan-200">
+          Found Meteora DLMM pools containing this address as a token mint.
+        </p>
+        <p className="mt-1 text-[11px] text-cyan-300/70">
+          {poolCount} matching {poolCount === 1 ? "pool" : "pools"} found.{" "}
+          {discovery.selectionReason === "highest_tvl" && "Highest TVL selected."}
+          {discovery.selectionReason === "highest_volume" && "Highest volume selected."}
+          {discovery.selectionReason === "single_match" && "Single match selected."}
+        </p>
+      </div>
+
+      {/* Pool chooser rows */}
+      {hasMultiple && (
+        <div className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-[var(--panel-border)]">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500">Select Pool</span>
+          </div>
+          <div className="max-h-[180px] overflow-y-auto">
+            {pools.map((pool, index) => {
+              const poolAddress = pool.poolAddress;
+              const isSelected = poolAddress === selectedPoolAddress;
+              const pairName = pool.name ?? `${pool.tokenX?.symbol ?? "?"} / ${pool.tokenY?.symbol ?? "?"}`;
+              return (
+                <button
+                  key={pool.poolAddress ?? index}
+                  type="button"
+                  onClick={() => poolAddress && onSelectPool?.(poolAddress)}
+                  className={`w-full text-left px-3 py-2 flex items-center gap-3 transition border-b border-[var(--panel-border)] last:border-b-0 ${
+                    isSelected
+                      ? "bg-[var(--accent)]/[0.06] border-l-2 border-l-[var(--accent)]"
+                      : "hover:bg-white/[0.02] border-l-2 border-l-transparent"
+                  }`}
+                  aria-pressed={isSelected}
+                  aria-label={`${isSelected ? "Selected" : "Select"} ${pairName} pool ${short(pool.poolAddress) ?? "unknown address"}, TVL ${formatUsd(pool.tvlUsd)}, 24h volume ${formatUsd(pool.volume24h)}`}
+                >
+                  {/* Pair name + address */}
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-xs font-medium truncate ${isSelected ? "text-zinc-100" : "text-zinc-300"}`}>
+                      {pairName}
+                    </p>
+                    <p className="font-mono text-[10px] text-zinc-500 truncate">
+                      {short(pool.poolAddress)}
+                    </p>
+                  </div>
+
+                  {/* Metrics */}
+                  <div className="shrink-0 flex items-center gap-3 text-[10px] tabular-nums text-zinc-400">
+                    {pool.tvlUsd != null && (
+                      <span title="TVL">
+                        <span className="text-zinc-600 mr-0.5">TVL</span>
+                        {formatUsd(pool.tvlUsd)}
+                      </span>
+                    )}
+                    {pool.volume24h != null && (
+                      <span title="24h Volume">
+                        <span className="text-zinc-600 mr-0.5">Vol</span>
+                        {formatUsd(pool.volume24h)}
+                      </span>
+                    )}
+                    {pool.apr != null && (
+                      <span title="APR">
+                        <span className="text-zinc-600 mr-0.5">APR</span>
+                        {pctValue(pool.apr)}
+                      </span>
+                    )}
+                    {pool.binStep != null && (
+                      <span title="Bin Step">
+                        <span className="text-zinc-600 mr-0.5">Bin</span>
+                        {pool.binStep}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Selected indicator */}
+                  {isSelected && (
+                    <span className="shrink-0 size-1.5 rounded-full bg-[var(--accent)]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Run Token scan CTA */}
+      {discoveredMint && onRunTokenScan && (
+        <button
+          type="button"
+          onClick={() => onRunTokenScan(discoveredMint)}
+          className="inline-flex items-center gap-1.5 rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:border-[var(--accent)]/40 hover:text-[var(--accent)]"
+        >
+          <span className="text-[10px]">→</span>
+          Run token scan for entered mint
+          <span className="font-mono text-[10px] text-zinc-500">{short(discoveredMint)}</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Empty & Loading States ─────────────────────────────────────────────────
 
 function EmptyState({ mode, onScanToken }: { mode: ScanMode; onScanToken: (mint: string) => void }) {
@@ -561,13 +720,23 @@ function getApiErrorCode(data: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
-function poolReportFromDiscovery(report: PoolDiscoveryReport): PoolReport {
+function poolReportFromDiscovery(report: PoolDiscoveryReport, selectedPoolAddress?: string | null): PoolReport {
+  const pool =
+    report.pools?.find((candidate) => candidate.poolAddress === selectedPoolAddress) ??
+    report.primaryPool ??
+    report.pools?.[0];
   return {
     kind: "pair",
-    pair: report.primaryPool ?? report.pools?.[0],
+    pair: pool,
     sources: report.sources,
     fetchedAt: report.fetchedAt,
   };
+}
+
+function getInitialDiscoveryPoolAddress(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const discovery = data as PoolDiscoveryReport;
+  return discovery.primaryPool?.poolAddress ?? discovery.pools?.[0]?.poolAddress ?? null;
 }
 
 function LoadingState() {
