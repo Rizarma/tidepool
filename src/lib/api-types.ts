@@ -7,6 +7,8 @@
  */
 
 import type {
+  AddressResolutionSuggestion,
+  AddressResolutionType,
   DlmmPairInfo,
   PairToken as StrictPairToken,
   RiskAssessment,
@@ -92,6 +94,35 @@ export interface PoolDiscoveryReport {
   totalFound?: number;
   totalMatched?: number;
   selectionReason?: "highest_tvl" | "highest_volume" | "single_match" | null;
+  sources?: SourceStatus[];
+  fetchedAt?: string;
+}
+
+// ─── Address Resolution ──────────────────────────────────────────────────────
+
+export interface AddressResolution {
+  address?: string;
+  valid?: boolean;
+  status?: "resolved" | "partial" | "unknown";
+  possibleTypes?: AddressResolutionType[];
+  tokenScanAvailable?: boolean;
+  meteoraPoolAvailable?: boolean;
+  meteoraPoolsAvailable?: boolean;
+  primarySuggestion?: AddressResolutionSuggestion;
+  pool?: DeepPartial<DlmmPairInfo> & {
+    tokenX?: PairToken;
+    tokenY?: PairToken;
+    tags?: string[];
+  };
+  poolAddress?: string;
+  matchingPoolCount?: number;
+  providerTotalFound?: number;
+  primaryPool?: DeepPartial<DlmmPairInfo> & {
+    tokenX?: PairToken;
+    tokenY?: PairToken;
+    tags?: string[];
+  } | null;
+  primaryPoolAddress?: string;
   sources?: SourceStatus[];
   fetchedAt?: string;
 }

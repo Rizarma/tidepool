@@ -603,6 +603,26 @@ describe("fetchSolanaRpc parsing", () => {
     );
     await expect(fetchSolanaRpc("mint123")).rejects.toThrow("No account data");
   });
+
+  it("throws when account owner is not an SPL token program", async () => {
+    const { fetchSolanaRpc } = await import("@/lib/providers");
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            value: {
+              owner: "11111111111111111111111111111111",
+              data: ["AQAAAAAA", "base64"],
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    await expect(fetchSolanaRpc("mint123")).rejects.toThrow("Account is not an SPL token mint");
+  });
 });
 
 // ─── Integration: DLMM fetch with mocked fetch ──────────────────────────────

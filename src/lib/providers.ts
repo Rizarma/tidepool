@@ -178,6 +178,10 @@ export async function fetchJupiter(mint: string): Promise<JupiterResult> {
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 
+function isTokenProgram(owner: string): boolean {
+  return owner === TOKEN_PROGRAM_ID || owner === TOKEN_2022_PROGRAM_ID;
+}
+
 export interface SolanaRpcResult {
   decimals?: number;
   supply?: string;
@@ -267,12 +271,11 @@ export async function fetchSolanaRpc(mint: string): Promise<SolanaRpcResult> {
     throw new Error("Invalid RPC response: missing owner");
   }
 
-  const tokenProgram =
-    owner === TOKEN_PROGRAM_ID
-      ? TOKEN_PROGRAM_ID
-      : owner === TOKEN_2022_PROGRAM_ID
-        ? TOKEN_2022_PROGRAM_ID
-        : owner;
+  if (!isTokenProgram(owner)) {
+    throw new Error("Account is not an SPL token mint");
+  }
+
+  const tokenProgram = owner;
 
   const dataArr = value.data;
   if (!Array.isArray(dataArr) || typeof dataArr[0] !== "string") {

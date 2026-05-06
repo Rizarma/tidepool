@@ -77,6 +77,7 @@ export interface SourceStatus {
   provider: string;
   success: boolean;
   latencyMs?: number;
+  code?: string;
   error?: string;
 }
 
@@ -147,6 +148,36 @@ export interface PoolDiscoveryReport {
   totalFound: number;
   totalMatched: number;
   selectionReason: "highest_tvl" | "highest_volume" | "single_match" | null;
+  sources: SourceStatus[];
+  /** ISO timestamp */
+  fetchedAt: string;
+}
+
+// ─── Address Resolution ──────────────────────────────────────────────────────
+
+export type AddressResolutionType = "token_mint" | "meteora_dlmm_pool";
+
+export type AddressResolutionSuggestion =
+  | "direct_pool_scan"
+  | "pool_discovery"
+  | "token_scan"
+  | "none";
+
+export interface AddressResolution {
+  address: string;
+  valid: boolean;
+  status: "resolved" | "partial" | "unknown";
+  possibleTypes: AddressResolutionType[];
+  tokenScanAvailable: boolean;
+  meteoraPoolAvailable: boolean;
+  meteoraPoolsAvailable: boolean;
+  primarySuggestion: AddressResolutionSuggestion;
+  pool?: DlmmPairInfo;
+  poolAddress?: string;
+  matchingPoolCount?: number;
+  providerTotalFound?: number;
+  primaryPool?: DlmmPairInfo | null;
+  primaryPoolAddress?: string;
   sources: SourceStatus[];
   /** ISO timestamp */
   fetchedAt: string;
