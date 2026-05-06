@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tidepool
 
-## Getting Started
+Tidepool helps Solana users check a token or Meteora DLMM pool before they trade, hold, or research it. Paste an address, run a scan, and read a plain-language risk report.
 
-First, run the development server:
+It is a screening tool, not financial advice. A low score does not make a token safe, and a high score does not prove fraud. Use the report as one input in your own research.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## What You Can Scan
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Solana tokens
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Paste a Solana token mint address to see:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- A risk score from 0 to 100
+- A risk level: low, medium, high, or critical
+- Token name, symbol, image, and mint address
+- Price, liquidity, daily volume, and market cap when available
+- Mint authority and freeze authority status
+- Holder concentration and RugCheck signals
+- Whether Jupiter lists the token on its strict list
+- Which data sources answered the scan
 
-## Learn More
+Tidepool includes example scans for USDC, JUP, and BONK.
 
-To learn more about Next.js, take a look at the following resources:
+### Meteora DLMM pools
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Paste a Meteora DLMM pool address, or enter both token mint addresses in a pair, to see:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Pool name and token pair
+- Price, TVL, daily volume, fees, APR, and APY when available
+- Bin step and fee settings
+- Token details for both sides of the pair
+- Blacklist status and pool tags
+- Which data sources answered the scan
 
-## Deploy on Vercel
+## How to Read the Risk Score
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Tidepool scores visible risk signals from live data. Higher scores mean more warning signs.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Score | Level | Meaning |
+| --- | --- | --- |
+| 0-19 | Low | Few warning signs found |
+| 20-44 | Medium | Some warning signs found |
+| 45-69 | High | Several warning signs found |
+| 70-100 | Critical | Strong warning signs found |
+
+The score can rise when a token has active mint or freeze authority, low liquidity, concentrated holders, RugCheck warnings, missing market data, or no Jupiter strict-list match.
+
+## Data Sources
+
+Tidepool collects live data from public services:
+
+- DexScreener for market data
+- RugCheck for token risk signals
+- Jupiter for token metadata, price, and strict-list status
+- Solana RPC for on-chain mint data
+- Meteora for DLMM pool data
+
+If a source is slow or unavailable, Tidepool still shows what it can and lists the source status in the report.
+
+## Running Tidepool Locally
+
+This section is for people who want to run the app on their own computer.
+
+1. Install dependencies:
+
+   ```bash
+   pnpm install
+   ```
+
+2. Start the app:
+
+   ```bash
+   pnpm dev
+   ```
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RPC_URL` or `SOLANA_RPC_URL` if you want to use your own Solana RPC endpoint.
+
+## Project Notes
+
+- Built with Next.js and React
+- Uses pnpm for package management
+- Runs without a database or user accounts
+- Fetches scan data live when you submit an address
+- Designed for deployment on Vercel or any host that supports Next.js
