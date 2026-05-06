@@ -92,3 +92,47 @@ export interface TokenReport {
   /** ISO timestamp */
   fetchedAt: string;
 }
+
+// ─── DLMM Pair Types ─────────────────────────────────────────────────────────
+
+export interface PairToken {
+  mint: string;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+  priceUsd?: number;
+  verified?: boolean;
+  amount?: number;
+  holders?: number;
+  freezeAuthorityDisabled?: boolean;
+  marketCap?: number;
+}
+
+export interface DlmmPairInfo {
+  poolAddress: string;
+  name?: string;
+  tokenX: PairToken;
+  tokenY: PairToken;
+  priceTokenYPerTokenX?: number;
+  inversePrice?: number;
+  binStep?: number;
+  baseFeePct?: number;
+  maxFeePct?: number;
+  protocolFeePct?: number;
+  dynamicFeePct?: number;
+  tvlUsd?: number;
+  volume24h?: number;
+  fees24h?: number;
+  apr?: number;
+  apy?: number;
+  isBlacklisted?: boolean;
+  tags?: string[];
+}
+
+export interface PoolReport {
+  kind: "pair";
+  pair: DlmmPairInfo;
+  sources: SourceStatus[];
+  /** ISO timestamp */
+  fetchedAt: string;
+}

@@ -59,6 +59,46 @@ type TokenReport = {
   fetchedAt?: string;
 };
 
+type PairToken = {
+  mint?: string;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+  priceUsd?: number;
+  verified?: boolean;
+  amount?: number;
+};
+
+type PoolReport = {
+  kind: "pair";
+  pair?: {
+    poolAddress?: string;
+    name?: string;
+    tokenX?: PairToken;
+    tokenY?: PairToken;
+    priceTokenYPerTokenX?: number;
+    inversePrice?: number;
+    binStep?: number;
+    baseFeePct?: number;
+    maxFeePct?: number;
+    protocolFeePct?: number;
+    dynamicFeePct?: number;
+    tvlUsd?: number;
+    volume24h?: number;
+    fees24h?: number;
+    apr?: number;
+    apy?: number;
+    isBlacklisted?: boolean;
+    tags?: string[];
+  };
+  sources?: SourceStatus[];
+  fetchedAt?: string;
+};
+
+type ScanReport = TokenReport | PoolReport;
+type ScanMode = "token" | "pair";
+type PairInputMode = "pool" | "mints";
+
 const EXAMPLES = [
   { label: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
   { label: "JUP", mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN" },
@@ -67,7 +107,12 @@ const EXAMPLES = [
 
 export default function Home() {
   const [mint, setMint] = useState("");
-  const [report, setReport] = useState<TokenReport | null>(null);
+  const [mode, setMode] = useState<ScanMode>("token");
+  const [pairInputMode, setPairInputMode] = useState<PairInputMode>("pool");
+  const [poolAddress, setPoolAddress] = useState("");
+  const [mintA, setMintA] = useState("");
+  const [mintB, setMintB] = useState("");
+  const [report, setReport] = useState<ScanReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -95,9 +140,47 @@ export default function Home() {
     }
   }
 
+  async function scanPair() {
+    const trimmedPool = poolAddress.trim();
+    const trimmedMintA = mintA.trim();
+    const trimmedMintB = mintB.trim();
+
+    if (pairInputMode === "pool" && !trimmedPool) {
+      setError("Paste a Meteora DLMM pool address to scan.");
+      return;
+    }
+    if (pairInputMode === "mints" && (!trimmedMintA || !trimmedMintB)) {
+      setError("Paste both token mint addresses for the DLMM pair.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setReport(null);
+
+    try {
+      const query =
+        pairInputMode === "pool"
+          ? `pool=${encodeURIComponent(trimmedPool)}`
+          : `mintA=${encodeURIComponent(trimmedMintA)}&mintB=${encodeURIComponent(trimmedMintB)}`;
+      const response = await fetch(`/api/scan/pair?${query}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error ?? "Pair scan failed");
+      setPoolAddress(trimmedPool);
+      setMintA(trimmedMintA);
+      setMintB(trimmedMintB);
+      setReport(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Pair scan failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void scanToken();
+    if (mode === "token") void scanToken();
+    else void scanPair();
   }
 
   return (
@@ -110,39 +193,98 @@ export default function Home() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
           <section className="rounded-[2rem] border border-orange-200/15 bg-stone-950/55 p-5 shadow-2xl shadow-black/30 backdrop-blur sm:p-7">
             <p className="mb-3 w-fit rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-200">
-              single token poc
+              token + dlmm pair scanner
             </p>
             <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.06em] text-stone-50 sm:text-6xl lg:text-7xl">
-              Solana token scanner for LP due diligence.
+              Solana pool scanner for LP due diligence.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-stone-300 sm:text-lg">
-              Paste a mint address. Tidepool pulls on-chain config, market liquidity, Jupiter status, and RugCheck signals into one explainable risk report.
+              Scan a token mint for risk signals, or scan a Meteora DLMM pool to inspect pair price, TVL, fees, and token ordering.
             </p>
 
             <form onSubmit={onSubmit} className="mt-8 space-y-4">
-              <label className="block text-sm font-medium text-stone-300" htmlFor="mint">
-                Token mint address
-              </label>
-              <div className="flex flex-col gap-3 rounded-3xl border border-stone-700/80 bg-black/35 p-2 sm:flex-row">
-                <input
-                  id="mint"
-                  value={mint}
-                  onChange={(event) => setMint(event.target.value)}
-                  placeholder="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-                  className="min-h-14 flex-1 bg-transparent px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600"
-                  spellCheck={false}
-                />
+              <div className="grid grid-cols-2 gap-2 rounded-3xl border border-stone-700/80 bg-black/35 p-1.5">
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="min-h-14 rounded-2xl bg-orange-300 px-6 text-sm font-bold uppercase tracking-[0.16em] text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={() => setMode("token")}
+                  className={`rounded-2xl px-4 py-3 text-sm font-bold uppercase tracking-[0.14em] transition ${mode === "token" ? "bg-orange-300 text-stone-950" : "text-stone-400 hover:text-stone-100"}`}
                 >
-                  {loading ? "Scanning" : "Scan"}
+                  Token
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("pair")}
+                  className={`rounded-2xl px-4 py-3 text-sm font-bold uppercase tracking-[0.14em] transition ${mode === "pair" ? "bg-orange-300 text-stone-950" : "text-stone-400 hover:text-stone-100"}`}
+                >
+                  DLMM Pair
                 </button>
               </div>
+
+              {mode === "token" ? (
+                <>
+                  <label className="block text-sm font-medium text-stone-300" htmlFor="mint">
+                    Token mint address
+                  </label>
+                  <div className="flex flex-col gap-3 rounded-3xl border border-stone-700/80 bg-black/35 p-2 sm:flex-row">
+                    <input
+                      id="mint"
+                      value={mint}
+                      onChange={(event) => setMint(event.target.value)}
+                      placeholder="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                      className="min-h-14 flex-1 bg-transparent px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="min-h-14 rounded-2xl bg-orange-300 px-6 text-sm font-bold uppercase tracking-[0.16em] text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loading ? "Scanning" : "Scan"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <ModeChip active={pairInputMode === "pool"} onClick={() => setPairInputMode("pool")}>Pool address</ModeChip>
+                    <ModeChip active={pairInputMode === "mints"} onClick={() => setPairInputMode("mints")}>Token mints</ModeChip>
+                  </div>
+                  {pairInputMode === "pool" ? (
+                    <div>
+                      <label className="block text-sm font-medium text-stone-300" htmlFor="pool">
+                        Meteora DLMM pool address
+                      </label>
+                      <div className="mt-2 flex flex-col gap-3 rounded-3xl border border-stone-700/80 bg-black/35 p-2 sm:flex-row">
+                        <input
+                          id="pool"
+                          value={poolAddress}
+                          onChange={(event) => setPoolAddress(event.target.value)}
+                          placeholder="Pool address"
+                          className="min-h-14 flex-1 bg-transparent px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600"
+                          spellCheck={false}
+                        />
+                        <button type="submit" disabled={loading} className="min-h-14 rounded-2xl bg-orange-300 px-6 text-sm font-bold uppercase tracking-[0.16em] text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60">
+                          {loading ? "Scanning" : "Scan"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-stone-300">Token mint pair</label>
+                      <input value={mintA} onChange={(event) => setMintA(event.target.value)} placeholder="Token A mint" className="min-h-14 w-full rounded-2xl border border-stone-700/80 bg-black/35 px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600" spellCheck={false} />
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <input value={mintB} onChange={(event) => setMintB(event.target.value)} placeholder="Token B mint" className="min-h-14 flex-1 rounded-2xl border border-stone-700/80 bg-black/35 px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600" spellCheck={false} />
+                        <button type="submit" disabled={loading} className="min-h-14 rounded-2xl bg-orange-300 px-6 text-sm font-bold uppercase tracking-[0.16em] text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60">
+                          {loading ? "Scanning" : "Scan"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </form>
 
-            <div className="mt-5 flex flex-wrap gap-2">
+            {mode === "token" ? <div className="mt-5 flex flex-wrap gap-2">
               {EXAMPLES.map((example) => (
                 <button
                   key={example.mint}
@@ -153,7 +295,7 @@ export default function Home() {
                   Try {example.label}
                 </button>
               ))}
-            </div>
+            </div> : null}
 
             {error ? (
               <div className="mt-6 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
@@ -162,9 +304,9 @@ export default function Home() {
             ) : null}
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <StatPill label="Signal" value="Authority" />
-              <StatPill label="Signal" value="Liquidity" />
-              <StatPill label="Signal" value="RugCheck" />
+              <StatPill label="Token" value="Authority" />
+              <StatPill label="Pair" value="Price + TVL" />
+              <StatPill label="DLMM" value="Fees + bins" />
             </div>
           </section>
 
@@ -194,60 +336,66 @@ function Header() {
   );
 }
 
-function ReportPanel({ report, loading }: { report: TokenReport | null; loading: boolean }) {
+function ReportPanel({ report, loading }: { report: ScanReport | null; loading: boolean }) {
   if (loading) return <LoadingReport />;
   if (!report) return <EmptyReport />;
 
-  const name = report.identity?.name ?? report.identity?.symbol ?? "Unknown token";
-  const score = report.risk?.score ?? 0;
-  const level = report.risk?.level ?? "low";
+  if ("kind" in report && report.kind === "pair") {
+    return <PairReportPanel report={report} />;
+  }
+
+  const tokenReport = report as TokenReport;
+
+  const name = tokenReport.identity?.name ?? tokenReport.identity?.symbol ?? "Unknown token";
+  const score = tokenReport.risk?.score ?? 0;
+  const level = tokenReport.risk?.level ?? "low";
 
   return (
     <section className="rounded-[2rem] border border-stone-700/80 bg-stone-950/70 p-4 shadow-2xl shadow-black/40 backdrop-blur sm:p-5">
       <div className="rounded-[1.55rem] border border-stone-800 bg-black/30 p-5">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 gap-4">
-            <TokenImage src={report.identity?.imageUrl} symbol={report.identity?.symbol} />
+            <TokenImage src={tokenReport.identity?.imageUrl} symbol={tokenReport.identity?.symbol} />
             <div className="min-w-0">
               <h2 className="truncate text-2xl font-semibold tracking-[-0.04em] text-stone-50">{name}</h2>
-              <p className="font-mono text-sm text-stone-500">{report.identity?.symbol ?? "—"}</p>
-              <p className="mt-2 break-all font-mono text-xs text-stone-500">{report.identity?.mint}</p>
+              <p className="font-mono text-sm text-stone-500">{tokenReport.identity?.symbol ?? "—"}</p>
+              <p className="mt-2 break-all font-mono text-xs text-stone-500">{tokenReport.identity?.mint}</p>
             </div>
           </div>
           <RiskBadge level={level} score={score} />
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Price" value={formatUsd(report.market?.priceUsd)} />
-          <Metric label="Liquidity" value={formatUsd(report.market?.liquidity)} />
-          <Metric label="24h volume" value={formatUsd(report.market?.volume24h)} />
-          <Metric label="Market cap / FDV" value={formatUsd(report.market?.marketCap)} />
+          <Metric label="Price" value={formatUsd(tokenReport.market?.priceUsd)} />
+          <Metric label="Liquidity" value={formatUsd(tokenReport.market?.liquidity)} />
+          <Metric label="24h volume" value={formatUsd(tokenReport.market?.volume24h)} />
+          <Metric label="Market cap / FDV" value={formatUsd(tokenReport.market?.marketCap)} />
         </div>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Card title="Authority checks">
-          <CheckRow label="Mint authority" value={short(report.supply?.mintAuthority) ?? "Revoked / none detected"} bad={Boolean(report.supply?.mintAuthority)} />
-          <CheckRow label="Freeze authority" value={short(report.supply?.freezeAuthority) ?? "Revoked / none detected"} bad={Boolean(report.supply?.freezeAuthority)} />
-          <CheckRow label="Token program" value={programLabel(report.identity?.tokenProgram)} />
-          <CheckRow label="Decimals" value={String(report.supply?.decimals ?? report.identity?.decimals ?? "—")} />
-          <CheckRow label="Supply" value={formatNumber(report.supply?.uiAmount)} />
+          <CheckRow label="Mint authority" value={short(tokenReport.supply?.mintAuthority) ?? "Revoked / none detected"} bad={Boolean(tokenReport.supply?.mintAuthority)} />
+          <CheckRow label="Freeze authority" value={short(tokenReport.supply?.freezeAuthority) ?? "Revoked / none detected"} bad={Boolean(tokenReport.supply?.freezeAuthority)} />
+          <CheckRow label="Token program" value={programLabel(tokenReport.identity?.tokenProgram)} />
+          <CheckRow label="Decimals" value={String(tokenReport.supply?.decimals ?? tokenReport.identity?.decimals ?? "—")} />
+          <CheckRow label="Supply" value={formatNumber(tokenReport.supply?.uiAmount)} />
         </Card>
 
         <Card title="Trust & liquidity">
-          <CheckRow label="Jupiter strict" value={yesNo(report.trust?.jupiterStrict)} bad={report.trust?.jupiterStrict === false} />
-          <CheckRow label="RugCheck level" value={report.trust?.rugCheckLevel ?? "Unavailable"} bad={isBadRugLevel(report.trust?.rugCheckLevel)} />
-          <CheckRow label="RugCheck score" value={numberOrDash(report.trust?.rugCheckScore)} />
-          <CheckRow label="Top holder" value={pct(report.trust?.topHolderPct)} bad={(report.trust?.topHolderPct ?? 0) > 20} />
-          <CheckRow label="Main DEX" value={report.market?.dexId ?? "Unavailable"} />
+          <CheckRow label="Jupiter strict" value={yesNo(tokenReport.trust?.jupiterStrict)} bad={tokenReport.trust?.jupiterStrict === false} />
+          <CheckRow label="RugCheck level" value={tokenReport.trust?.rugCheckLevel ?? "Unavailable"} bad={isBadRugLevel(tokenReport.trust?.rugCheckLevel)} />
+          <CheckRow label="RugCheck score" value={numberOrDash(tokenReport.trust?.rugCheckScore)} />
+          <CheckRow label="Top holder" value={pct(tokenReport.trust?.topHolderPct)} bad={(tokenReport.trust?.topHolderPct ?? 0) > 20} />
+          <CheckRow label="Main DEX" value={tokenReport.market?.dexId ?? "Unavailable"} />
         </Card>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card title="Risk factors">
-          {report.risk?.factors?.length ? (
+          {tokenReport.risk?.factors?.length ? (
             <div className="space-y-3">
-              {report.risk.factors.map((factor, index) => (
+              {tokenReport.risk.factors.map((factor, index) => (
                 <div key={`${factor.key}-${index}`} className="rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium text-stone-100">{factor.label ?? "Risk factor"}</p>
@@ -266,7 +414,7 @@ function ReportPanel({ report, loading }: { report: TokenReport | null; loading:
 
         <Card title="Sources">
           <div className="space-y-3">
-            {report.sources?.map((source) => (
+            {tokenReport.sources?.map((source) => (
               <div key={source.provider} className="flex items-center justify-between gap-3 rounded-2xl border border-stone-800 bg-stone-950/80 px-4 py-3">
                 <div>
                   <p className="text-sm font-medium capitalize text-stone-200">{source.provider.replaceAll("_", " ")}</p>
@@ -276,7 +424,95 @@ function ReportPanel({ report, loading }: { report: TokenReport | null; loading:
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs text-stone-500">Fetched {report.fetchedAt ? new Date(report.fetchedAt).toLocaleString() : "now"}</p>
+          <p className="mt-4 text-xs text-stone-500">Fetched {tokenReport.fetchedAt ? new Date(tokenReport.fetchedAt).toLocaleString() : "now"}</p>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
+function PairReportPanel({ report }: { report: PoolReport }) {
+  const pair = report.pair;
+  const tokenX = pair?.tokenX;
+  const tokenY = pair?.tokenY;
+  const symbolX = tokenX?.symbol ?? "Token X";
+  const symbolY = tokenY?.symbol ?? "Token Y";
+  const name = pair?.name ?? `${symbolX} / ${symbolY}`;
+
+  return (
+    <section className="rounded-[2rem] border border-stone-700/80 bg-stone-950/70 p-4 shadow-2xl shadow-black/40 backdrop-blur sm:p-5">
+      <div className="rounded-[1.55rem] border border-stone-800 bg-black/30 p-5">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="mb-2 w-fit rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-orange-200">
+              Meteora DLMM
+            </p>
+            <h2 className="truncate text-2xl font-semibold tracking-[-0.04em] text-stone-50">{name}</h2>
+            <p className="mt-2 break-all font-mono text-xs text-stone-500">{pair?.poolAddress}</p>
+          </div>
+          <div className={`rounded-3xl border px-5 py-4 text-center ${pair?.isBlacklisted ? "border-red-300/30 bg-red-300/10 text-red-100" : "border-emerald-300/30 bg-emerald-300/10 text-emerald-100"}`}>
+            <p className="text-sm font-black uppercase tracking-[0.16em]">{pair?.isBlacklisted ? "Blacklisted" : "Active"}</p>
+            <p className="mt-1 text-xs text-current/75">Pool status</p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="TVL" value={formatUsd(pair?.tvlUsd)} />
+          <Metric label="24h volume" value={formatUsd(pair?.volume24h)} />
+          <Metric label="24h fees" value={formatUsd(pair?.fees24h)} />
+          <Metric label="Bin step" value={numberOrDash(pair?.binStep)} />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Card title="Price">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-stone-500">Token Y per Token X</p>
+              <p className="mt-2 break-words text-2xl font-semibold text-stone-100">
+                1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-stone-500">Inverse</p>
+              <p className="mt-2 break-words text-xl font-semibold text-stone-100">
+                1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Pool fees">
+          <CheckRow label="Base fee" value={feePct(pair?.baseFeePct)} />
+          <CheckRow label="Dynamic fee" value={feePct(pair?.dynamicFeePct)} />
+          <CheckRow label="Max fee" value={feePct(pair?.maxFeePct)} />
+          <CheckRow label="Protocol fee" value={feePct(pair?.protocolFeePct)} />
+          <CheckRow label="APR / APY" value={`${pctValue(pair?.apr)} / ${pctValue(pair?.apy)}`} />
+        </Card>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Card title="Token X">
+          <TokenSummary token={tokenX} />
+        </Card>
+        <Card title="Token Y">
+          <TokenSummary token={tokenY} />
+        </Card>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card title="Tags">
+          {pair?.tags?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {pair.tags.map((tag) => <span key={tag} className="rounded-full border border-stone-700 bg-stone-900/80 px-3 py-1.5 text-xs text-stone-300">{tag}</span>)}
+            </div>
+          ) : (
+            <p className="text-sm text-stone-400">No tags reported by Meteora.</p>
+          )}
+        </Card>
+
+        <Card title="Sources">
+          <SourcesList sources={report.sources} fetchedAt={report.fetchedAt} />
         </Card>
       </div>
     </section>
@@ -318,6 +554,53 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
       <h3 className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-stone-400">{title}</h3>
       {children}
     </section>
+  );
+}
+
+function ModeChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${active ? "border-orange-300/60 bg-orange-300/15 text-orange-100" : "border-stone-700 bg-stone-900/80 text-stone-400 hover:text-stone-100"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TokenSummary({ token }: { token?: PairToken }) {
+  return (
+    <div>
+      <div className="mb-4 rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
+        <p className="text-2xl font-semibold tracking-[-0.04em] text-stone-100">{token?.symbol ?? "Unknown"}</p>
+        <p className="mt-2 break-all font-mono text-xs text-stone-500">{token?.mint ?? "—"}</p>
+      </div>
+      <CheckRow label="Name" value={token?.name ?? "Unavailable"} />
+      <CheckRow label="Amount" value={formatNumber(token?.amount)} />
+      <CheckRow label="USD price" value={formatUsd(token?.priceUsd)} />
+      <CheckRow label="Decimals" value={numberOrDash(token?.decimals)} />
+      <CheckRow label="Verified" value={yesNo(token?.verified)} bad={token?.verified === false} />
+    </div>
+  );
+}
+
+function SourcesList({ sources, fetchedAt }: { sources?: SourceStatus[]; fetchedAt?: string }) {
+  return (
+    <>
+      <div className="space-y-3">
+        {sources?.map((source) => (
+          <div key={source.provider} className="flex items-center justify-between gap-3 rounded-2xl border border-stone-800 bg-stone-950/80 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium capitalize text-stone-200">{source.provider.replaceAll("_", " ")}</p>
+              <p className="text-xs text-stone-500">{source.success ? `${source.latencyMs ?? 0}ms` : source.error ?? "Failed"}</p>
+            </div>
+            <span className={source.success ? "text-emerald-300" : "text-red-300"}>{source.success ? "●" : "×"}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-xs text-stone-500">Fetched {fetchedAt ? new Date(fetchedAt).toLocaleString() : "now"}</p>
+    </>
   );
 }
 
@@ -394,6 +677,23 @@ function formatUsd(value?: number) {
 function formatNumber(value?: number) {
   if (value == null || Number.isNaN(value)) return "—";
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
+
+function formatTokenPrice(value?: number) {
+  if (value == null || Number.isNaN(value)) return "—";
+  if (value === 0) return "0";
+  if (Math.abs(value) < 0.000001 || Math.abs(value) >= 1_000_000) return value.toExponential(4);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: value > 1 ? 6 : 10 }).format(value);
+}
+
+function feePct(value?: number) {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${value.toFixed(value < 0.01 ? 4 : 2)}%`;
+}
+
+function pctValue(value?: number) {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${value.toFixed(2)}%`;
 }
 
 function short(value?: string | null) {
