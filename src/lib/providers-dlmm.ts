@@ -113,6 +113,98 @@ export function normalizePair(raw: unknown): DlmmPairInfo {
   };
 }
 
+// ─── Pool Discovery ─────────────────────────────────────────────────────────
+
+export interface PoolDiscoveryResult {
+  totalFound: number;
+  pools: DlmmPairInfo[];
+}
+
+/**
+ * Fetch DLMM pools that contain a given token mint.
+ * Queries the Meteora paginated pools endpoint, normalizes results,
+ * exact-filters to pools where tokenX or tokenY matches the mint,
+ * excludes blacklisted pools, and sorts by TVL desc then volume24h desc.
+ */
+export async function fetchMeteoraDlmmPoolsByMint(
+  mint: string,
+): Promise<PoolDiscoveryResult> {
+  const params = new URLSearchParams({
+    query: mint,
+    page: "1",
+    page_size: "20",
+    sort_by: "tvl:desc",
+    filter_by: "is_blacklisted=false",
+  });
+  const url = `${BASE_URL}/pools?${params.toString()}`;
+  const data = await fetchJson(url);
+
+  // The endpoint returns { data: [...], total: N } or possibly an array
+  let rawPools: unknown[];
+  let totalFound = 0;
+
+  if (isObject(data) && Array.isArray(prop(data, "data"))) {
+    rawPools = prop(data, "data") as unknown[];
+    totalFound = toNumber(prop(data, "total")) ?? rawPools.length;
+  } else if (Array.isArray(data)) {
+    rawPools = data;
+    totalFound = rawPools.length;
+  } else {
+    throw new Error("Invalid response from DLMM pools endpoint: expected array or object with data");
+  }
+
+  // Normalize and filter
+  const pools: DlmmPairInfo[] = [];
+
+  for (const raw of rawPools) {
+    if (!isObject(raw)) continue;
+
+    // Pre-normalization mint check: account for various raw shapes
+    const rawMintX =
+      toString(prop(raw, "token_x", "mint")) ??
+      toString(prop(raw, "token_x", "address")) ??
+      toString(prop(raw, "mint_x_info", "mint")) ??
+      toString(prop(raw, "mint_x_info", "address")) ??
+      toString(raw.mint_x);
+    const rawMintY =
+      toString(prop(raw, "token_y", "mint")) ??
+      toString(prop(raw, "token_y", "address")) ??
+      toString(prop(raw, "mint_y_info", "mint")) ??
+      toString(prop(raw, "mint_y_info", "address")) ??
+      toString(raw.mint_y);
+
+    const matchesRaw = rawMintX === mint || rawMintY === mint;
+
+    // Skip early if raw mints don't match and we can tell
+    if (!matchesRaw && rawMintX && rawMintY) continue;
+
+    // Normalize the pair
+    let pair: DlmmPairInfo;
+    try {
+      pair = normalizePair(raw);
+    } catch {
+      continue;
+    }
+
+    // Post-normalization exact match
+    if (pair.tokenX.mint !== mint && pair.tokenY.mint !== mint) continue;
+
+    // Exclude blacklisted
+    if (pair.isBlacklisted) continue;
+
+    pools.push(pair);
+  }
+
+  // Sort by tvlUsd desc, then volume24h desc
+  pools.sort((a, b) => {
+    const tvlDiff = (b.tvlUsd ?? 0) - (a.tvlUsd ?? 0);
+    if (tvlDiff !== 0) return tvlDiff;
+    return (b.volume24h ?? 0) - (a.volume24h ?? 0);
+  });
+
+  return { totalFound, pools };
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**

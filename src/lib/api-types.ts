@@ -74,8 +74,30 @@ export interface PoolReport {
 
 export type { ApiErrorCode, ApiErrorBody } from "./api-errors";
 
+// ─── Pool Discovery ──────────────────────────────────────────────────────────
+
+export interface PoolDiscoveryReport {
+  kind: "pool_discovery";
+  query?: { mint?: string };
+  primaryPool?: DeepPartial<DlmmPairInfo> & {
+    tokenX?: PairToken;
+    tokenY?: PairToken;
+    tags?: string[];
+  };
+  pools?: (DeepPartial<DlmmPairInfo> & {
+    tokenX?: PairToken;
+    tokenY?: PairToken;
+    tags?: string[];
+  })[];
+  totalFound?: number;
+  totalMatched?: number;
+  selectionReason?: "highest_tvl" | "highest_volume" | "single_match" | null;
+  sources?: SourceStatus[];
+  fetchedAt?: string;
+}
+
 // ─── Union ───────────────────────────────────────────────────────────────────
 
-export type ScanReport = TokenReport | PoolReport;
-export type ScanMode = "token" | "pair";
+export type ScanReport = TokenReport | PoolReport | PoolDiscoveryReport;
+export type ScanMode = "token" | "pair" | "pool_discovery";
 export type PairInputMode = "pool" | "mints";

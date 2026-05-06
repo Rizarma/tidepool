@@ -798,3 +798,91 @@ describe("fetchMeteoraDlmmPairByMints parsing", () => {
     );
   });
 });
+
+describe("fetchMeteoraDlmmPoolsByMint parsing", () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("discovers exact mint matches and sorts by TVL then volume", async () => {
+    const { fetchMeteoraDlmmPoolsByMint } = await import("@/lib/providers-dlmm");
+    const mint = "mintA";
+    const payload = {
+      total: 4,
+      data: [
+        { pool_address: "low", current_price: 1, tvl: 100, trade_volume_24h: 5000, token_x: { mint }, token_y: { mint: "sol" } },
+        { pool_address: "wrong", current_price: 1, tvl: 100000, token_x: { mint: "other" }, token_y: { mint: "sol" } },
+        { pool_address: "highest", current_price: 1, tvl: 1000, trade_volume_24h: 10, token_x: { mint: "sol" }, token_y: { mint } },
+        { pool_address: "tieVolume", current_price: 1, tvl: 1000, trade_volume_24h: 20, token_x: { mint }, token_y: { mint: "usdc" } },
+      ],
+    };
+
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200 }),
+    );
+
+    const result = await fetchMeteoraDlmmPoolsByMint(mint);
+
+    expect(result.totalFound).toBe(4);
+    expect(result.pools.map((pool) => pool.poolAddress)).toEqual([
+      "tieVolume",
+      "highest",
+      "low",
+    ]);
+  });
+
+  it("supports token address fields and excludes blacklisted pools", async () => {
+    const { fetchMeteoraDlmmPoolsByMint } = await import("@/lib/providers-dlmm");
+    const mint = "mintA";
+    const payload = {
+      data: [
+        { address: "blacklisted", current_price: 1, tvl: 2000, is_blacklisted: true, token_x: { address: mint }, token_y: { address: "sol" } },
+        { address: "safe", current_price: 1, tvl: 1000, is_blacklisted: false, token_x: { address: "sol" }, token_y: { address: mint } },
+      ],
+    };
+
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200 }),
+    );
+
+    const result = await fetchMeteoraDlmmPoolsByMint(mint);
+
+    expect(result.pools).toHaveLength(1);
+    expect(result.pools[0].poolAddress).toBe("safe");
+    expect(result.pools[0].tokenY.mint).toBe(mint);
+  });
+
+  it("returns no pools when fuzzy results do not exactly match the mint", async () => {
+    const { fetchMeteoraDlmmPoolsByMint } = await import("@/lib/providers-dlmm");
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({
+        total: 1,
+        data: [
+          { pool_address: "fuzzy", current_price: 1, token_x: { mint: "other" }, token_y: { mint: "sol" } },
+        ],
+      }), { status: 200 }),
+    );
+
+    const result = await fetchMeteoraDlmmPoolsByMint("mintA");
+
+    expect(result.totalFound).toBe(1);
+    expect(result.pools).toEqual([]);
+  });
+
+  it("throws on invalid discovery response shape", async () => {
+    const { fetchMeteoraDlmmPoolsByMint } = await import("@/lib/providers-dlmm");
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ pools: [] }), { status: 200 }),
+    );
+
+    await expect(fetchMeteoraDlmmPoolsByMint("mintA")).rejects.toThrow(
+      "Invalid response from DLMM pools endpoint",
+    );
+  });
+});

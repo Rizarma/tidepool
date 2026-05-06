@@ -136,3 +136,18 @@ export interface PoolReport {
   /** ISO timestamp */
   fetchedAt: string;
 }
+
+// ─── Pool Discovery ──────────────────────────────────────────────────────────
+
+export interface PoolDiscoveryReport {
+  kind: "pool_discovery";
+  query: { mint: string };
+  primaryPool: DlmmPairInfo | null;
+  pools: DlmmPairInfo[];
+  totalFound: number;
+  totalMatched: number;
+  selectionReason: "highest_tvl" | "highest_volume" | "single_match" | null;
+  sources: SourceStatus[];
+  /** ISO timestamp */
+  fetchedAt: string;
+}

@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import type {
   PairInputMode,
   PairToken,
+  PoolDiscoveryReport,
   PoolReport,
   RiskLevel,
   ScanMode,
@@ -95,7 +96,28 @@ export default function ScanClient() {
           : `mintA=${encodeURIComponent(trimmedMintA)}&mintB=${encodeURIComponent(trimmedMintB)}`;
       const response = await fetch(`/api/scan/pair?${query}`);
       const data = await response.json();
-      if (!response.ok) throw new Error(parseApiError(data, "Pool scan failed"));
+
+      if (!response.ok) {
+        const code = getApiErrorCode(data);
+        if (pairInputMode === "pool" && code === "NO_DATA_FOUND") {
+          const discoveryResponse = await fetch(`/api/scan/pools?mint=${encodeURIComponent(trimmedPool)}`);
+          const discoveryData = await discoveryResponse.json();
+
+          if (!discoveryResponse.ok) {
+            if (getApiErrorCode(discoveryData) === "NO_DATA_FOUND") {
+              throw new Error("No Meteora DLMM pools found for this address. If this is a token mint, it may trade on another DEX. Try Token mode for broader token analysis.");
+            }
+            throw new Error(parseApiError(discoveryData, "Pool discovery failed"));
+          }
+
+          setPoolAddress(trimmedPool);
+          setReport(discoveryData);
+          return;
+        }
+
+        throw new Error(parseApiError(data, "Pool scan failed"));
+      }
+
       setPoolAddress(trimmedPool);
       setMintA(trimmedMintA);
       setMintB(trimmedMintB);
@@ -198,10 +220,10 @@ export default function ScanClient() {
               <input
                 ref={poolInputRef}
                 id="pool"
-                aria-label="Meteora DLMM pool address"
+                aria-label="Meteora DLMM pool or token address"
                 value={poolAddress}
                 onChange={(event) => setPoolAddress(event.target.value)}
-                placeholder="DLMM pool address…"
+                placeholder="Pool or token address…"
                 className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
                 spellCheck={false}
               />
@@ -293,6 +315,8 @@ export default function ScanClient() {
           <EmptyState mode={mode} onScanToken={scanToken} />
         ) : "kind" in report && report.kind === "pair" ? (
           <PairReportLayout report={report} />
+        ) : "kind" in report && report.kind === "pool_discovery" ? (
+          <PairReportLayout report={poolReportFromDiscovery(report)} discovery={report} />
         ) : (
           <TokenReportLayout report={report as TokenReport} />
         )}
@@ -390,7 +414,7 @@ function TokenReportLayout({ report }: { report: TokenReport }) {
 
 // ─── Pool Report Layout ─────────────────────────────────────────────────────
 
-function PairReportLayout({ report }: { report: PoolReport }) {
+function PairReportLayout({ report, discovery }: { report: PoolReport; discovery?: PoolDiscoveryReport }) {
   const pair = report.pair;
   const tokenX = pair?.tokenX;
   const tokenY = pair?.tokenY;
@@ -429,6 +453,12 @@ function PairReportLayout({ report }: { report: PoolReport }) {
 
       {/* ─── Center: Metrics + Price + Fees ─── */}
       <section className="border-b xl:border-b-0 xl:border-r border-[var(--panel-border)] panel-scroll p-3">
+        {discovery && (
+          <div className="mb-3 rounded border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+            Showing the highest-TVL Meteora DLMM pool for this token. {discovery.totalMatched ?? discovery.pools?.length ?? 1} matching {((discovery.totalMatched ?? discovery.pools?.length ?? 1) === 1) ? "pool" : "pools"} found.
+          </div>
+        )}
+
         {/* Key metrics */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 mb-4">
           <MetricCell label="TVL" value={formatUsd(pair?.tvlUsd)} />
@@ -494,10 +524,12 @@ function EmptyState({ mode, onScanToken }: { mode: ScanMode; onScanToken: (mint:
           ◇
         </div>
         <h2 className="text-base font-semibold text-zinc-200">
-          {mode === "token" ? "Enter a token mint to scan" : "Enter a pool address or token mints"}
+          {mode === "token" ? "Enter a token mint to scan" : "Enter a pool or token address"}
         </h2>
         <p className="mt-2 text-xs leading-5 text-zinc-500 max-w-sm mx-auto">
-          Risk score, authority checks, market metrics, liquidity data, and provider health will appear here.
+          {mode === "token"
+            ? "Risk score, authority checks, market metrics, liquidity data, and provider health will appear here."
+            : "Paste a Meteora DLMM pool address or a token mint from GMGN to find matching pools."}
         </p>
         {mode === "token" && (
           <div className="mt-4 flex justify-center gap-2">
@@ -519,6 +551,23 @@ function EmptyState({ mode, onScanToken }: { mode: ScanMode; onScanToken: (mint:
       </div>
     </div>
   );
+}
+
+function getApiErrorCode(data: unknown): string | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const error = (data as Record<string, unknown>).error;
+  if (!error || typeof error !== "object") return undefined;
+  const code = (error as Record<string, unknown>).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+function poolReportFromDiscovery(report: PoolDiscoveryReport): PoolReport {
+  return {
+    kind: "pair",
+    pair: report.primaryPool ?? report.pools?.[0],
+    sources: report.sources,
+    fetchedAt: report.fetchedAt,
+  };
 }
 
 function LoadingState() {
