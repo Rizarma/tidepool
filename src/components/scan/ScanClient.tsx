@@ -36,7 +36,7 @@ const EXAMPLES = [
 
 export default function ScanClient() {
   const [mint, setMint] = useState("");
-  const [mode, setMode] = useState<ScanMode>("token");
+  const [mode, setMode] = useState<ScanMode>("pair");
   const [pairInputMode, setPairInputMode] = useState<PairInputMode>("pool");
   const [poolAddress, setPoolAddress] = useState("");
   const [mintA, setMintA] = useState("");
@@ -79,7 +79,7 @@ export default function ScanClient() {
       return;
     }
     if (pairInputMode === "mints" && (!trimmedMintA || !trimmedMintB)) {
-      setError("Paste both token mint addresses for the DLMM pair.");
+      setError("Paste both token mint addresses for the DLMM pool.");
       return;
     }
 
@@ -94,13 +94,13 @@ export default function ScanClient() {
           : `mintA=${encodeURIComponent(trimmedMintA)}&mintB=${encodeURIComponent(trimmedMintB)}`;
       const response = await fetch(`/api/scan/pair?${query}`);
       const data = await response.json();
-      if (!response.ok) throw new Error(parseApiError(data, "Pair scan failed"));
+      if (!response.ok) throw new Error(parseApiError(data, "Pool scan failed"));
       setPoolAddress(trimmedPool);
       setMintA(trimmedMintA);
       setMintB(trimmedMintB);
       setReport(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Pair scan failed");
+      setError(err instanceof Error ? err.message : "Pool scan failed");
     } finally {
       setLoading(false);
     }
@@ -133,6 +133,18 @@ export default function ScanClient() {
           <div className="flex items-center rounded border border-[var(--panel-border)] bg-[var(--background)] p-0.5" role="group" aria-label="Scan mode">
             <button
               type="button"
+              onClick={() => setMode("pair")}
+              aria-pressed={mode === "pair"}
+              className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
+                mode === "pair"
+                  ? "bg-[var(--accent)] text-[var(--background)]"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Pool
+            </button>
+            <button
+              type="button"
               onClick={() => setMode("token")}
               aria-pressed={mode === "token"}
               className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
@@ -142,18 +154,6 @@ export default function ScanClient() {
               }`}
             >
               Token
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("pair")}
-              aria-pressed={mode === "pair"}
-              className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
-                mode === "pair"
-                  ? "bg-[var(--accent)] text-[var(--background)]"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              Pair
             </button>
           </div>
 
@@ -211,11 +211,11 @@ export default function ScanClient() {
             </button>
           </form>
 
-          {/* Pair sub-mode toggle */}
+          {/* Pool sub-mode toggle */}
           {mode === "pair" && (
             <>
               <div className="h-5 w-px bg-[var(--panel-border)] shrink-0" />
-              <div className="flex items-center gap-1 shrink-0" role="group" aria-label="Pair input mode">
+              <div className="flex items-center gap-1 shrink-0" role="group" aria-label="Pool input mode">
                 <ModeChip active={pairInputMode === "pool"} onClick={() => setPairInputMode("pool")}>Pool</ModeChip>
                 <ModeChip active={pairInputMode === "mints"} onClick={() => setPairInputMode("mints")}>Mints</ModeChip>
               </div>
@@ -362,7 +362,7 @@ function TokenReportLayout({ report }: { report: TokenReport }) {
   );
 }
 
-// ─── Pair Report Layout ─────────────────────────────────────────────────────
+// ─── Pool Report Layout ─────────────────────────────────────────────────────
 
 function PairReportLayout({ report }: { report: PoolReport }) {
   const pair = report.pair;
@@ -468,7 +468,7 @@ function EmptyState({ mode, onScanToken }: { mode: ScanMode; onScanToken: (mint:
           ◇
         </div>
         <h2 className="text-base font-semibold text-zinc-200">
-          {mode === "token" ? "Enter a token mint to scan" : "Enter a pool address or mint pair"}
+          {mode === "token" ? "Enter a token mint to scan" : "Enter a pool address or token mints"}
         </h2>
         <p className="mt-2 text-xs leading-5 text-zinc-500 max-w-sm mx-auto">
           Risk score, authority checks, market metrics, liquidity data, and provider health will appear here.
