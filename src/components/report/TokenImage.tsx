@@ -3,23 +3,29 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 
-export function TokenImage({ src, symbol }: { src?: string; symbol?: string }) {
+export function TokenImage({ src, symbol, size = 40 }: { src?: string; symbol?: string; size?: number }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const initials = useMemo(() => (symbol?.slice(0, 2) || "??").toUpperCase(), [symbol]);
 
+  const sizeClass = size <= 32 ? "size-8" : size <= 40 ? "size-10" : "size-12";
+
   if (!src || failedSrc === src) {
-    return <div className="grid size-16 shrink-0 place-items-center rounded-3xl bg-stone-800 text-lg font-black text-stone-300">{initials}</div>;
+    return (
+      <div className={`${sizeClass} grid shrink-0 place-items-center rounded bg-[#1e2028] text-xs font-bold text-zinc-400`}>
+        {initials}
+      </div>
+    );
   }
 
   return (
     <Image
       src={src}
-      alt=""
-      width={64}
-      height={64}
+      alt={symbol ? `${symbol} token logo` : "Token logo"}
+      width={size}
+      height={size}
       unoptimized
       onError={() => setFailedSrc(src)}
-      className="size-16 shrink-0 rounded-3xl object-cover ring-1 ring-stone-700"
+      className={`${sizeClass} shrink-0 rounded object-cover ring-1 ring-[var(--panel-border)]`}
     />
   );
 }

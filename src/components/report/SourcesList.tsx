@@ -2,19 +2,26 @@ import type { SourceStatus } from "@/lib/api-types";
 
 export function SourcesList({ sources, fetchedAt }: { sources?: SourceStatus[]; fetchedAt?: string }) {
   return (
-    <>
-      <div className="space-y-3">
-        {sources?.map((source) => (
-          <div key={source.provider} className="flex items-center justify-between gap-3 rounded-2xl border border-stone-800 bg-stone-950/80 px-4 py-3">
-            <div>
-              <p className="text-sm font-medium capitalize text-stone-200">{source.provider.replaceAll("_", " ")}</p>
-              <p className="text-xs text-stone-500">{source.success ? `${source.latencyMs ?? 0}ms` : source.error ?? "Failed"}</p>
-            </div>
-            <span className={source.success ? "text-emerald-300" : "text-red-300"}>{source.success ? "●" : "×"}</span>
+    <div className="space-y-0.5">
+      {sources?.map((source) => (
+        <div
+          key={source.provider}
+          className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-xs hover:bg-white/[0.02]"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`inline-block size-1.5 rounded-full shrink-0 ${source.success ? "bg-emerald-400" : "bg-red-400"}`} />
+            <span className="font-medium capitalize text-zinc-300 truncate">{source.provider.replaceAll("_", " ")}</span>
           </div>
-        ))}
-      </div>
-      <p className="mt-4 text-xs text-stone-500">Fetched {fetchedAt ? new Date(fetchedAt).toLocaleString() : "now"}</p>
-    </>
+          <span className="text-zinc-500 tabular-nums shrink-0">
+            {source.success ? `${source.latencyMs ?? 0}ms` : source.error ?? "err"}
+          </span>
+        </div>
+      ))}
+      {fetchedAt && (
+        <p className="pt-1.5 px-2 text-[10px] text-zinc-500">
+          {new Date(fetchedAt).toLocaleString()}
+        </p>
+      )}
+    </div>
   );
 }

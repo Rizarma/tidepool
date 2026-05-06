@@ -113,247 +113,258 @@ export default function ScanClient() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(236,115,72,0.22),transparent_34rem),linear-gradient(135deg,#17130f_0%,#0d1117_50%,#16130d_100%)] text-stone-100">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:48px_48px] opacity-30" />
-
-      <section className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 py-8 sm:px-8 lg:px-10 lg:py-12">
-        <Header />
-
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
-          <section className="rounded-[2rem] border border-orange-200/15 bg-stone-950/55 p-5 shadow-2xl shadow-black/30 backdrop-blur sm:p-7">
-            <p className="mb-3 w-fit rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-200">
-              token + dlmm pair scanner
-            </p>
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.06em] text-stone-50 sm:text-6xl lg:text-7xl">
-              Solana pool scanner for LP due diligence.
-            </h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-stone-300 sm:text-lg">
-              Scan a token mint for risk signals, or scan a Meteora DLMM pool to inspect pair price, TVL, fees, and token ordering.
-            </p>
-
-            <form onSubmit={onSubmit} className="mt-8 space-y-4">
-              <div className="grid grid-cols-2 gap-2 rounded-3xl border border-stone-700/80 bg-black/35 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => setMode("token")}
-                  className={`rounded-2xl px-4 py-3 text-sm font-bold uppercase tracking-[0.14em] transition ${mode === "token" ? "bg-orange-300 text-stone-950" : "text-stone-400 hover:text-stone-100"}`}
-                >
-                  Token
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("pair")}
-                  className={`rounded-2xl px-4 py-3 text-sm font-bold uppercase tracking-[0.14em] transition ${mode === "pair" ? "bg-orange-300 text-stone-950" : "text-stone-400 hover:text-stone-100"}`}
-                >
-                  DLMM Pair
-                </button>
-              </div>
-
-              {mode === "token" ? (
-                <>
-                  <label className="block text-sm font-medium text-stone-300" htmlFor="mint">
-                    Token mint address
-                  </label>
-                  <div className="flex flex-col gap-3 rounded-3xl border border-stone-700/80 bg-black/35 p-2 sm:flex-row">
-                    <input
-                      id="mint"
-                      value={mint}
-                      onChange={(event) => setMint(event.target.value)}
-                      placeholder="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-                      className="min-h-14 flex-1 bg-transparent px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600"
-                      spellCheck={false}
-                    />
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="min-h-14 rounded-2xl bg-orange-300 px-6 text-sm font-bold uppercase tracking-[0.16em] text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {loading ? "Scanning" : "Scan"}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex flex-wrap gap-2">
-                    <ModeChip active={pairInputMode === "pool"} onClick={() => setPairInputMode("pool")}>Pool address</ModeChip>
-                    <ModeChip active={pairInputMode === "mints"} onClick={() => setPairInputMode("mints")}>Token mints</ModeChip>
-                  </div>
-                  {pairInputMode === "pool" ? (
-                    <div>
-                      <label className="block text-sm font-medium text-stone-300" htmlFor="pool">
-                        Meteora DLMM pool address
-                      </label>
-                      <div className="mt-2 flex flex-col gap-3 rounded-3xl border border-stone-700/80 bg-black/35 p-2 sm:flex-row">
-                        <input
-                          id="pool"
-                          value={poolAddress}
-                          onChange={(event) => setPoolAddress(event.target.value)}
-                          placeholder="Pool address"
-                          className="min-h-14 flex-1 bg-transparent px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600"
-                          spellCheck={false}
-                        />
-                        <button type="submit" disabled={loading} className="min-h-14 rounded-2xl bg-orange-300 px-6 text-sm font-bold uppercase tracking-[0.16em] text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60">
-                          {loading ? "Scanning" : "Scan"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <label className="block text-sm font-medium text-stone-300">Token mint pair</label>
-                      <input value={mintA} onChange={(event) => setMintA(event.target.value)} placeholder="Token A mint" className="min-h-14 w-full rounded-2xl border border-stone-700/80 bg-black/35 px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600" spellCheck={false} />
-                      <div className="flex flex-col gap-3 sm:flex-row">
-                        <input value={mintB} onChange={(event) => setMintB(event.target.value)} placeholder="Token B mint" className="min-h-14 flex-1 rounded-2xl border border-stone-700/80 bg-black/35 px-4 font-mono text-sm text-stone-100 outline-none placeholder:text-stone-600" spellCheck={false} />
-                        <button type="submit" disabled={loading} className="min-h-14 rounded-2xl bg-orange-300 px-6 text-sm font-bold uppercase tracking-[0.16em] text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60">
-                          {loading ? "Scanning" : "Scan"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </form>
-
-            {mode === "token" ? <div className="mt-5 flex flex-wrap gap-2">
-              {EXAMPLES.map((example) => (
-                <button
-                  key={example.mint}
-                  type="button"
-                  onClick={() => void scanToken(example.mint)}
-                  className="rounded-full border border-stone-700 bg-stone-900/80 px-3 py-1.5 text-xs font-medium text-stone-300 transition hover:border-orange-300/50 hover:text-orange-100"
-                >
-                  Try {example.label}
-                </button>
-              ))}
-            </div> : null}
-
-            {error ? (
-              <div className="mt-6 rounded-2xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
-                {error}
-              </div>
-            ) : null}
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <StatPill label="Token" value="Authority" />
-              <StatPill label="Pair" value="Price + TVL" />
-              <StatPill label="DLMM" value="Fees + bins" />
+    <div className="app-shell flex flex-col h-full">
+      {/* ─── Command Bar ─────────────────────────────────────────────── */}
+      <header className="shrink-0 border-b border-[var(--panel-border)] bg-[var(--panel-bg)]">
+        <div className="flex items-center gap-3 px-3 py-2 xl:px-4">
+          {/* Brand */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="grid size-7 place-items-center rounded bg-[var(--accent)] text-xs font-black text-[var(--background)]">
+              T
             </div>
-          </section>
-
-          <ReportPanel report={report} loading={loading} />
-        </div>
-      </section>
-    </main>
-  );
-}
-
-// ─── Layout sub-components ───────────────────────────────────────────────────
-
-function Header() {
-  return (
-    <header className="relative flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <div className="grid size-11 place-items-center rounded-2xl bg-orange-300 text-lg font-black text-stone-950 shadow-lg shadow-orange-950/30">
-          T
-        </div>
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.25em] text-stone-200">Tidepool</p>
-          <p className="text-xs text-stone-500">Solana risk scanner</p>
-        </div>
-      </div>
-      <p className="hidden max-w-sm text-right text-xs leading-5 text-stone-500 sm:block">
-        Informational only. Scores flag detected risk, not safety or investment quality.
-      </p>
-    </header>
-  );
-}
-
-// ─── Report panels ───────────────────────────────────────────────────────────
-
-function ReportPanel({ report, loading }: { report: ScanReport | null; loading: boolean }) {
-  if (loading) return <LoadingReport />;
-  if (!report) return <EmptyReport />;
-
-  if ("kind" in report && report.kind === "pair") {
-    return <PairReportPanel report={report} />;
-  }
-
-  const tokenReport = report as TokenReport;
-
-  const name = tokenReport.identity?.name ?? tokenReport.identity?.symbol ?? "Unknown token";
-  const score = tokenReport.risk?.score ?? 0;
-  const level = tokenReport.risk?.level ?? "low";
-
-  return (
-    <section className="rounded-[2rem] border border-stone-700/80 bg-stone-950/70 p-4 shadow-2xl shadow-black/40 backdrop-blur sm:p-5">
-      <div className="rounded-[1.55rem] border border-stone-800 bg-black/30 p-5">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 gap-4">
-            <TokenImage src={tokenReport.identity?.imageUrl} symbol={tokenReport.identity?.symbol} />
-            <div className="min-w-0">
-              <h2 className="truncate text-2xl font-semibold tracking-[-0.04em] text-stone-50">{name}</h2>
-              <p className="font-mono text-sm text-stone-500">{tokenReport.identity?.symbol ?? "—"}</p>
-              <p className="mt-2 break-all font-mono text-xs text-stone-500">{tokenReport.identity?.mint}</p>
-            </div>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-300 hidden sm:inline">
+              Tidepool
+            </span>
           </div>
-          <RiskBadge level={level} score={score} />
+
+          <div className="h-5 w-px bg-[var(--panel-border)] shrink-0" />
+
+          {/* Mode toggle */}
+          <div className="flex items-center rounded border border-[var(--panel-border)] bg-[var(--background)] p-0.5" role="group" aria-label="Scan mode">
+            <button
+              type="button"
+              onClick={() => setMode("token")}
+              aria-pressed={mode === "token"}
+              className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
+                mode === "token"
+                  ? "bg-[var(--accent)] text-[var(--background)]"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Token
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("pair")}
+              aria-pressed={mode === "pair"}
+              className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
+                mode === "pair"
+                  ? "bg-[var(--accent)] text-[var(--background)]"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Pair
+            </button>
+          </div>
+
+          {/* Scan form inline */}
+          <form onSubmit={onSubmit} className="flex flex-1 items-center gap-2 min-w-0" aria-label="Scan address form">
+            {mode === "token" ? (
+              <input
+                id="mint"
+                aria-label="Token mint address"
+                value={mint}
+                onChange={(event) => setMint(event.target.value)}
+                placeholder="Token mint address…"
+                className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+                spellCheck={false}
+              />
+            ) : pairInputMode === "pool" ? (
+              <input
+                id="pool"
+                aria-label="Meteora DLMM pool address"
+                value={poolAddress}
+                onChange={(event) => setPoolAddress(event.target.value)}
+                placeholder="DLMM pool address…"
+                className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+                spellCheck={false}
+              />
+            ) : (
+              <div className="flex flex-1 gap-1.5 min-w-0">
+                <input
+                  id="mint-a"
+                  aria-label="Token mint A address"
+                  value={mintA}
+                  onChange={(event) => setMintA(event.target.value)}
+                  placeholder="Mint A…"
+                  className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+                  spellCheck={false}
+                />
+                <input
+                  id="mint-b"
+                  aria-label="Token mint B address"
+                  value={mintB}
+                  onChange={(event) => setMintB(event.target.value)}
+                  placeholder="Mint B…"
+                  className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+                  spellCheck={false}
+                />
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="shrink-0 rounded bg-[var(--accent)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--background)] transition hover:bg-[var(--accent-dim)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "…" : "Scan"}
+            </button>
+          </form>
+
+          {/* Pair sub-mode toggle */}
+          {mode === "pair" && (
+            <>
+              <div className="h-5 w-px bg-[var(--panel-border)] shrink-0" />
+              <div className="flex items-center gap-1 shrink-0" role="group" aria-label="Pair input mode">
+                <ModeChip active={pairInputMode === "pool"} onClick={() => setPairInputMode("pool")}>Pool</ModeChip>
+                <ModeChip active={pairInputMode === "mints"} onClick={() => setPairInputMode("mints")}>Mints</ModeChip>
+              </div>
+            </>
+          )}
+
+          {/* Examples */}
+          {mode === "token" && (
+            <>
+              <div className="h-5 w-px bg-[var(--panel-border)] shrink-0 hidden xl:block" />
+              <div className="hidden xl:flex items-center gap-1 shrink-0">
+                {EXAMPLES.map((ex) => (
+                  <button
+                    key={ex.mint}
+                    type="button"
+                    onClick={() => void scanToken(ex.mint)}
+                    className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-300"
+                  >
+                    {ex.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Status indicator */}
+          <div className="h-5 w-px bg-[var(--panel-border)] shrink-0 hidden sm:block" />
+          <div className="hidden sm:flex items-center gap-1.5 shrink-0" role="status" aria-live="polite">
+            <span className={`inline-block size-1.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : report ? "bg-emerald-400" : "bg-zinc-600"}`} />
+            <span className="text-[10px] text-zinc-500">
+              {loading ? "Scanning" : report ? "Ready" : "Idle"}
+            </span>
+          </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Price" value={formatUsd(tokenReport.market?.priceUsd)} />
-          <Metric label="Liquidity" value={formatUsd(tokenReport.market?.liquidity)} />
-          <Metric label="24h volume" value={formatUsd(tokenReport.market?.volume24h)} />
-          <Metric label="Market cap / FDV" value={formatUsd(tokenReport.market?.marketCap)} />
+        {/* Error bar */}
+        {error && (
+          <div role="alert" className="border-t border-red-500/20 bg-red-500/5 px-4 py-1.5 text-xs text-red-300">
+            {error}
+          </div>
+        )}
+      </header>
+
+      {/* ─── Main Content ────────────────────────────────────────────── */}
+      <main className="app-main flex-1 min-h-0 overflow-auto xl:overflow-hidden">
+        {loading ? (
+          <LoadingState />
+        ) : !report ? (
+          <EmptyState mode={mode} onScanToken={scanToken} />
+        ) : "kind" in report && report.kind === "pair" ? (
+          <PairReportLayout report={report} />
+        ) : (
+          <TokenReportLayout report={report as TokenReport} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+// ─── Token Report Layout (3-column on desktop) ──────────────────────────────
+
+function TokenReportLayout({ report }: { report: TokenReport }) {
+  const name = report.identity?.name ?? report.identity?.symbol ?? "Unknown";
+  const score = report.risk?.score ?? 0;
+  const level = report.risk?.level ?? "low";
+
+  return (
+    <div className="h-full lg:grid lg:grid-cols-[260px_1fr] xl:grid-cols-[280px_1fr_300px] xl:grid-rows-[1fr]">
+      {/* ─── Left Rail: Identity + Authority ─── */}
+      <aside className="border-b xl:border-b-0 xl:border-r border-[var(--panel-border)] panel-scroll p-3">
+        {/* Identity */}
+        <div className="flex items-center gap-3 mb-3">
+          <TokenImage src={report.identity?.imageUrl} symbol={report.identity?.symbol} size={40} />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-zinc-100 truncate">{name}</p>
+            <p className="font-mono text-[11px] text-zinc-500">{report.identity?.symbol ?? "—"}</p>
+          </div>
         </div>
-      </div>
+        <p className="font-mono text-[10px] text-zinc-500 break-all mb-4">{report.identity?.mint}</p>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Card title="Authority checks">
-          <CheckRow label="Mint authority" value={short(tokenReport.supply?.mintAuthority) ?? "Revoked / none detected"} bad={Boolean(tokenReport.supply?.mintAuthority)} />
-          <CheckRow label="Freeze authority" value={short(tokenReport.supply?.freezeAuthority) ?? "Revoked / none detected"} bad={Boolean(tokenReport.supply?.freezeAuthority)} />
-          <CheckRow label="Token program" value={programLabel(tokenReport.identity?.tokenProgram)} />
-          <CheckRow label="Decimals" value={String(tokenReport.supply?.decimals ?? tokenReport.identity?.decimals ?? "—")} />
-          <CheckRow label="Supply" value={formatNumber(tokenReport.supply?.uiAmount)} />
-        </Card>
+        {/* Risk badge */}
+        <RiskBadge level={level} score={score} />
 
-        <Card title="Trust & liquidity">
-          <CheckRow label="Jupiter strict" value={yesNo(tokenReport.trust?.jupiterStrict)} bad={tokenReport.trust?.jupiterStrict === false} />
-          <CheckRow label="RugCheck level" value={tokenReport.trust?.rugCheckLevel ?? "Unavailable"} bad={isBadRugLevel(tokenReport.trust?.rugCheckLevel)} />
-          <CheckRow label="RugCheck score" value={numberOrDash(tokenReport.trust?.rugCheckScore)} />
-          <CheckRow label="Top holder" value={pct(tokenReport.trust?.topHolderPct)} bad={(tokenReport.trust?.topHolderPct ?? 0) > 20} />
-          <CheckRow label="Main DEX" value={tokenReport.market?.dexId ?? "Unavailable"} />
-        </Card>
-      </div>
+        {/* Authority checks */}
+        <PanelSection title="Authority" className="mt-4">
+          <DataRow label="Mint auth" value={short(report.supply?.mintAuthority) ?? "Revoked"} bad={Boolean(report.supply?.mintAuthority)} />
+          <DataRow label="Freeze auth" value={short(report.supply?.freezeAuthority) ?? "Revoked"} bad={Boolean(report.supply?.freezeAuthority)} />
+          <DataRow label="Program" value={programLabel(report.identity?.tokenProgram)} />
+          <DataRow label="Decimals" value={String(report.supply?.decimals ?? report.identity?.decimals ?? "—")} />
+          <DataRow label="Supply" value={formatNumber(report.supply?.uiAmount)} />
+        </PanelSection>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card title="Risk factors">
-          {tokenReport.risk?.factors?.length ? (
-            <div className="space-y-3">
-              {tokenReport.risk.factors.map((factor, index) => (
-                <div key={`${factor.key}-${index}`} className="rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium text-stone-100">{factor.label ?? "Risk factor"}</p>
-                    <span className="rounded-full bg-orange-300/15 px-2.5 py-1 text-xs font-bold text-orange-200">+{factor.weight ?? 0}</span>
+        {/* Trust */}
+        <PanelSection title="Trust" className="mt-3">
+          <DataRow label="Jupiter strict" value={yesNo(report.trust?.jupiterStrict)} bad={report.trust?.jupiterStrict === false} />
+          <DataRow label="RugCheck" value={report.trust?.rugCheckLevel ?? "—"} bad={isBadRugLevel(report.trust?.rugCheckLevel)} />
+          <DataRow label="RC score" value={numberOrDash(report.trust?.rugCheckScore)} />
+          <DataRow label="Top holder" value={pct(report.trust?.topHolderPct)} bad={(report.trust?.topHolderPct ?? 0) > 20} />
+          <DataRow label="DEX" value={report.market?.dexId ?? "—"} />
+        </PanelSection>
+      </aside>
+
+      {/* ─── Center: Metrics + Risk Factors ─── */}
+      <section className="border-b xl:border-b-0 xl:border-r border-[var(--panel-border)] panel-scroll p-3">
+        {/* Key metrics row */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 mb-4">
+          <MetricCell label="Price" value={formatUsd(report.market?.priceUsd)} />
+          <MetricCell label="Liquidity" value={formatUsd(report.market?.liquidity)} />
+          <MetricCell label="24h Vol" value={formatUsd(report.market?.volume24h)} />
+          <MetricCell label="MCap/FDV" value={formatUsd(report.market?.marketCap)} />
+        </div>
+
+        {/* Risk factors */}
+        <PanelSection title="Risk Factors">
+          {report.risk?.factors?.length ? (
+            <div className="space-y-1.5">
+              {report.risk.factors.map((factor, index) => (
+                <div key={`${factor.key}-${index}`} className="flex items-start justify-between gap-2 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-zinc-200">{factor.label ?? "Risk factor"}</p>
+                    {factor.detail && <p className="mt-0.5 text-[11px] leading-4 text-zinc-500">{factor.detail}</p>}
                   </div>
-                  {factor.detail ? <p className="mt-2 text-sm leading-6 text-stone-400">{factor.detail}</p> : null}
+                  <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 tabular-nums">
+                    +{factor.weight ?? 0}
+                  </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
-              No major risk factors detected by the current providers. This does not mean the token is safe.
+            <p className="rounded border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
+              No major risk factors detected. This does not mean the token is safe.
             </p>
           )}
-        </Card>
+        </PanelSection>
+      </section>
 
-        <Card title="Sources">
-          <SourcesList sources={tokenReport.sources} fetchedAt={tokenReport.fetchedAt} />
-        </Card>
-      </div>
-    </section>
+      {/* ─── Right Rail: Sources ─── */}
+      <aside className="panel-scroll p-3 lg:col-span-2 xl:col-span-1">
+        <PanelSection title="Sources">
+          <SourcesList sources={report.sources} fetchedAt={report.fetchedAt} />
+        </PanelSection>
+      </aside>
+    </div>
   );
 }
 
-function PairReportPanel({ report }: { report: PoolReport }) {
+// ─── Pair Report Layout ─────────────────────────────────────────────────────
+
+function PairReportLayout({ report }: { report: PoolReport }) {
   const pair = report.pair;
   const tokenX = pair?.tokenX;
   const tokenY = pair?.tokenY;
@@ -362,122 +373,196 @@ function PairReportPanel({ report }: { report: PoolReport }) {
   const name = pair?.name ?? `${symbolX} / ${symbolY}`;
 
   return (
-    <section className="rounded-[2rem] border border-stone-700/80 bg-stone-950/70 p-4 shadow-2xl shadow-black/40 backdrop-blur sm:p-5">
-      <div className="rounded-[1.55rem] border border-stone-800 bg-black/30 p-5">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="mb-2 w-fit rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-orange-200">
-              Meteora DLMM
+    <div className="h-full lg:grid lg:grid-cols-[260px_1fr] xl:grid-cols-[280px_1fr_300px] xl:grid-rows-[1fr]">
+      {/* ─── Left Rail: Pool identity + Tokens ─── */}
+      <aside className="border-b xl:border-b-0 xl:border-r border-[var(--panel-border)] panel-scroll p-3">
+        <div className="mb-3">
+          <span className="inline-block rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1.5">
+            Meteora DLMM
+          </span>
+          <p className="text-sm font-semibold text-zinc-100">{name}</p>
+          <p className="font-mono text-[10px] text-zinc-500 break-all mt-1">{pair?.poolAddress}</p>
+        </div>
+
+        {/* Status */}
+        <div className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold ${pair?.isBlacklisted ? "bg-red-500/10 text-red-300" : "bg-emerald-500/10 text-emerald-300"}`}>
+          <span className={`size-1.5 rounded-full ${pair?.isBlacklisted ? "bg-red-400" : "bg-emerald-400"}`} />
+          {pair?.isBlacklisted ? "Blacklisted" : "Active"}
+        </div>
+
+        {/* Token X */}
+        <PanelSection title={`Token X — ${symbolX}`} className="mt-4">
+          <TokenSummaryCompact token={tokenX} />
+        </PanelSection>
+
+        {/* Token Y */}
+        <PanelSection title={`Token Y — ${symbolY}`} className="mt-3">
+          <TokenSummaryCompact token={tokenY} />
+        </PanelSection>
+      </aside>
+
+      {/* ─── Center: Metrics + Price + Fees ─── */}
+      <section className="border-b xl:border-b-0 xl:border-r border-[var(--panel-border)] panel-scroll p-3">
+        {/* Key metrics */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 mb-4">
+          <MetricCell label="TVL" value={formatUsd(pair?.tvlUsd)} />
+          <MetricCell label="24h Vol" value={formatUsd(pair?.volume24h)} />
+          <MetricCell label="24h Fees" value={formatUsd(pair?.fees24h)} />
+          <MetricCell label="Bin Step" value={numberOrDash(pair?.binStep)} />
+        </div>
+
+        {/* Price */}
+        <PanelSection title="Price">
+          <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2 mb-2">
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Y per X</p>
+            <p className="text-sm font-semibold text-zinc-100 mt-0.5">
+              1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
             </p>
-            <h2 className="truncate text-2xl font-semibold tracking-[-0.04em] text-stone-50">{name}</h2>
-            <p className="mt-2 break-all font-mono text-xs text-stone-500">{pair?.poolAddress}</p>
           </div>
-          <div className={`rounded-3xl border px-5 py-4 text-center ${pair?.isBlacklisted ? "border-red-300/30 bg-red-300/10 text-red-100" : "border-emerald-300/30 bg-emerald-300/10 text-emerald-100"}`}>
-            <p className="text-sm font-black uppercase tracking-[0.16em]">{pair?.isBlacklisted ? "Blacklisted" : "Active"}</p>
-            <p className="mt-1 text-xs text-current/75">Pool status</p>
+          <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Inverse</p>
+            <p className="text-sm font-semibold text-zinc-100 mt-0.5">
+              1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
+            </p>
           </div>
-        </div>
+        </PanelSection>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="TVL" value={formatUsd(pair?.tvlUsd)} />
-          <Metric label="24h volume" value={formatUsd(pair?.volume24h)} />
-          <Metric label="24h fees" value={formatUsd(pair?.fees24h)} />
-          <Metric label="Bin step" value={numberOrDash(pair?.binStep)} />
-        </div>
-      </div>
+        {/* Fees */}
+        <PanelSection title="Pool Fees" className="mt-3">
+          <DataRow label="Base fee" value={feePct(pair?.baseFeePct)} />
+          <DataRow label="Dynamic fee" value={feePct(pair?.dynamicFeePct)} />
+          <DataRow label="Max fee" value={feePct(pair?.maxFeePct)} />
+          <DataRow label="Protocol fee" value={feePct(pair?.protocolFeePct)} />
+          <DataRow label="APR / APY" value={`${pctValue(pair?.apr)} / ${pctValue(pair?.apy)}`} />
+        </PanelSection>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Card title="Price">
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-stone-500">Token Y per Token X</p>
-              <p className="mt-2 break-words text-2xl font-semibold text-stone-100">
-                1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
-              </p>
+        {/* Tags */}
+        {pair?.tags?.length ? (
+          <PanelSection title="Tags" className="mt-3">
+            <div className="flex flex-wrap gap-1">
+              {pair.tags.map((tag) => (
+                <span key={tag} className="rounded bg-white/[0.04] px-2 py-0.5 text-[10px] text-zinc-400">{tag}</span>
+              ))}
             </div>
-            <div className="rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-stone-500">Inverse</p>
-              <p className="mt-2 break-words text-xl font-semibold text-stone-100">
-                1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
-              </p>
-            </div>
-          </div>
-        </Card>
+          </PanelSection>
+        ) : null}
+      </section>
 
-        <Card title="Pool fees">
-          <CheckRow label="Base fee" value={feePct(pair?.baseFeePct)} />
-          <CheckRow label="Dynamic fee" value={feePct(pair?.dynamicFeePct)} />
-          <CheckRow label="Max fee" value={feePct(pair?.maxFeePct)} />
-          <CheckRow label="Protocol fee" value={feePct(pair?.protocolFeePct)} />
-          <CheckRow label="APR / APY" value={`${pctValue(pair?.apr)} / ${pctValue(pair?.apy)}`} />
-        </Card>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Card title="Token X">
-          <TokenSummary token={tokenX} />
-        </Card>
-        <Card title="Token Y">
-          <TokenSummary token={tokenY} />
-        </Card>
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card title="Tags">
-          {pair?.tags?.length ? (
-            <div className="flex flex-wrap gap-2">
-              {pair.tags.map((tag) => <span key={tag} className="rounded-full border border-stone-700 bg-stone-900/80 px-3 py-1.5 text-xs text-stone-300">{tag}</span>)}
-            </div>
-          ) : (
-            <p className="text-sm text-stone-400">No tags reported by Meteora.</p>
-          )}
-        </Card>
-
-        <Card title="Sources">
+      {/* ─── Right Rail: Sources ─── */}
+      <aside className="panel-scroll p-3 lg:col-span-2 xl:col-span-1">
+        <PanelSection title="Sources">
           <SourcesList sources={report.sources} fetchedAt={report.fetchedAt} />
-        </Card>
-      </div>
-    </section>
+        </PanelSection>
+      </aside>
+    </div>
   );
 }
 
-// ─── Shared presentational components ────────────────────────────────────────
+// ─── Empty & Loading States ─────────────────────────────────────────────────
 
-function EmptyReport() {
+function EmptyState({ mode, onScanToken }: { mode: ScanMode; onScanToken: (mint: string) => void }) {
   return (
-    <section className="grid min-h-[34rem] place-items-center rounded-[2rem] border border-dashed border-stone-700/80 bg-stone-950/45 p-8 text-center backdrop-blur">
-      <div className="max-w-md">
-        <div className="mx-auto mb-6 grid size-20 place-items-center rounded-[2rem] border border-orange-300/20 bg-orange-300/10 text-3xl">⌁</div>
-        <h2 className="text-2xl font-semibold tracking-[-0.04em] text-stone-100">Awaiting mint address</h2>
-        <p className="mt-3 text-sm leading-6 text-stone-400">
-          Your report will show market liquidity, authority status, risk factors, provider health, and trust signals.
+    <div className="h-full grid place-items-center p-6">
+      <div className="max-w-md text-center">
+        <div className="mx-auto mb-4 grid size-12 place-items-center rounded-lg border border-[var(--panel-border)] bg-[var(--panel-bg)] text-lg text-zinc-500">
+          ◇
+        </div>
+        <h2 className="text-base font-semibold text-zinc-200">
+          {mode === "token" ? "Enter a token mint to scan" : "Enter a pool address or mint pair"}
+        </h2>
+        <p className="mt-2 text-xs leading-5 text-zinc-500 max-w-sm mx-auto">
+          Risk score, authority checks, market metrics, liquidity data, and provider health will appear here.
+        </p>
+        {mode === "token" && (
+          <div className="mt-4 flex justify-center gap-2">
+            {EXAMPLES.map((ex) => (
+              <button
+                key={ex.mint}
+                type="button"
+                onClick={() => onScanToken(ex.mint)}
+                className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:border-[var(--accent)]/40 hover:text-zinc-200"
+              >
+                {ex.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="mt-6 text-[10px] text-zinc-500 max-w-xs mx-auto">
+          Informational only. Scores flag detected risk, not safety or investment quality.
         </p>
       </div>
-    </section>
+    </div>
   );
 }
 
-function LoadingReport() {
+function LoadingState() {
   return (
-    <section className="rounded-[2rem] border border-stone-700/80 bg-stone-950/60 p-5 backdrop-blur">
-      <div className="animate-pulse space-y-5">
-        <div className="h-40 rounded-[1.5rem] bg-stone-800/70" />
-        <div className="grid gap-5 xl:grid-cols-2">
-          <div className="h-64 rounded-[1.5rem] bg-stone-800/50" />
-          <div className="h-64 rounded-[1.5rem] bg-stone-800/50" />
-        </div>
-        <div className="h-48 rounded-[1.5rem] bg-stone-800/40" />
+    <div className="h-full grid place-items-center p-6" role="status" aria-live="polite" aria-label="Scanning providers">
+      <div className="text-center">
+        <div className="mx-auto mb-3 size-8 rounded-full border-2 border-[var(--accent)]/30 border-t-[var(--accent)] animate-spin" />
+        <p className="text-xs text-zinc-400">Scanning providers…</p>
       </div>
-    </section>
+    </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+// ─── Shared Presentational Components ───────────────────────────────────────
+
+function PanelSection({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className="rounded-[1.5rem] border border-stone-800 bg-black/25 p-4">
-      <h3 className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-stone-400">{title}</h3>
+    <div className={className}>
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 mb-2">{title}</h3>
       {children}
-    </section>
+    </div>
+  );
+}
+
+function MetricCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold text-zinc-100 tabular-nums truncate">{value}</p>
+    </div>
+  );
+}
+
+function DataRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1 border-b border-[var(--panel-border)] last:border-b-0">
+      <span className="text-[11px] text-zinc-500">{label}</span>
+      <span title={value} className={`text-[11px] font-medium tabular-nums text-right truncate max-w-[14rem] ${bad ? "text-red-300" : "text-zinc-200"}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function RiskBadge({ level, score }: { level: RiskLevel; score: number }) {
+  const styles: Record<RiskLevel, string> = {
+    low: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    medium: "border-yellow-500/30 bg-yellow-500/10 text-yellow-300",
+    high: "border-orange-500/30 bg-orange-500/10 text-orange-300",
+    critical: "border-red-500/30 bg-red-500/10 text-red-300",
+  };
+
+  return (
+    <div className={`rounded border px-3 py-2 flex items-center justify-between ${styles[level]}`}>
+      <span className="text-[10px] font-bold uppercase tracking-wider">{level} risk</span>
+      <span className="text-lg font-black tabular-nums">{score}</span>
+    </div>
+  );
+}
+
+function TokenSummaryCompact({ token }: { token?: PairToken }) {
+  return (
+    <div>
+      <DataRow label="Name" value={token?.name ?? "—"} />
+      <DataRow label="Symbol" value={token?.symbol ?? "—"} />
+      <DataRow label="Amount" value={formatNumber(token?.amount)} />
+      <DataRow label="Price" value={formatUsd(token?.priceUsd)} />
+      <DataRow label="Decimals" value={numberOrDash(token?.decimals)} />
+      <DataRow label="Verified" value={yesNo(token?.verified)} bad={token?.verified === false} />
+    </div>
   );
 }
 
@@ -486,68 +571,14 @@ function ModeChip({ active, onClick, children }: { active: boolean; onClick: () 
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${active ? "border-orange-300/60 bg-orange-300/15 text-orange-100" : "border-stone-700 bg-stone-900/80 text-stone-400 hover:text-stone-100"}`}
+      aria-pressed={active}
+      className={`rounded px-2 py-0.5 text-[10px] font-semibold transition ${
+        active
+          ? "bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30"
+          : "text-zinc-500 hover:text-zinc-300 border border-transparent"
+      }`}
     >
       {children}
     </button>
-  );
-}
-
-function TokenSummary({ token }: { token?: PairToken }) {
-  return (
-    <div>
-      <div className="mb-4 rounded-2xl border border-stone-800 bg-stone-950/80 p-4">
-        <p className="text-2xl font-semibold tracking-[-0.04em] text-stone-100">{token?.symbol ?? "Unknown"}</p>
-        <p className="mt-2 break-all font-mono text-xs text-stone-500">{token?.mint ?? "—"}</p>
-      </div>
-      <CheckRow label="Name" value={token?.name ?? "Unavailable"} />
-      <CheckRow label="Amount" value={formatNumber(token?.amount)} />
-      <CheckRow label="USD price" value={formatUsd(token?.priceUsd)} />
-      <CheckRow label="Decimals" value={numberOrDash(token?.decimals)} />
-      <CheckRow label="Verified" value={yesNo(token?.verified)} bad={token?.verified === false} />
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-800 bg-stone-950/70 p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-stone-500">{label}</p>
-      <p className="mt-2 truncate text-xl font-semibold text-stone-100">{value}</p>
-    </div>
-  );
-}
-
-function CheckRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-stone-800 py-3 last:border-b-0">
-      <span className="text-sm text-stone-400">{label}</span>
-      <span className={`max-w-[13rem] break-all text-right text-sm font-medium ${bad ? "text-red-200" : "text-stone-100"}`}>{value}</span>
-    </div>
-  );
-}
-
-function RiskBadge({ level, score }: { level: RiskLevel; score: number }) {
-  const styles: Record<RiskLevel, string> = {
-    low: "border-emerald-300/30 bg-emerald-300/10 text-emerald-100",
-    medium: "border-yellow-300/30 bg-yellow-300/10 text-yellow-100",
-    high: "border-orange-300/30 bg-orange-300/10 text-orange-100",
-    critical: "border-red-300/30 bg-red-300/10 text-red-100",
-  };
-
-  return (
-    <div className={`rounded-3xl border px-5 py-4 text-center ${styles[level]}`}>
-      <p className="text-4xl font-black tracking-[-0.08em]">{score}</p>
-      <p className="mt-1 text-xs font-bold uppercase tracking-[0.2em]">{level} risk</p>
-    </div>
-  );
-}
-
-function StatPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-stone-800 bg-black/25 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-stone-500">{label}</p>
-      <p className="mt-2 font-semibold text-stone-200">{value}</p>
-    </div>
   );
 }
