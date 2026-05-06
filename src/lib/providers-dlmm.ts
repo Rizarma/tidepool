@@ -3,21 +3,78 @@
  * Base URL: https://dlmm.datapi.meteora.ag
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import type { DlmmPairInfo, PairToken } from "@/lib/types";
 
 const BASE_URL = "https://dlmm.datapi.meteora.ag";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Parse Helpers ───────────────────────────────────────────────────────────
 
-async function fetchJson(url: string, timeoutMs = 10_000): Promise<any> {
+/** Type guard: value is a non-null object */
+function isObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Safely access a nested property path on unknown data */
+function prop(obj: unknown, ...keys: string[]): unknown {
+  let cur: unknown = obj;
+  for (const k of keys) {
+    if (!isObject(cur)) return undefined;
+    cur = (cur as Record<string, unknown>)[k];
+  }
+  return cur;
+}
+
+/** Strict regex: optional sign, digits, optional decimal, optional exponent */
+const STRICT_NUMERIC_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+
+/** Parse a numeric value from unknown – strict and finite only */
+function toNumber(v: unknown): number | undefined {
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+    if (!trimmed || !STRICT_NUMERIC_RE.test(trimmed)) return undefined;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
+/** Parse a string value from unknown */
+function toString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Parse a boolean value from unknown */
+function toBool(v: unknown): boolean | undefined {
+  return typeof v === "boolean" ? v : undefined;
+}
+
+/** Assert value is an array, return it or empty array */
+function toArray(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+/** Filter an unknown value to a string[] or undefined. Only keeps actual strings. */
+function toStringArray(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const filtered = v.filter((item): item is string => typeof item === "string");
+  return filtered.length > 0 ? filtered : undefined;
+}
+
+// ─── Fetch Helpers ───────────────────────────────────────────────────────────
+
+async function fetchJson(url: string, timeoutMs = 10_000): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-    return await res.json();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("Invalid JSON in response");
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -25,81 +82,69 @@ async function fetchJson(url: string, timeoutMs = 10_000): Promise<any> {
 
 // ─── Normalization ───────────────────────────────────────────────────────────
 
-function parsePairToken(raw: any, amountField?: number): PairToken {
-  if (!raw || typeof raw !== "object") {
+function parsePairToken(raw: unknown, amountField?: number): PairToken {
+  if (!isObject(raw)) {
     return { mint: "" };
   }
   return {
-    mint: raw.mint ?? raw.address ?? "",
-    name: raw.name ?? undefined,
-    symbol: raw.symbol ?? undefined,
-    decimals: typeof raw.decimals === "number" ? raw.decimals : undefined,
-    priceUsd:
-      typeof raw.price_usd === "number"
-        ? raw.price_usd
-        : typeof raw.price === "number"
-          ? raw.price
-          : undefined,
-    verified:
-      typeof raw.verified === "boolean"
-        ? raw.verified
-        : typeof raw.is_verified === "boolean"
-          ? raw.is_verified
-          : undefined,
+    mint: toString(raw.mint) ?? toString(raw.address) ?? "",
+    name: toString(raw.name),
+    symbol: toString(raw.symbol),
+    decimals: toNumber(raw.decimals),
+    priceUsd: toNumber(raw.price_usd) ?? toNumber(raw.price),
+    verified: toBool(raw.verified) ?? toBool(raw.is_verified),
     amount: typeof amountField === "number" ? amountField : undefined,
-    holders: typeof raw.holders === "number" ? raw.holders : undefined,
-    freezeAuthorityDisabled:
-      typeof raw.freeze_authority_disabled === "boolean"
-        ? raw.freeze_authority_disabled
-        : undefined,
-    marketCap: typeof raw.market_cap === "number" ? raw.market_cap : undefined,
+    holders: toNumber(raw.holders),
+    freezeAuthorityDisabled: toBool(raw.freeze_authority_disabled),
+    marketCap: toNumber(raw.market_cap),
   };
 }
 
-function normalizePair(raw: any): DlmmPairInfo {
-  if (!raw || typeof raw !== "object") {
+function normalizePair(raw: unknown): DlmmPairInfo {
+  if (!isObject(raw)) {
     throw new Error("Invalid pool data: expected an object");
   }
 
-  const poolAddress: string = raw.pool_address ?? raw.address ?? raw.pair ?? "";
+  const poolAddress: string =
+    toString(raw.pool_address) ?? toString(raw.address) ?? toString(raw.pair) ?? "";
   if (!poolAddress) {
     throw new Error("Invalid pool data: missing pool address");
   }
 
-  const currentPrice =
-    typeof raw.current_price === "number"
-      ? raw.current_price
-      : typeof raw.current_price === "string"
-        ? parseFloat(raw.current_price)
-        : undefined;
-
+  const currentPrice = toNumber(raw.current_price);
   const inversePrice =
     currentPrice && currentPrice > 0 ? 1 / currentPrice : undefined;
 
-  const tokenXAmount =
-    typeof raw.token_x_amount === "number"
-      ? raw.token_x_amount
-      : typeof raw.token_x_amount === "string"
-        ? parseFloat(raw.token_x_amount)
-        : undefined;
+  const tokenXAmount = toNumber(raw.token_x_amount);
+  const tokenYAmount = toNumber(raw.token_y_amount);
 
-  const tokenYAmount =
-    typeof raw.token_y_amount === "number"
-      ? raw.token_y_amount
-      : typeof raw.token_y_amount === "string"
-        ? parseFloat(raw.token_y_amount)
-        : undefined;
+  const tokenXRaw = prop(raw, "token_x") ?? prop(raw, "mint_x_info");
+  const tokenYRaw = prop(raw, "token_y") ?? prop(raw, "mint_y_info");
 
-  const tokenX = parsePairToken(raw.token_x ?? raw.mint_x_info, tokenXAmount);
-  const tokenY = parsePairToken(raw.token_y ?? raw.mint_y_info, tokenYAmount);
+  const tokenX = parsePairToken(tokenXRaw, tokenXAmount);
+  const tokenY = parsePairToken(tokenYRaw, tokenYAmount);
 
   // Fallback: if token objects don't have mint, use top-level mint_x / mint_y
-  if (!tokenX.mint && raw.mint_x) tokenX.mint = raw.mint_x;
-  if (!tokenY.mint && raw.mint_y) tokenY.mint = raw.mint_y;
+  if (!tokenX.mint) {
+    const mintX = toString(raw.mint_x);
+    if (mintX) tokenX.mint = mintX;
+  }
+  if (!tokenY.mint) {
+    const mintY = toString(raw.mint_y);
+    if (mintY) tokenY.mint = mintY;
+  }
+
+  // Token mints are required for a valid pool
+  if (!tokenX.mint) {
+    throw new Error("Invalid pool data: missing token X mint");
+  }
+  if (!tokenY.mint) {
+    throw new Error("Invalid pool data: missing token Y mint");
+  }
 
   return {
     poolAddress,
-    name: raw.name ?? undefined,
+    name: toString(raw.name),
     tokenX,
     tokenY,
     priceTokenYPerTokenX:
@@ -107,54 +152,28 @@ function normalizePair(raw: any): DlmmPairInfo {
     inversePrice:
       inversePrice && !isNaN(inversePrice) ? inversePrice : undefined,
     binStep:
-      typeof raw.bin_step === "number"
-        ? raw.bin_step
-        : typeof raw.pool_config?.bin_step === "number"
-          ? raw.pool_config.bin_step
-          : undefined,
+      toNumber(raw.bin_step) ?? toNumber(prop(raw, "pool_config", "bin_step")),
     baseFeePct:
-      typeof raw.base_fee_percentage === "number"
-        ? raw.base_fee_percentage
-        : typeof raw.base_fee_pct === "number"
-          ? raw.base_fee_pct
-          : typeof raw.pool_config?.base_fee_pct === "number"
-            ? raw.pool_config.base_fee_pct
-            : undefined,
+      toNumber(raw.base_fee_percentage) ??
+      toNumber(raw.base_fee_pct) ??
+      toNumber(prop(raw, "pool_config", "base_fee_pct")),
     maxFeePct:
-      typeof raw.max_fee_percentage === "number"
-        ? raw.max_fee_percentage
-        : typeof raw.max_fee_pct === "number"
-          ? raw.max_fee_pct
-          : typeof raw.pool_config?.max_fee_pct === "number"
-            ? raw.pool_config.max_fee_pct
-            : undefined,
+      toNumber(raw.max_fee_percentage) ??
+      toNumber(raw.max_fee_pct) ??
+      toNumber(prop(raw, "pool_config", "max_fee_pct")),
     protocolFeePct:
-      typeof raw.protocol_fee_percentage === "number"
-        ? raw.protocol_fee_percentage
-        : typeof raw.protocol_fee_pct === "number"
-          ? raw.protocol_fee_pct
-          : typeof raw.pool_config?.protocol_fee_pct === "number"
-            ? raw.pool_config.protocol_fee_pct
-            : undefined,
+      toNumber(raw.protocol_fee_percentage) ??
+      toNumber(raw.protocol_fee_pct) ??
+      toNumber(prop(raw, "pool_config", "protocol_fee_pct")),
     dynamicFeePct:
-      typeof raw.dynamic_fee_percentage === "number"
-        ? raw.dynamic_fee_percentage
-        : typeof raw.dynamic_fee_pct === "number"
-          ? raw.dynamic_fee_pct
-          : undefined,
-    tvlUsd:
-      typeof raw.tvl === "number"
-        ? raw.tvl
-        : typeof raw.liquidity === "number"
-          ? raw.liquidity
-          : undefined,
-    volume24h: raw.volume?.["24h"] ?? raw.trade_volume_24h ?? undefined,
-    fees24h: raw.fees?.["24h"] ?? raw.fee_volume_24h ?? undefined,
-    apr: typeof raw.apr === "number" ? raw.apr : undefined,
-    apy: typeof raw.apy === "number" ? raw.apy : undefined,
-    isBlacklisted:
-      typeof raw.is_blacklisted === "boolean" ? raw.is_blacklisted : undefined,
-    tags: Array.isArray(raw.tags) ? raw.tags : undefined,
+      toNumber(raw.dynamic_fee_percentage) ?? toNumber(raw.dynamic_fee_pct),
+    tvlUsd: toNumber(raw.tvl) ?? toNumber(raw.liquidity),
+    volume24h: toNumber(prop(raw, "volume", "24h")) ?? toNumber(raw.trade_volume_24h),
+    fees24h: toNumber(prop(raw, "fees", "24h")) ?? toNumber(raw.fee_volume_24h),
+    apr: toNumber(raw.apr),
+    apy: toNumber(raw.apy),
+    isBlacklisted: toBool(raw.is_blacklisted),
+    tags: toStringArray(raw.tags),
   };
 }
 
@@ -169,8 +188,12 @@ export async function fetchMeteoraDlmmPool(
   const url = `${BASE_URL}/pools/${poolAddress}`;
   const data = await fetchJson(url);
 
+  if (!isObject(data)) {
+    throw new Error("Invalid response from DLMM: expected object");
+  }
+
   // The single-pool endpoint returns a flat object (or possibly wrapped)
-  const raw = data?.pool ?? data;
+  const raw = isObject(prop(data, "pool")) ? prop(data, "pool") : data;
   return normalizePair(raw);
 }
 
@@ -187,11 +210,14 @@ export async function fetchMeteoraDlmmPairByMints(
   const data = await fetchJson(url);
 
   // Group endpoint returns { data: [...] } or possibly an array
-  const pools: any[] = Array.isArray(data?.data)
-    ? data.data
-    : Array.isArray(data)
-      ? data
-      : [];
+  let pools: unknown[];
+  if (isObject(data) && Array.isArray(prop(data, "data"))) {
+    pools = prop(data, "data") as unknown[];
+  } else if (Array.isArray(data)) {
+    pools = data;
+  } else {
+    throw new Error("Invalid response from DLMM: expected array or object with data");
+  }
 
   if (pools.length === 0) {
     throw new Error(
@@ -199,26 +225,29 @@ export async function fetchMeteoraDlmmPairByMints(
     );
   }
 
-  // Choose first non-blacklisted pool with current_price > 0
-  const preferred = pools.find((p: any) => {
-    const price =
-      typeof p.current_price === "number"
-        ? p.current_price
-        : parseFloat(p.current_price);
-    return !p.is_blacklisted && price > 0;
+  // Choose first non-blacklisted pool with current_price > 0.
+  // Only treat explicit false or absent (undefined) as safe; any truthy/unknown value is unsafe.
+  const preferred = pools.find((p: unknown) => {
+    if (!isObject(p)) return false;
+    const price = toNumber(p.current_price);
+    const bl = p.is_blacklisted;
+    const isSafe = bl === false || bl === undefined;
+    return isSafe && price !== undefined && price > 0;
   });
 
   // Fallback: first pool with a valid price
   const fallback =
     preferred ??
-    pools.find((p: any) => {
-      const price =
-        typeof p.current_price === "number"
-          ? p.current_price
-          : parseFloat(p.current_price);
-      return price > 0;
+    pools.find((p: unknown) => {
+      if (!isObject(p)) return false;
+      const price = toNumber(p.current_price);
+      return price !== undefined && price > 0;
     });
 
   const chosen = fallback ?? pools[0];
   return normalizePair(chosen);
 }
+
+// ─── Exported parse helpers (for testing) ────────────────────────────────────
+
+export const _dlmmParseHelpers = { isObject, prop, toNumber, toString, toBool, toArray, toStringArray, normalizePair, parsePairToken };

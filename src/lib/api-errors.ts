@@ -92,6 +92,10 @@ const INVALID_RESPONSE_PATTERNS = [
 export function classifyProviderError(raw: string | undefined): SanitizedApiError {
   if (!raw) return { code: "PROVIDER_UNAVAILABLE", message: "Provider error", status: 502 };
 
+  // RPC errors with stable prefix should not leak through to NOT_FOUND classification.
+  // Route them to PROVIDER_UNAVAILABLE before pattern matching can misclassify.
+  if (/^RPC error:/i.test(raw)) return { code: "PROVIDER_UNAVAILABLE", message: "Provider unavailable", status: 502 };
+
   // Check patterns in priority order
   for (const pattern of TIMEOUT_PATTERNS) {
     if (pattern.test(raw)) return { code: "PROVIDER_TIMEOUT", message: "Timed out", status: 504 };

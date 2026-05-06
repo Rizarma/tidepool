@@ -3,31 +3,78 @@
  * All are designed to be consumed via Promise.allSettled.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// ─── Parse Helpers ───────────────────────────────────────────────────────────
 
-// Using `any` intentionally for defensive parsing of external API responses.
-// Provider shapes can change without notice; we extract known fields safely.
+/** Type guard: value is a non-null object */
+function isObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+/** Safely access a nested property path on unknown data */
+function prop(obj: unknown, ...keys: string[]): unknown {
+  let cur: unknown = obj;
+  for (const k of keys) {
+    if (!isObject(cur)) return undefined;
+    cur = (cur as Record<string, unknown>)[k];
+  }
+  return cur;
+}
 
-async function fetchJson(url: string, timeoutMs = 10_000): Promise<any> {
+/** Strict regex: optional sign, digits, optional decimal, optional exponent */
+const STRICT_NUMERIC_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+
+/** Parse a numeric value from unknown – strict and finite only */
+function toNumber(v: unknown): number | undefined {
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+    if (!trimmed || !STRICT_NUMERIC_RE.test(trimmed)) return undefined;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
+/** Parse a string value from unknown */
+function toString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Parse a boolean value from unknown */
+function toBool(v: unknown): boolean | undefined {
+  return typeof v === "boolean" ? v : undefined;
+}
+
+/** Assert value is an array, return it or empty array */
+function toArray(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+
+// ─── Fetch Helpers ───────────────────────────────────────────────────────────
+
+async function fetchJson(url: string, timeoutMs = 10_000): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-    return await res.json();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("Invalid JSON in response");
+    }
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function rpcCall<T = unknown>(
+async function rpcCall(
   method: string,
   params: unknown[],
   rpcUrl: string,
   timeoutMs = 10_000,
-): Promise<T> {
+): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -38,9 +85,21 @@ async function rpcCall<T = unknown>(
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`RPC HTTP ${res.status}`);
-    const json = (await res.json()) as { result?: T; error?: { message: string } };
-    if (json.error) throw new Error(json.error.message);
-    return json.result as T;
+    const text = await res.text();
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error("Invalid JSON in RPC response");
+    }
+    if (!isObject(json)) {
+      throw new Error("Invalid RPC response: expected object");
+    }
+    if (isObject(json.error)) {
+      const msg = toString((json.error as Record<string, unknown>).message);
+      throw new Error(`RPC error: ${msg ?? "unknown"}`);
+    }
+    return json.result;
   } finally {
     clearTimeout(timer);
   }
@@ -66,36 +125,49 @@ export async function fetchDexScreener(mint: string): Promise<DexScreenerResult>
     `https://api.dexscreener.com/latest/dex/tokens/${mint}`,
   );
 
+  if (!isObject(data)) {
+    throw new Error("Invalid response from DexScreener: expected object");
+  }
+
   // DexScreener returns { pairs: [...] }
-  const pairs = Array.isArray(data?.pairs) ? data.pairs : [];
+  const pairs = toArray(prop(data, "pairs"));
   if (pairs.length === 0) return {};
 
   // Use the first pair with highest liquidity
-  const sorted = [...pairs].sort(
-    (a: any, b: any) => (b?.liquidity?.usd ?? 0) - (a?.liquidity?.usd ?? 0),
-  );
+  const sorted = [...pairs]
+    .filter(isObject)
+    .sort((a, b) => {
+      const liqA = toNumber(prop(a, "liquidity", "usd")) ?? 0;
+      const liqB = toNumber(prop(b, "liquidity", "usd")) ?? 0;
+      return liqB - liqA;
+    });
   const pair = sorted[0];
   if (!pair) return {};
 
   // Find the base token matching our mint
-  const baseToken =
-    pair.baseToken?.address === mint
-      ? pair.baseToken
-      : pair.quoteToken?.address === mint
-        ? pair.quoteToken
-        : pair.baseToken;
+  const baseTokenRaw = prop(pair, "baseToken");
+  const quoteTokenRaw = prop(pair, "quoteToken");
+
+  let baseToken: unknown;
+  if (isObject(baseTokenRaw) && prop(baseTokenRaw, "address") === mint) {
+    baseToken = baseTokenRaw;
+  } else if (isObject(quoteTokenRaw) && prop(quoteTokenRaw, "address") === mint) {
+    baseToken = quoteTokenRaw;
+  } else {
+    baseToken = baseTokenRaw;
+  }
 
   return {
-    priceUsd: parseFloat(pair.priceUsd) || undefined,
-    priceNative: parseFloat(pair.priceNative) || undefined,
-    marketCap: pair.marketCap ?? pair.fdv ?? undefined,
-    volume24h: pair.volume?.h24 ?? undefined,
-    liquidity: pair.liquidity?.usd ?? undefined,
-    pairAddress: pair.pairAddress ?? undefined,
-    dexId: pair.dexId ?? undefined,
-    name: baseToken?.name ?? undefined,
-    symbol: baseToken?.symbol ?? undefined,
-    imageUrl: pair.info?.imageUrl ?? undefined,
+    priceUsd: toNumber(prop(pair, "priceUsd")) || undefined,
+    priceNative: toNumber(prop(pair, "priceNative")) || undefined,
+    marketCap: toNumber(prop(pair, "marketCap")) ?? toNumber(prop(pair, "fdv")) ?? undefined,
+    volume24h: toNumber(prop(pair, "volume", "h24")) ?? undefined,
+    liquidity: toNumber(prop(pair, "liquidity", "usd")) ?? undefined,
+    pairAddress: toString(prop(pair, "pairAddress")) ?? undefined,
+    dexId: toString(prop(pair, "dexId")) ?? undefined,
+    name: toString(prop(baseToken, "name")) ?? undefined,
+    symbol: toString(prop(baseToken, "symbol")) ?? undefined,
+    imageUrl: toString(prop(pair, "info", "imageUrl")) ?? undefined,
   };
 }
 
@@ -114,31 +186,37 @@ export async function fetchRugCheck(mint: string): Promise<RugCheckResult> {
     `https://api.rugcheck.xyz/v1/tokens/${mint}/report`,
   );
 
+  if (!isObject(data)) {
+    throw new Error("Invalid response from RugCheck: expected object");
+  }
+
   const risks: string[] = [];
   const dangers: string[] = [];
 
   // Defensive: risks may be array of objects with level/description
-  if (Array.isArray(data?.risks)) {
-    for (const r of data.risks) {
-      const desc = r?.description ?? r?.name ?? String(r);
-      if (r?.level === "danger" || r?.level === "critical") {
-        dangers.push(desc);
-      } else {
-        risks.push(desc);
-      }
+  const risksArr = toArray(prop(data, "risks"));
+  for (const r of risksArr) {
+    if (!isObject(r)) continue;
+    const desc = toString(prop(r, "description")) ?? toString(prop(r, "name")) ?? String(r);
+    const level = toString(prop(r, "level"));
+    if (level === "danger" || level === "critical") {
+      dangers.push(desc);
+    } else {
+      risks.push(desc);
     }
   }
 
   // Top holder concentration
   let topHolderPct: number | undefined;
-  if (Array.isArray(data?.topHolders) && data.topHolders.length > 0) {
-    topHolderPct = data.topHolders[0]?.pct ?? data.topHolders[0]?.percentage ?? undefined;
-    if (topHolderPct != null) topHolderPct = Number(topHolderPct);
+  const topHolders = toArray(prop(data, "topHolders"));
+  if (topHolders.length > 0 && isObject(topHolders[0])) {
+    const holder = topHolders[0] as Record<string, unknown>;
+    topHolderPct = toNumber(holder.pct) ?? toNumber(holder.percentage);
   }
 
   return {
-    score: typeof data?.score === "number" ? data.score : undefined,
-    level: typeof data?.riskLevel === "string" ? data.riskLevel : undefined,
+    score: toNumber(prop(data, "score")),
+    level: toString(prop(data, "riskLevel")),
     topHolderPct,
     warnings: risks,
     dangers,
@@ -165,20 +243,22 @@ export async function fetchJupiter(mint: string): Promise<JupiterResult> {
 
   const result: JupiterResult = {};
 
-  if (tokenInfoRes.status === "fulfilled" && tokenInfoRes.value) {
+  if (tokenInfoRes.status === "fulfilled" && isObject(tokenInfoRes.value)) {
     const info = tokenInfoRes.value;
-    result.name = info.name ?? undefined;
-    result.symbol = info.symbol ?? undefined;
-    result.decimals = typeof info.decimals === "number" ? info.decimals : undefined;
+    result.name = toString(prop(info, "name"));
+    result.symbol = toString(prop(info, "symbol"));
+    result.decimals = toNumber(prop(info, "decimals"));
     // strict list tokens have tags including "strict" or a strict boolean
-    result.strict = info.strict === true || (Array.isArray(info.tags) && info.tags.includes("strict"));
-    result.imageUrl = info.logoURI ?? undefined;
+    const tags = toArray(prop(info, "tags"));
+    result.strict = prop(info, "strict") === true || tags.includes("strict");
+    result.imageUrl = toString(prop(info, "logoURI"));
   }
 
-  if (priceRes.status === "fulfilled" && priceRes.value) {
-    const priceData = priceRes.value?.data?.[mint];
-    if (priceData?.price != null) {
-      result.priceUsd = Number(priceData.price) || undefined;
+  if (priceRes.status === "fulfilled" && isObject(priceRes.value)) {
+    const priceData = prop(priceRes.value, "data", mint);
+    if (isObject(priceData)) {
+      const price = toNumber(prop(priceData, "price"));
+      result.priceUsd = price || undefined;
     }
   }
 
@@ -263,15 +343,22 @@ export async function fetchSolanaRpc(mint: string): Promise<SolanaRpcResult> {
     "https://api.mainnet-beta.solana.com";
 
   // getAccountInfo with base64 encoding
-  const accountInfo = await rpcCall<{
-    value: { data: [string, string]; owner: string } | null;
-  }>("getAccountInfo", [mint, { encoding: "base64" }], rpcUrl);
+  const raw = await rpcCall("getAccountInfo", [mint, { encoding: "base64" }], rpcUrl);
 
-  if (!accountInfo?.value) {
+  if (!isObject(raw)) {
+    throw new Error("Invalid RPC response: expected object");
+  }
+
+  const value = raw.value;
+  if (!isObject(value)) {
     throw new Error("Account not found on-chain");
   }
 
-  const owner = accountInfo.value.owner;
+  const owner = toString(value.owner);
+  if (!owner) {
+    throw new Error("Invalid RPC response: missing owner");
+  }
+
   const tokenProgram =
     owner === TOKEN_PROGRAM_ID
       ? TOKEN_PROGRAM_ID
@@ -279,11 +366,18 @@ export async function fetchSolanaRpc(mint: string): Promise<SolanaRpcResult> {
         ? TOKEN_2022_PROGRAM_ID
         : owner;
 
-  const base64Data = accountInfo.value.data?.[0];
-  if (!base64Data) throw new Error("No account data");
+  const dataArr = value.data;
+  if (!Array.isArray(dataArr) || typeof dataArr[0] !== "string") {
+    throw new Error("No account data");
+  }
 
+  const base64Data = dataArr[0];
   const parsed = parseMintAccount(base64Data);
   if (!parsed) throw new Error("Failed to parse mint layout");
 
   return { ...parsed, tokenProgram };
 }
+
+// ─── Exported parse helpers (for testing) ────────────────────────────────────
+
+export const _parseHelpers = { isObject, prop, toNumber, toString, toBool, toArray };
