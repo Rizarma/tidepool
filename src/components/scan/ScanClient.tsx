@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import type {
   PairInputMode,
@@ -35,6 +35,7 @@ const EXAMPLES = [
 ];
 
 export default function ScanClient() {
+  const poolInputRef = useRef<HTMLInputElement>(null);
   const [mint, setMint] = useState("");
   const [mode, setMode] = useState<ScanMode>("pair");
   const [pairInputMode, setPairInputMode] = useState<PairInputMode>("pool");
@@ -112,6 +113,30 @@ export default function ScanClient() {
     else void scanPair();
   }
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target;
+      const isTyping =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+
+      if (isTyping) return;
+
+      event.preventDefault();
+      setMode("pair");
+      setPairInputMode("pool");
+      requestAnimationFrame(() => {
+        poolInputRef.current?.focus();
+        poolInputRef.current?.select();
+      });
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="app-shell flex flex-col h-full">
       {/* ─── Command Bar ─────────────────────────────────────────────── */}
@@ -171,6 +196,7 @@ export default function ScanClient() {
               />
             ) : pairInputMode === "pool" ? (
               <input
+                ref={poolInputRef}
                 id="pool"
                 aria-label="Meteora DLMM pool address"
                 value={poolAddress}
