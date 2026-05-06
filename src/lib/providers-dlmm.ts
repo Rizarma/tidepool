@@ -4,85 +4,21 @@
  */
 
 import type { DlmmPairInfo, PairToken } from "@/lib/types";
+import {
+  isObject,
+  prop,
+  toNumber,
+  toString,
+  toBool,
+  toStringArray,
+  fetchJson,
+} from "@/lib/provider-parsing";
 
 const BASE_URL = "https://dlmm.datapi.meteora.ag";
 
-// ─── Parse Helpers ───────────────────────────────────────────────────────────
-
-/** Type guard: value is a non-null object */
-function isObject(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
-}
-
-/** Safely access a nested property path on unknown data */
-function prop(obj: unknown, ...keys: string[]): unknown {
-  let cur: unknown = obj;
-  for (const k of keys) {
-    if (!isObject(cur)) return undefined;
-    cur = (cur as Record<string, unknown>)[k];
-  }
-  return cur;
-}
-
-/** Strict regex: optional sign, digits, optional decimal, optional exponent */
-const STRICT_NUMERIC_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
-
-/** Parse a numeric value from unknown – strict and finite only */
-function toNumber(v: unknown): number | undefined {
-  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
-  if (typeof v === "string") {
-    const trimmed = v.trim();
-    if (!trimmed || !STRICT_NUMERIC_RE.test(trimmed)) return undefined;
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  return undefined;
-}
-
-/** Parse a string value from unknown */
-function toString(v: unknown): string | undefined {
-  return typeof v === "string" ? v : undefined;
-}
-
-/** Parse a boolean value from unknown */
-function toBool(v: unknown): boolean | undefined {
-  return typeof v === "boolean" ? v : undefined;
-}
-
-/** Assert value is an array, return it or empty array */
-function toArray(v: unknown): unknown[] {
-  return Array.isArray(v) ? v : [];
-}
-
-/** Filter an unknown value to a string[] or undefined. Only keeps actual strings. */
-function toStringArray(v: unknown): string[] | undefined {
-  if (!Array.isArray(v)) return undefined;
-  const filtered = v.filter((item): item is string => typeof item === "string");
-  return filtered.length > 0 ? filtered : undefined;
-}
-
-// ─── Fetch Helpers ───────────────────────────────────────────────────────────
-
-async function fetchJson(url: string, timeoutMs = 10_000): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error("Invalid JSON in response");
-    }
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 // ─── Normalization ───────────────────────────────────────────────────────────
 
-function parsePairToken(raw: unknown, amountField?: number): PairToken {
+export function parsePairToken(raw: unknown, amountField?: number): PairToken {
   if (!isObject(raw)) {
     return { mint: "" };
   }
@@ -93,14 +29,14 @@ function parsePairToken(raw: unknown, amountField?: number): PairToken {
     decimals: toNumber(raw.decimals),
     priceUsd: toNumber(raw.price_usd) ?? toNumber(raw.price),
     verified: toBool(raw.verified) ?? toBool(raw.is_verified),
-    amount: typeof amountField === "number" ? amountField : undefined,
+    amount: Number.isFinite(amountField) ? amountField : undefined,
     holders: toNumber(raw.holders),
     freezeAuthorityDisabled: toBool(raw.freeze_authority_disabled),
     marketCap: toNumber(raw.market_cap),
   };
 }
 
-function normalizePair(raw: unknown): DlmmPairInfo {
+export function normalizePair(raw: unknown): DlmmPairInfo {
   if (!isObject(raw)) {
     throw new Error("Invalid pool data: expected an object");
   }
@@ -225,29 +161,23 @@ export async function fetchMeteoraDlmmPairByMints(
     );
   }
 
-  // Choose first non-blacklisted pool with current_price > 0.
+  // Choose first safe pool with current_price > 0.
   // Only treat explicit false or absent (undefined) as safe; any truthy/unknown value is unsafe.
-  const preferred = pools.find((p: unknown) => {
+  const isSafePool = (p: unknown): boolean => {
     if (!isObject(p)) return false;
     const price = toNumber(p.current_price);
     const bl = p.is_blacklisted;
     const isSafe = bl === false || bl === undefined;
     return isSafe && price !== undefined && price > 0;
-  });
+  };
 
-  // Fallback: first pool with a valid price
-  const fallback =
-    preferred ??
-    pools.find((p: unknown) => {
-      if (!isObject(p)) return false;
-      const price = toNumber(p.current_price);
-      return price !== undefined && price > 0;
-    });
+  const chosen = pools.find(isSafePool);
 
-  const chosen = fallback ?? pools[0];
+  if (!chosen) {
+    throw new Error(
+      `No DLMM pool found for mints ${sortedA} / ${sortedB}`,
+    );
+  }
+
   return normalizePair(chosen);
 }
-
-// ─── Exported parse helpers (for testing) ────────────────────────────────────
-
-export const _dlmmParseHelpers = { isObject, prop, toNumber, toString, toBool, toArray, toStringArray, normalizePair, parsePairToken };

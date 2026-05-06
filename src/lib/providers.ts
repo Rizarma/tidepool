@@ -3,107 +3,15 @@
  * All are designed to be consumed via Promise.allSettled.
  */
 
-// ─── Parse Helpers ───────────────────────────────────────────────────────────
-
-/** Type guard: value is a non-null object */
-function isObject(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === "object" && !Array.isArray(v);
-}
-
-/** Safely access a nested property path on unknown data */
-function prop(obj: unknown, ...keys: string[]): unknown {
-  let cur: unknown = obj;
-  for (const k of keys) {
-    if (!isObject(cur)) return undefined;
-    cur = (cur as Record<string, unknown>)[k];
-  }
-  return cur;
-}
-
-/** Strict regex: optional sign, digits, optional decimal, optional exponent */
-const STRICT_NUMERIC_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
-
-/** Parse a numeric value from unknown – strict and finite only */
-function toNumber(v: unknown): number | undefined {
-  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
-  if (typeof v === "string") {
-    const trimmed = v.trim();
-    if (!trimmed || !STRICT_NUMERIC_RE.test(trimmed)) return undefined;
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  return undefined;
-}
-
-/** Parse a string value from unknown */
-function toString(v: unknown): string | undefined {
-  return typeof v === "string" ? v : undefined;
-}
-
-/** Parse a boolean value from unknown */
-function toBool(v: unknown): boolean | undefined {
-  return typeof v === "boolean" ? v : undefined;
-}
-
-/** Assert value is an array, return it or empty array */
-function toArray(v: unknown): unknown[] {
-  return Array.isArray(v) ? v : [];
-}
-
-// ─── Fetch Helpers ───────────────────────────────────────────────────────────
-
-async function fetchJson(url: string, timeoutMs = 10_000): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error("Invalid JSON in response");
-    }
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function rpcCall(
-  method: string,
-  params: unknown[],
-  rpcUrl: string,
-  timeoutMs = 10_000,
-): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`RPC HTTP ${res.status}`);
-    const text = await res.text();
-    let json: unknown;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      throw new Error("Invalid JSON in RPC response");
-    }
-    if (!isObject(json)) {
-      throw new Error("Invalid RPC response: expected object");
-    }
-    if (isObject(json.error)) {
-      const msg = toString((json.error as Record<string, unknown>).message);
-      throw new Error(`RPC error: ${msg ?? "unknown"}`);
-    }
-    return json.result;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+import {
+  isObject,
+  prop,
+  toNumber,
+  toString,
+  toArray,
+  fetchJson,
+  rpcCall,
+} from "@/lib/provider-parsing";
 
 // ─── DexScreener ─────────────────────────────────────────────────────────────
 
@@ -377,7 +285,3 @@ export async function fetchSolanaRpc(mint: string): Promise<SolanaRpcResult> {
 
   return { ...parsed, tokenProgram };
 }
-
-// ─── Exported parse helpers (for testing) ────────────────────────────────────
-
-export const _parseHelpers = { isObject, prop, toNumber, toString, toBool, toArray };

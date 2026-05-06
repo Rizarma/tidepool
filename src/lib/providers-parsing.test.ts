@@ -1,18 +1,25 @@
 /**
- * Phase 5 – Focused tests for safer provider parsing.
+ * Phase 5/6A – Focused tests for safer provider parsing.
  * Tests that malformed payloads throw classifiable errors and
  * that valid payloads produce correct shapes.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { _parseHelpers } from "@/lib/providers";
-import { _dlmmParseHelpers } from "@/lib/providers-dlmm";
+import {
+  isObject,
+  prop,
+  toNumber,
+  toString,
+  toBool,
+  toArray,
+  toStringArray,
+} from "@/lib/provider-parsing";
+import { normalizePair, parsePairToken } from "@/lib/providers-dlmm";
 import { classifyProviderError } from "@/lib/api-errors";
 
 // ─── Parse Helper Unit Tests ─────────────────────────────────────────────────
 
 describe("providers parse helpers", () => {
-  const { isObject, prop, toNumber, toString, toBool, toArray } = _parseHelpers;
 
   describe("isObject", () => {
     it("returns true for plain objects", () => {
@@ -121,7 +128,6 @@ describe("providers parse helpers", () => {
 // ─── DLMM Parse Tests ────────────────────────────────────────────────────────
 
 describe("DLMM normalizePair", () => {
-  const { normalizePair, parsePairToken } = _dlmmParseHelpers;
 
   it("throws on null input", () => {
     expect(() => normalizePair(null)).toThrow("Invalid pool data: expected an object");
@@ -235,8 +241,6 @@ describe("DLMM normalizePair", () => {
   });
 
   describe("tags validation", () => {
-    const { toStringArray } = _dlmmParseHelpers;
-
     it("returns undefined for non-array", () => {
       expect(toStringArray(null)).toBeUndefined();
       expect(toStringArray(undefined)).toBeUndefined();
@@ -332,8 +336,6 @@ describe("DLMM normalizePair", () => {
 // ─── DLMM Blacklist Selection Tests ──────────────────────────────────────────
 
 describe("DLMM blacklist selection policy", () => {
-  const { normalizePair } = _dlmmParseHelpers;
-
   // Helper to build a minimal pool object
   function makePool(addr: string, price: number, blacklisted: unknown) {
     return {
@@ -729,5 +731,70 @@ describe("fetchMeteoraDlmmPairByMints parsing", () => {
     const result = await fetchMeteoraDlmmPairByMints("a", "b");
     // "noField" has undefined is_blacklisted which is treated as safe, and higher price
     expect(result.poolAddress).toBe("noField");
+  });
+
+  it("throws when all pools are blacklisted (boolean true)", async () => {
+    const { fetchMeteoraDlmmPairByMints } = await import("@/lib/providers-dlmm");
+    const payload = {
+      data: [
+        { pool_address: "bl1", current_price: 5.0, is_blacklisted: true, token_x: { mint: "a" }, token_y: { mint: "b" } },
+        { pool_address: "bl2", current_price: 3.0, is_blacklisted: true, token_x: { mint: "a" }, token_y: { mint: "b" } },
+      ],
+    };
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200 }),
+    );
+    await expect(fetchMeteoraDlmmPairByMints("a", "b")).rejects.toThrow(
+      /No DLMM pool found/,
+    );
+  });
+
+  it("throws when all pools have truthy non-boolean blacklist values", async () => {
+    const { fetchMeteoraDlmmPairByMints } = await import("@/lib/providers-dlmm");
+    const payload = {
+      data: [
+        { pool_address: "strTrue", current_price: 5.0, is_blacklisted: "true", token_x: { mint: "a" }, token_y: { mint: "b" } },
+        { pool_address: "numOne", current_price: 3.0, is_blacklisted: 1, token_x: { mint: "a" }, token_y: { mint: "b" } },
+      ],
+    };
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200 }),
+    );
+    await expect(fetchMeteoraDlmmPairByMints("a", "b")).rejects.toThrow(
+      /No DLMM pool found/,
+    );
+  });
+
+  it("throws when all pools are unsafe (mixed blacklist types)", async () => {
+    const { fetchMeteoraDlmmPairByMints } = await import("@/lib/providers-dlmm");
+    const payload = {
+      data: [
+        { pool_address: "boolTrue", current_price: 10.0, is_blacklisted: true, token_x: { mint: "a" }, token_y: { mint: "b" } },
+        { pool_address: "strTrue", current_price: 5.0, is_blacklisted: "true", token_x: { mint: "a" }, token_y: { mint: "b" } },
+        { pool_address: "numOne", current_price: 3.0, is_blacklisted: 1, token_x: { mint: "a" }, token_y: { mint: "b" } },
+      ],
+    };
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200 }),
+    );
+    await expect(fetchMeteoraDlmmPairByMints("a", "b")).rejects.toThrow(
+      /No DLMM pool found/,
+    );
+  });
+
+  it("throws when pools exist but none have positive price", async () => {
+    const { fetchMeteoraDlmmPairByMints } = await import("@/lib/providers-dlmm");
+    const payload = {
+      data: [
+        { pool_address: "zero", current_price: 0, is_blacklisted: false, token_x: { mint: "a" }, token_y: { mint: "b" } },
+        { pool_address: "noPrice", is_blacklisted: false, token_x: { mint: "a" }, token_y: { mint: "b" } },
+      ],
+    };
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200 }),
+    );
+    await expect(fetchMeteoraDlmmPairByMints("a", "b")).rejects.toThrow(
+      /No DLMM pool found/,
+    );
   });
 });
