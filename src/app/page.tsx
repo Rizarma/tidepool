@@ -3,101 +3,16 @@
 import { FormEvent, useMemo, useState } from "react";
 import Image from "next/image";
 
-type RiskLevel = "low" | "medium" | "high" | "critical";
-
-type RiskFactor = {
-  key?: string;
-  label?: string;
-  weight?: number;
-  detail?: string;
-};
-
-type SourceStatus = {
-  provider: string;
-  success: boolean;
-  latencyMs?: number;
-  error?: string;
-};
-
-type TokenReport = {
-  identity?: {
-    mint?: string;
-    name?: string;
-    symbol?: string;
-    decimals?: number;
-    imageUrl?: string;
-    tokenProgram?: string;
-  };
-  supply?: {
-    total?: string;
-    uiAmount?: number;
-    decimals?: number;
-    mintAuthority?: string | null;
-    freezeAuthority?: string | null;
-  };
-  market?: {
-    priceUsd?: number;
-    priceNative?: number;
-    marketCap?: number;
-    volume24h?: number;
-    liquidity?: number;
-    pairAddress?: string;
-    dexId?: string;
-  };
-  trust?: {
-    jupiterStrict?: boolean;
-    rugCheckScore?: number;
-    rugCheckLevel?: string;
-    topHolderPct?: number;
-  };
-  risk?: {
-    score?: number;
-    level?: RiskLevel;
-    factors?: RiskFactor[];
-  };
-  sources?: SourceStatus[];
-  fetchedAt?: string;
-};
-
-type PairToken = {
-  mint?: string;
-  name?: string;
-  symbol?: string;
-  decimals?: number;
-  priceUsd?: number;
-  verified?: boolean;
-  amount?: number;
-};
-
-type PoolReport = {
-  kind: "pair";
-  pair?: {
-    poolAddress?: string;
-    name?: string;
-    tokenX?: PairToken;
-    tokenY?: PairToken;
-    priceTokenYPerTokenX?: number;
-    inversePrice?: number;
-    binStep?: number;
-    baseFeePct?: number;
-    maxFeePct?: number;
-    protocolFeePct?: number;
-    dynamicFeePct?: number;
-    tvlUsd?: number;
-    volume24h?: number;
-    fees24h?: number;
-    apr?: number;
-    apy?: number;
-    isBlacklisted?: boolean;
-    tags?: string[];
-  };
-  sources?: SourceStatus[];
-  fetchedAt?: string;
-};
-
-type ScanReport = TokenReport | PoolReport;
-type ScanMode = "token" | "pair";
-type PairInputMode = "pool" | "mints";
+import type {
+  PairInputMode,
+  PairToken,
+  PoolReport,
+  RiskLevel,
+  ScanMode,
+  ScanReport,
+  SourceStatus,
+  TokenReport,
+} from "@/lib/api-types";
 
 const EXAMPLES = [
   { label: "USDC", mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },

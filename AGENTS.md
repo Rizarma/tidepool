@@ -8,6 +8,7 @@ Next.js 16 application for tidepool scanning and risk analysis.
 - **Dev:** `pnpm dev`
 - **Build:** `pnpm build`
 - **Lint:** `pnpm lint`
+- **Test:** `pnpm test`
 
 ## Critical Rules
 

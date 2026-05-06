@@ -16,12 +16,13 @@ Use these guidelines when installing packages, running scripts, or validating ch
 - Create a production build: `pnpm build`
 - Start the production server after building: `pnpm start`
 - Run linting: `pnpm lint`
+- Run tests: `pnpm test`
 
 ## Validation
 
 - Run `pnpm lint` after code changes that affect TypeScript, React, API routes, or styles.
+- Run `pnpm test` after changes to domain logic, validation, provider normalization, or test files.
 - Run `pnpm build` after framework, routing, configuration, or dependency changes.
-- If adding tests in the future, add the test script to `package.json` and document the command here.
 
 ## Dependencies
 

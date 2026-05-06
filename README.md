@@ -75,12 +75,21 @@ This section is for people who want to run the app on their own computer.
 
 3. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+4. Run checks before shipping changes:
+
+   ```bash
+   pnpm lint
+   pnpm test
+   pnpm build
+   ```
+
 Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RPC_URL` or `SOLANA_RPC_URL` if you want to use your own Solana RPC endpoint.
 
 ## Project Notes
 
 - Built with Next.js and React
 - Uses pnpm for package management
+- Uses Vitest for unit tests
 - Runs without a database or user accounts
 - Fetches scan data live when you submit an address
 - Designed for deployment on Vercel or any host that supports Next.js
