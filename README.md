@@ -98,4 +98,5 @@ Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RP
 - Runs without a database or user accounts
 - Fetches scan data live when you submit an address
 - Resolves pasted addresses as token mints, Meteora DLMM pools, or pool-discovery candidates
+- Keeps scanner state/fetch orchestration in `src/components/scan/useScanController.ts` and report views in `src/components/report/`
 - Designed for deployment on Vercel or any host that supports Next.js
