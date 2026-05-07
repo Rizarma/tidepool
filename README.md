@@ -1,6 +1,6 @@
 # Tidepool
 
-Tidepool helps Solana users check a token or Meteora DLMM pool before they trade, hold, or research it. Paste an address, run a scan, and read a plain-language risk report.
+Tidepool helps Solana users check a token or Meteora DLMM pool before they trade, hold, or research it. Paste a token mint, a Meteora DLMM pool address, or a token address copied from GMGN, run a scan, and read a plain-language risk report.
 
 It is a screening tool, not financial advice. A low score does not make a token safe, and a high score does not prove fraud. Use the report as one input in your own research.
 
@@ -23,14 +23,19 @@ Tidepool includes example scans for USDC, JUP, and BONK.
 
 ### Meteora DLMM pools
 
-Paste a Meteora DLMM pool address, or enter both token mint addresses in a pair, to see:
+Paste a Meteora DLMM pool address, paste a token mint from GMGN, or enter both token mint addresses in a pair. Tidepool can discover Meteora DLMM pools that contain a token mint and selects the highest-TVL match by default.
+
+Pool scans show:
 
 - Pool name and token pair
 - Price, TVL, daily volume, fees, APR, and APY when available
 - Bin step and fee settings
 - Token details for both sides of the pair
 - Blacklist status and pool tags
+- A pool chooser when more than one matching pool exists
 - Which data sources answered the scan
+
+If no Meteora DLMM pool matches a token mint, try Token mode for a broader token risk scan. The token may trade on another DEX.
 
 ## How to Read the Risk Score
 
@@ -53,7 +58,7 @@ Tidepool collects live data from public services:
 - RugCheck for token risk signals
 - Jupiter for token metadata, price, and strict-list status
 - Solana RPC for on-chain mint data
-- Meteora for DLMM pool data
+- Meteora for DLMM pool data and pool discovery by token mint
 
 If a source is slow or unavailable, Tidepool still shows what it can and lists the source status in the report.
 
@@ -92,4 +97,5 @@ Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RP
 - Uses Vitest for unit tests
 - Runs without a database or user accounts
 - Fetches scan data live when you submit an address
+- Resolves pasted addresses as token mints, Meteora DLMM pools, or pool-discovery candidates
 - Designed for deployment on Vercel or any host that supports Next.js
