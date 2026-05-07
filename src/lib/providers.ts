@@ -12,6 +12,7 @@ import {
   fetchJson,
   rpcCall,
 } from "@/lib/provider-parsing";
+import { isTokenProgram } from "@/lib/solana-programs";
 
 // ─── DexScreener ─────────────────────────────────────────────────────────────
 
@@ -175,12 +176,7 @@ export async function fetchJupiter(mint: string): Promise<JupiterResult> {
 
 // ─── Solana RPC ──────────────────────────────────────────────────────────────
 
-const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 
-function isTokenProgram(owner: string): boolean {
-  return owner === TOKEN_PROGRAM_ID || owner === TOKEN_2022_PROGRAM_ID;
-}
 
 export interface SolanaRpcResult {
   decimals?: number;

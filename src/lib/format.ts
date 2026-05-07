@@ -2,6 +2,8 @@
  * Shared formatting helpers for scan reports.
  */
 
+import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@/lib/solana-programs";
+
 export function formatUsd(value?: number): string {
   if (value == null || Number.isNaN(value)) return "—";
   if (value < 0.01) return `$${value.toExponential(2)}`;
@@ -50,8 +52,8 @@ export function pct(value?: number): string {
 
 export function programLabel(program?: string): string {
   if (!program) return "Unknown";
-  if (program === "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") return "SPL Token";
-  if (program === "TokenzQdBNbLqP5VEhdkAS6EPF5N5cwHho6pdjzZqK") return "Token-2022";
+  if (program === TOKEN_PROGRAM_ID) return "SPL Token";
+  if (program === TOKEN_2022_PROGRAM_ID) return "Token-2022";
   return short(program) ?? program;
 }
 
