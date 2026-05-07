@@ -6,7 +6,7 @@
  * DLMM pair scanning endpoint – fetches pool data from Meteora REST API.
  */
 
-import { isValidSolanaMint } from "@/lib/validation";
+import { isValidSolanaAddress } from "@/lib/validation";
 import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
@@ -48,7 +48,7 @@ async function handlePairScan(request: Request): Promise<Response> {
 
   // Validate addresses
   if (pool) {
-    if (!isValidSolanaMint(pool)) {
+    if (!isValidSolanaAddress(pool)) {
       return apiErrorResponse(
         "INVALID_PARAMETER",
         "Invalid Solana address for pool parameter",
@@ -56,14 +56,14 @@ async function handlePairScan(request: Request): Promise<Response> {
       );
     }
   } else {
-    if (!isValidSolanaMint(mintA!)) {
+    if (!isValidSolanaAddress(mintA!)) {
       return apiErrorResponse(
         "INVALID_PARAMETER",
         "Invalid Solana address for mintA parameter",
         400,
       );
     }
-    if (!isValidSolanaMint(mintB!)) {
+    if (!isValidSolanaAddress(mintB!)) {
       return apiErrorResponse(
         "INVALID_PARAMETER",
         "Invalid Solana address for mintB parameter",

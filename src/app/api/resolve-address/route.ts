@@ -8,7 +8,7 @@
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { fetchMeteoraDlmmPool, fetchMeteoraDlmmPoolsByMint } from "@/lib/providers-dlmm";
 import { fetchSolanaRpc } from "@/lib/providers";
-import { isValidSolanaMint } from "@/lib/validation";
+import { isValidSolanaAddress } from "@/lib/validation";
 import type {
   AddressResolution,
   AddressResolutionSuggestion,
@@ -45,7 +45,7 @@ async function handleResolveAddress(request: Request): Promise<Response> {
     );
   }
 
-  if (!isValidSolanaMint(address)) {
+  if (!isValidSolanaAddress(address)) {
     return apiErrorResponse(
       "INVALID_PARAMETER",
       "Invalid Solana address",
