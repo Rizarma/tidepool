@@ -325,9 +325,9 @@ export default function ScanClient() {
           <LoadingState />
         ) : !report ? (
           <EmptyState mode={mode} onScanToken={scanToken} />
-        ) : "kind" in report && report.kind === "pair" ? (
+        ) : report.kind === "pair" ? (
           <PairReportLayout report={report} />
-        ) : "kind" in report && report.kind === "pool_discovery" ? (
+        ) : report.kind === "pool_discovery" ? (
           <PairReportLayout
             report={poolReportFromDiscovery(report, selectedPoolAddress)}
             discovery={report}
@@ -340,7 +340,7 @@ export default function ScanClient() {
             }}
           />
         ) : (
-          <TokenReportLayout report={report as TokenReport} />
+          <TokenReportLayout report={report} />
         )}
       </main>
     </div>

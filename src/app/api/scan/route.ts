@@ -129,6 +129,7 @@ async function handleScan(request: Request): Promise<Response> {
   });
 
   const report: TokenReport = {
+    kind: "token",
     identity,
     supply,
     market,

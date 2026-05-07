@@ -44,6 +44,7 @@ export type RiskFactor = Partial<StrictRiskFactor>;
 // ─── Token Report ────────────────────────────────────────────────────────────
 
 export interface TokenReport {
+  kind: "token";
   identity?: DeepPartial<TokenIdentity>;
   supply?: DeepPartial<TokenSupply>;
   market?: DeepPartial<TokenMarket>;

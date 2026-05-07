@@ -219,6 +219,7 @@ describe("GET /api/scan", () => {
       const body = await parseJson(res);
 
       // Top-level shape
+      expect(body.kind).toBe("token");
       expect(body).toHaveProperty("identity");
       expect(body).toHaveProperty("supply");
       expect(body).toHaveProperty("market");

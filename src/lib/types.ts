@@ -84,6 +84,7 @@ export interface SourceStatus {
 // ─── Full Report ─────────────────────────────────────────────────────────────
 
 export interface TokenReport {
+  kind: "token";
   identity: TokenIdentity;
   supply: TokenSupply;
   market: TokenMarket;
