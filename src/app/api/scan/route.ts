@@ -13,7 +13,8 @@ import {
   fetchSolanaRpc,
 } from "@/lib/providers";
 import { computeRisk } from "@/lib/risk";
-import { apiErrorResponse, sanitizeSourceError } from "@/lib/api-errors";
+import { apiErrorResponse } from "@/lib/api-errors";
+import { timedFetchThrowing, buildSourceStatusFromSettled } from "@/lib/provider-status";
 import type {
   TokenReport,
   TokenIdentity,
@@ -61,18 +62,18 @@ async function handleScan(request: Request): Promise<Response> {
 
   // Fetch all providers in parallel
   const [dexResult, rugResult, jupResult, rpcResult] = await Promise.allSettled([
-    timedFetch("dexscreener", () => fetchDexScreener(mint)),
-    timedFetch("rugcheck", () => fetchRugCheck(mint)),
-    timedFetch("jupiter", () => fetchJupiter(mint)),
-    timedFetch("solana_rpc", () => fetchSolanaRpc(mint)),
+    timedFetchThrowing("dexscreener", () => fetchDexScreener(mint)),
+    timedFetchThrowing("rugcheck", () => fetchRugCheck(mint)),
+    timedFetchThrowing("jupiter", () => fetchJupiter(mint)),
+    timedFetchThrowing("solana_rpc", () => fetchSolanaRpc(mint)),
   ]);
 
   // Build source statuses
   const sources: SourceStatus[] = [
-    buildSourceStatus("dexscreener", dexResult),
-    buildSourceStatus("rugcheck", rugResult),
-    buildSourceStatus("jupiter", jupResult),
-    buildSourceStatus("solana_rpc", rpcResult),
+    buildSourceStatusFromSettled("dexscreener", dexResult),
+    buildSourceStatusFromSettled("rugcheck", rugResult),
+    buildSourceStatusFromSettled("jupiter", jupResult),
+    buildSourceStatusFromSettled("solana_rpc", rpcResult),
   ];
 
   // Extract values (undefined if failed)
@@ -142,37 +143,4 @@ async function handleScan(request: Request): Promise<Response> {
   return Response.json(report);
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-interface TimedResult<T> {
-  data: T;
-  latencyMs: number;
-}
-
-async function timedFetch<T>(
-  _label: string,
-  fn: () => Promise<T>,
-): Promise<TimedResult<T>> {
-  const start = Date.now();
-  const data = await fn();
-  return { data, latencyMs: Date.now() - start };
-}
-
-function buildSourceStatus(
-  provider: string,
-  result: PromiseSettledResult<TimedResult<unknown>>,
-): SourceStatus {
-  if (result.status === "fulfilled") {
-    return {
-      provider,
-      success: true,
-      latencyMs: result.value.latencyMs,
-    };
-  }
-  const rawError = result.reason?.message ?? String(result.reason);
-  return {
-    provider,
-    success: false,
-    error: sanitizeSourceError(rawError),
-  };
-}

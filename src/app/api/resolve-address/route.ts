@@ -9,6 +9,8 @@ import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { fetchMeteoraDlmmPool, fetchMeteoraDlmmPoolsByMint } from "@/lib/providers-dlmm";
 import { fetchSolanaRpc } from "@/lib/providers";
 import { isValidSolanaAddress } from "@/lib/validation";
+import { timedFetch, buildSourceStatusClassified } from "@/lib/provider-status";
+import type { SettledResult } from "@/lib/provider-status";
 import type {
   AddressResolution,
   AddressResolutionSuggestion,
@@ -60,9 +62,9 @@ async function handleResolveAddress(request: Request): Promise<Response> {
   ]);
 
   const sources: SourceStatus[] = [
-    buildSourceStatus("meteora_pool", poolResult),
-    buildSourceStatus("solana_rpc", tokenResult),
-    buildSourceStatus("meteora_pool_discovery", poolsResult),
+    buildSourceStatusClassified("meteora_pool", poolResult),
+    buildSourceStatusClassified("solana_rpc", tokenResult),
+    buildSourceStatusClassified("meteora_pool_discovery", poolsResult),
   ];
 
   const directPool = poolResult.status === "fulfilled" ? poolResult.value.data : undefined;
@@ -104,50 +106,6 @@ async function handleResolveAddress(request: Request): Promise<Response> {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-interface TimedResult<T> {
-  data: T;
-  latencyMs: number;
-}
-
-type SettledResult<T> =
-  | { status: "fulfilled"; value: TimedResult<T> }
-  | { status: "rejected"; reason: { message?: string } | undefined };
-
-async function timedFetch<T>(
-  _label: string,
-  fn: () => Promise<T>,
-): Promise<SettledResult<T>> {
-  const start = Date.now();
-  try {
-    const data = await fn();
-    return { status: "fulfilled", value: { data, latencyMs: Date.now() - start } };
-  } catch (err: unknown) {
-    const reason = err instanceof Error ? err : { message: String(err) };
-    return { status: "rejected", reason };
-  }
-}
-
-function buildSourceStatus(
-  provider: string,
-  result: SettledResult<unknown>,
-): SourceStatus {
-  if (result.status === "fulfilled") {
-    return {
-      provider,
-      success: true,
-      latencyMs: result.value.latencyMs,
-    };
-  }
-  const rawError = result.reason?.message ?? String(result.reason);
-  const sanitized = classifyProviderError(rawError);
-  return {
-    provider,
-    success: false,
-    code: sanitized.code,
-    error: sanitized.message,
-  };
-}
 
 function getResolutionStatus(
   results: SettledResult<unknown>[],

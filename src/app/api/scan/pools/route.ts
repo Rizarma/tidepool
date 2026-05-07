@@ -7,7 +7,8 @@
 
 import { isValidSolanaMint } from "@/lib/validation";
 import { fetchMeteoraDlmmPoolsByMint } from "@/lib/providers-dlmm";
-import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
+import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
+import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import type { PoolDiscoveryReport, SourceStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -99,46 +100,4 @@ async function handlePoolDiscovery(request: Request): Promise<Response> {
   return Response.json(report);
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-interface TimedResult<T> {
-  data: T;
-  latencyMs: number;
-}
-
-type SettledResult<T> =
-  | { status: "fulfilled"; value: TimedResult<T> }
-  | { status: "rejected"; reason: { message?: string } | undefined };
-
-async function timedFetch<T>(
-  _label: string,
-  fn: () => Promise<T>,
-): Promise<SettledResult<T>> {
-  const start = Date.now();
-  try {
-    const data = await fn();
-    return { status: "fulfilled", value: { data, latencyMs: Date.now() - start } };
-  } catch (err: unknown) {
-    const reason = err instanceof Error ? err : { message: String(err) };
-    return { status: "rejected", reason };
-  }
-}
-
-function buildSourceStatus(
-  provider: string,
-  result: SettledResult<unknown>,
-): SourceStatus {
-  if (result.status === "fulfilled") {
-    return {
-      provider,
-      success: true,
-      latencyMs: result.value.latencyMs,
-    };
-  }
-  const rawError = result.reason?.message ?? String(result.reason);
-  return {
-    provider,
-    success: false,
-    error: sanitizeSourceError(rawError),
-  };
-}
