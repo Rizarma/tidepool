@@ -89,7 +89,7 @@ export function ScanForm({
         </div>
 
         {/* Scan form inline */}
-        <form onSubmit={onSubmit} className="flex flex-1 items-center gap-2 min-w-0" aria-label="Scan address form">
+        <form onSubmit={onSubmit} className="flex flex-1 items-center justify-center gap-2 min-w-0" aria-label="Scan address form">
           {mode === "token" ? (
             <AddressInput
               id="mint"
@@ -108,7 +108,7 @@ export function ScanForm({
               placeholder="Pool or token address…"
             />
           ) : (
-            <div className="flex flex-1 gap-1.5 min-w-0">
+            <div className="flex flex-1 max-w-2xl gap-1.5 min-w-0">
               <input
                 id="mint-a"
                 aria-label="Token mint A address"
@@ -133,7 +133,7 @@ export function ScanForm({
           <button
             type="submit"
             disabled={loading}
-            className="shrink-0 rounded bg-[var(--accent)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--background)] transition hover:bg-[var(--accent-dim)] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-8 min-w-16 shrink-0 rounded bg-[var(--accent)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--background)] transition hover:bg-[var(--accent-dim)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "…" : "Scan"}
           </button>
@@ -214,7 +214,7 @@ function AddressInput({
   }
 
   return (
-    <div className="relative flex flex-1 min-w-0 items-center">
+    <div className="relative flex flex-1 min-w-0 max-w-2xl items-center">
       <input
         ref={inputRef}
         id={id}
