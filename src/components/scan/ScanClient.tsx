@@ -3,6 +3,7 @@
 import { useScanController } from "./useScanController";
 import { ScanForm } from "./ScanForm";
 import { EmptyState, LoadingState } from "./EmptyState";
+import { NewPairsTable } from "@/components/pairs/NewPairsTable";
 import { TokenReportLayout } from "@/components/report/TokenReportLayout";
 import { PairReportLayout } from "@/components/report/PairReportLayout";
 import { poolReportFromDiscovery } from "@/components/report/pool-report-from-discovery";
@@ -39,7 +40,18 @@ export default function ScanClient() {
         {ctrl.loading ? (
           <LoadingState />
         ) : !ctrl.report ? (
-          <EmptyState mode={ctrl.mode} onScanToken={ctrl.scanToken} />
+          ctrl.mode === "pair" ? (
+            <NewPairsTable
+              onSelectPool={(address) => {
+                ctrl.setMode("pair");
+                ctrl.setPairInputMode("pool");
+                ctrl.setPoolAddress(address);
+                void ctrl.scanPool(address);
+              }}
+            />
+          ) : (
+            <EmptyState mode={ctrl.mode} onScanToken={ctrl.scanToken} />
+          )
         ) : ctrl.report.kind === "pair" ? (
           <PairReportLayout report={ctrl.report} />
         ) : ctrl.report.kind === "pool_discovery" ? (

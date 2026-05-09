@@ -129,6 +129,8 @@ export interface DlmmPairInfo {
   apy?: number;
   isBlacklisted?: boolean;
   tags?: string[];
+  /** Unix timestamp (ms) when the pool was created */
+  createdAt?: number;
 }
 
 export interface PoolReport {

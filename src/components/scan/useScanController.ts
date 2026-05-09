@@ -48,6 +48,7 @@ export interface ScanController {
 
   // Actions
   scanToken: (nextMint?: string) => Promise<void>;
+  scanPool: (poolAddress: string) => Promise<void>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 
   // Refs
@@ -197,6 +198,35 @@ export function useScanController(): ScanController {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  async function scanPool(poolAddr: string) {
+    const requestId = ++scanRequestIdRef.current;
+    const trimmed = poolAddr.trim();
+
+    setLoading(true);
+    setPairError(null);
+    setPairReport(null);
+    setSelectedPoolAddress(null);
+
+    try {
+      const response = await fetch(
+        `/api/scan/pair?pool=${encodeURIComponent(trimmed)}`,
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(parseApiError(data, "Pool scan failed"));
+      }
+
+      if (requestId !== scanRequestIdRef.current) return;
+      setPairReport(data);
+    } catch (err) {
+      if (requestId !== scanRequestIdRef.current) return;
+      setPairError(err instanceof Error ? err.message : "Pool scan failed");
+    } finally {
+      if (requestId === scanRequestIdRef.current) setLoading(false);
+    }
+  }
+
   return {
     mint,
     mode,
@@ -216,6 +246,7 @@ export function useScanController(): ScanController {
     setMintB,
     setSelectedPoolAddress,
     scanToken,
+    scanPool,
     onSubmit,
     poolInputRef,
   };

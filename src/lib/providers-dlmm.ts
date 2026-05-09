@@ -110,6 +110,10 @@ export function normalizePair(raw: unknown): DlmmPairInfo {
     apy: toNumber(raw.apy),
     isBlacklisted: toBool(raw.is_blacklisted),
     tags: toStringArray(raw.tags),
+    createdAt:
+      toNumber(raw.created_at) ??
+      toNumber(raw.createdAt) ??
+      toNumber(raw.pool_created_at),
   };
 }
 
@@ -229,6 +233,44 @@ export async function fetchMeteoraDlmmPool(
  * Fetch the best DLMM pool for a given mint pair.
  * Mints are sorted lexicographically to form the group key.
  */
+/**
+ * Fetch recently created DLMM pools sorted by creation time.
+ */
+export async function fetchMeteoraDlmmNewPools(
+  pageSize = 20,
+  page = 1,
+): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    sort_by: "pool_created_at:desc",
+    filter_by: "is_blacklisted=false",
+  });
+  const url = `${BASE_URL}/pools?${params.toString()}`;
+  const data = await fetchJson(url);
+
+  if (!isObject(data) || !Array.isArray(data.data)) {
+    throw new Error("Invalid response from DLMM pools endpoint: expected paginated object");
+  }
+
+  const rawPools = data.data as unknown[];
+  const total = toNumber(data.total) ?? rawPools.length;
+  const pages = toNumber(data.pages) ?? 1;
+
+  const pools: DlmmPairInfo[] = [];
+  for (const raw of rawPools) {
+    if (!isObject(raw)) continue;
+    try {
+      const pair = normalizePair(raw);
+      pools.push(pair);
+    } catch {
+      continue;
+    }
+  }
+
+  return { pools, total, pages };
+}
+
 export async function fetchMeteoraDlmmPairByMints(
   mintA: string,
   mintB: string,
