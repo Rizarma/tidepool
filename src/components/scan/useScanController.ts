@@ -234,6 +234,7 @@ export function useScanController(): ScanController {
     setPairReport(null);
     setPairError(null);
     setSelectedPoolAddress(null);
+    setMode("pair");
     // Intentionally preserve input values so the user can edit and resubmit
   }
 

@@ -230,10 +230,6 @@ export async function fetchMeteoraDlmmPool(
 }
 
 /**
- * Fetch the best DLMM pool for a given mint pair.
- * Mints are sorted lexicographically to form the group key.
- */
-/**
  * Fetch recently created DLMM pools sorted by creation time.
  */
 export async function fetchMeteoraDlmmNewPools(
@@ -271,6 +267,10 @@ export async function fetchMeteoraDlmmNewPools(
   return { pools, total, pages };
 }
 
+/**
+ * Fetch the best DLMM pool for a given mint pair.
+ * Mints are sorted lexicographically to form the group key.
+ */
 export async function fetchMeteoraDlmmPairByMints(
   mintA: string,
   mintB: string,

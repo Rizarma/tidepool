@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DlmmPairInfo } from "@/lib/types";
 import {
   formatCompactUsd,
@@ -25,6 +25,19 @@ type SortKey =
   | "fees24h"
   | "apr";
 type SortDir = "asc" | "desc";
+
+const sortableColumns: {
+  key: SortKey;
+  label: string;
+  align: "left" | "right";
+}[] = [
+  { key: "priceTokenYPerTokenX", label: "Price", align: "right" },
+  { key: "tvlUsd", label: "TVL", align: "right" },
+  { key: "volume24h", label: "24h Vol", align: "right" },
+  { key: "fees24h", label: "24h Fees", align: "right" },
+  { key: "apr", label: "APR", align: "right" },
+  { key: "createdAt", label: "Age", align: "right" },
+];
 
 function VerificationDot() {
   return (
@@ -120,10 +133,6 @@ export function NewPairsTable({
 
     fetch("/api/pools/new")
       .then(async (res) => {
-        if (!cancelled) {
-          setLoading(true);
-          setError(null);
-        }
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(
@@ -160,14 +169,14 @@ export function NewPairsTable({
     };
   }, [refreshKey]);
 
-  function handleSort(key: SortKey) {
+  const handleSort = useCallback((key: SortKey) => {
     if (sortKey === key) {
       setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "createdAt" ? "desc" : "desc");
+      setSortDir("desc");
     }
-  }
+  }, [sortKey]);
 
   const sortedPools = useMemo(() => {
     if (sortKey === "createdAt") {
@@ -184,19 +193,6 @@ export function NewPairsTable({
     });
   }, [pools, sortKey, sortDir]);
 
-  const sortableColumns: {
-    key: SortKey;
-    label: string;
-    align: "left" | "right";
-  }[] = [
-    { key: "priceTokenYPerTokenX", label: "Price", align: "right" },
-    { key: "tvlUsd", label: "TVL", align: "right" },
-    { key: "volume24h", label: "24h Vol", align: "right" },
-    { key: "fees24h", label: "24h Fees", align: "right" },
-    { key: "apr", label: "APR", align: "right" },
-    { key: "createdAt", label: "Age", align: "right" },
-  ];
-
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -212,7 +208,11 @@ export function NewPairsTable({
           )}
         </div>
         <button
-          onClick={() => setRefreshKey((k) => k + 1)}
+          onClick={() => {
+            setLoading(true);
+            setError(null);
+            setRefreshKey((k) => k + 1);
+          }}
           disabled={loading}
           className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 transition hover:text-zinc-300 hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -227,7 +227,11 @@ export function NewPairsTable({
             <div className="text-center max-w-sm">
               <p className="text-xs text-red-300 mb-3">{error}</p>
               <button
-                onClick={() => setRefreshKey((k) => k + 1)}
+                onClick={() => {
+                  setLoading(true);
+                  setError(null);
+                  setRefreshKey((k) => k + 1);
+                }}
                 className="rounded bg-[var(--accent)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--background)] transition hover:bg-[var(--accent-dim)]"
               >
                 Retry
