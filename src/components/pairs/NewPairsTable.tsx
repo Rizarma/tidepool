@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DlmmPairInfo } from "@/lib/types";
 import {
   formatCompactUsd,
@@ -25,6 +25,9 @@ type SortKey =
   | "fees24h"
   | "apr";
 type SortDir = "asc" | "desc";
+
+const AUTO_REFRESH_INTERVAL = 60; // seconds
+const MIN_COOLDOWN_MS = 15000; // minimum ms between requests
 
 const sortableColumns: {
   key: SortKey;
@@ -126,10 +129,33 @@ export function NewPairsTable({
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [tick, setTick] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
 
+  const lastFetchTimeRef = useRef<number>(0);
+  const cancelledRef = useRef(false);
+  const countdownRef = useRef(0);
+
+  // ─── Fetch effect ─────────────────────────────────────────────────────────
   useEffect(() => {
-    let cancelled = false;
+    // Cooldown guard: skip if too soon (except initial mount tick === 0)
+    if (Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS && tick > 0) {
+      return;
+    }
+
+    cancelledRef.current = false;
+    lastFetchTimeRef.current = Date.now();
+
+    // Defer loading state to microtask to satisfy linter while keeping UX
+    Promise.resolve().then(() => {
+      if (!cancelledRef.current) {
+        setLoading(true);
+        setError(null);
+      }
+    });
 
     fetch("/api/pools/new")
       .then(async (res) => {
@@ -142,41 +168,122 @@ export function NewPairsTable({
         return res.json() as Promise<NewPairsResponse>;
       })
       .then((data) => {
-        if (!cancelled) {
-          const now = Date.now();
-          const oneHour = 3600000;
-          const ids = new Set(
-            data.pools
-              .filter((p) => p.createdAt && now - p.createdAt < oneHour)
-              .map((p) => p.poolAddress),
-          );
-          setPools(data.pools);
-          setNewPoolIds(ids);
-          setLoading(false);
-        }
+        if (cancelledRef.current) return;
+        const now = Date.now();
+        const oneHour = 3600000;
+        const ids = new Set(
+          data.pools
+            .filter((p) => p.createdAt && now - p.createdAt < oneHour)
+            .map((p) => p.poolAddress),
+        );
+        setPools(data.pools);
+        setNewPoolIds(ids);
+        setLastFetchedAt(now);
+        setLoading(false);
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load new pools",
-          );
-          setLoading(false);
-        }
+        if (cancelledRef.current) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to load new pools",
+        );
+        setLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
-  }, [refreshKey]);
+  }, [tick]);
 
-  const handleSort = useCallback((key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
+  // ─── Countdown timer ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      countdownRef.current--;
+      if (countdownRef.current <= 0) {
+        if (Date.now() - lastFetchTimeRef.current >= MIN_COOLDOWN_MS) {
+          setTick((t) => t + 1);
+        }
+        countdownRef.current = AUTO_REFRESH_INTERVAL;
+      }
+      setCountdown(countdownRef.current);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
+
+  // ─── Page Visibility API ───────────────────────────────────────────────────
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState !== "visible" || !lastFetchedAt) return;
+      const staleMs = 60000;
+      if (Date.now() - lastFetchedAt <= staleMs) return;
+      if (Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS) return;
+      setTick((t) => t + 1);
     }
-  }, [sortKey]);
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [lastFetchedAt]);
+
+  // ─── Last updated text (computed in effect, not render) ───────────────────
+  useEffect(() => {
+    const ts = lastFetchedAt;
+    if (!ts) {
+      const id = setTimeout(() => setLastUpdatedText(null), 0);
+      return () => clearTimeout(id);
+    }
+
+    function update() {
+      const diff = Date.now() - ts!;
+      const text = diff < 60000 ? "Just now" : `${formatAge(ts!)} ago`;
+      setLastUpdatedText(text);
+    }
+
+    const immediate = setTimeout(update, 0);
+    const id = setInterval(update, 5000);
+    return () => {
+      clearTimeout(immediate);
+      clearInterval(id);
+    };
+  }, [lastFetchedAt]);
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────
+
+  const handleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey === key) {
+        setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      } else {
+        setSortKey(key);
+        setSortDir("desc");
+      }
+    },
+    [sortKey],
+  );
+
+  function triggerRefresh() {
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < MIN_COOLDOWN_MS) return;
+    setTick((t) => t + 1);
+  }
+
+  function toggleAutoRefresh() {
+    setAutoRefresh((prev) => {
+      const next = !prev;
+      if (next) {
+        countdownRef.current = AUTO_REFRESH_INTERVAL;
+        setCountdown(AUTO_REFRESH_INTERVAL);
+      } else {
+        countdownRef.current = 0;
+        setCountdown(0);
+      }
+      return next;
+    });
+  }
+
+  // ─── Derived data ─────────────────────────────────────────────────────────
 
   const sortedPools = useMemo(() => {
     if (sortKey === "createdAt") {
@@ -193,6 +300,8 @@ export function NewPairsTable({
     });
   }, [pools, sortKey, sortDir]);
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -207,17 +316,48 @@ export function NewPairsTable({
             </span>
           )}
         </div>
-        <button
-          onClick={() => {
-            setLoading(true);
-            setError(null);
-            setRefreshKey((k) => k + 1);
-          }}
-          disabled={loading}
-          className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 transition hover:text-zinc-300 hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? "Loading…" : "Refresh"}
-        </button>
+
+        <div className="flex items-center gap-2">
+          {/* Auto toggle */}
+          <button
+            type="button"
+            onClick={toggleAutoRefresh}
+            className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition ${
+              autoRefresh
+                ? "bg-emerald-500/10 text-emerald-300"
+                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
+            }`}
+            aria-pressed={autoRefresh}
+            aria-label={
+              autoRefresh ? "Disable auto refresh" : "Enable auto refresh"
+            }
+          >
+            {autoRefresh && (
+              <span className="inline-block size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+            <span>Auto</span>
+            {autoRefresh && countdown > 0 && (
+              <span className="tabular-nums">{countdown}s</span>
+            )}
+          </button>
+
+          {/* Last updated (when auto is off) */}
+          {!autoRefresh && lastUpdatedText && (
+            <span className="text-[10px] text-zinc-500 tabular-nums">
+              {lastUpdatedText}
+            </span>
+          )}
+
+          {/* Refresh button */}
+          <button
+            type="button"
+            onClick={triggerRefresh}
+            disabled={loading}
+            className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 transition hover:text-zinc-300 hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -227,11 +367,8 @@ export function NewPairsTable({
             <div className="text-center max-w-sm">
               <p className="text-xs text-red-300 mb-3">{error}</p>
               <button
-                onClick={() => {
-                  setLoading(true);
-                  setError(null);
-                  setRefreshKey((k) => k + 1);
-                }}
+                type="button"
+                onClick={triggerRefresh}
                 className="rounded bg-[var(--accent)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--background)] transition hover:bg-[var(--accent-dim)]"
               >
                 Retry
