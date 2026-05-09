@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DlmmPairInfo } from "@/lib/types";
+import type { DlmmPairInfo, PairToken } from "@/lib/types";
 import {
   formatCompactUsd,
+  formatCompactNumber,
   formatTokenPrice,
   formatAge,
   pctValue,
@@ -23,7 +24,11 @@ type SortKey =
   | "tvlUsd"
   | "volume24h"
   | "fees24h"
-  | "apr";
+  | "apr"
+  | "binStep"
+  | "baseFeePct"
+  | "marketCap"
+  | "holders";
 type SortDir = "asc" | "desc";
 
 const AUTO_REFRESH_INTERVAL = 60; // seconds
@@ -39,8 +44,38 @@ const sortableColumns: {
   { key: "volume24h", label: "24h Vol", align: "right" },
   { key: "fees24h", label: "24h Fees", align: "right" },
   { key: "apr", label: "APR", align: "right" },
+  { key: "binStep", label: "Bin Step", align: "right" },
+  { key: "baseFeePct", label: "Base Fee", align: "right" },
+  { key: "marketCap", label: "MCap", align: "right" },
+  { key: "holders", label: "Holders", align: "right" },
   { key: "createdAt", label: "Age", align: "right" },
 ];
+
+const SOL_MINT = "So11111111111111111111111111111111111111112";
+
+function getPrimaryToken(pair: DlmmPairInfo): PairToken {
+  if (pair.tokenX.mint === SOL_MINT) return pair.tokenY;
+  if (pair.tokenY.mint === SOL_MINT) return pair.tokenX;
+  return pair.tokenX;
+}
+
+function FreezeStatus({ token }: { token: PairToken }) {
+  if (token.freezeAuthorityDisabled === true) {
+    return <span className="text-emerald-400">Off</span>;
+  }
+  if (token.freezeAuthorityDisabled === false) {
+    return <span className="text-red-400">On</span>;
+  }
+  return <span className="text-zinc-500">–</span>;
+}
+
+function VerifiedStatus({ token }: { token: PairToken }) {
+  return token.verified ? (
+    <span className="inline-flex items-center justify-center size-4 rounded bg-emerald-500/10 text-emerald-400 text-[9px]">✓</span>
+  ) : (
+    <span className="text-zinc-600">–</span>
+  );
+}
 
 function VerificationDot() {
   return (
@@ -114,6 +149,24 @@ function SkeletonRow() {
       <td className="px-3 py-2.5">
         <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
       </td>
+      <td className="px-3 py-2.5">
+        <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="h-3 bg-zinc-800 rounded animate-pulse w-10 ml-auto" />
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="h-3 bg-zinc-800 rounded animate-pulse w-10 ml-auto" />
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="h-3 bg-zinc-800 rounded animate-pulse w-6 ml-auto" />
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
+      </td>
     </tr>
   );
 }
@@ -138,6 +191,55 @@ export function NewPairsTable({
   const lastFetchTimeRef = useRef<number>(0);
   const cancelledRef = useRef(false);
   const countdownRef = useRef(0);
+
+  // ─── Restore auto-refresh preference from localStorage ─────────────────────
+  useEffect(() => {
+    try {
+      const savedAuto = localStorage.getItem("tidepool_auto_refresh");
+      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+
+      if (savedAuto === "true") {
+        setTimeout(() => setAutoRefresh(true), 0);
+      }
+
+      if (savedAt) {
+        const lastFetch = parseInt(savedAt, 10);
+        if (!isNaN(lastFetch)) {
+          const elapsed = Date.now() - lastFetch;
+          const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
+          if (elapsed >= 0 && elapsed < intervalMs) {
+            const remaining = Math.max(
+              1,
+              Math.ceil((intervalMs - elapsed) / 1000),
+            );
+            countdownRef.current = remaining;
+          }
+        }
+      }
+    } catch {
+      // ignore — localStorage unavailable or restricted
+    }
+  }, []);
+
+  // ─── Persist auto-refresh preference ──────────────────────────────────────
+  useEffect(() => {
+    try {
+      localStorage.setItem("tidepool_auto_refresh", String(autoRefresh));
+    } catch {
+      // ignore
+    }
+  }, [autoRefresh]);
+
+  // ─── Persist last fetch timestamp ─────────────────────────────────────────
+  useEffect(() => {
+    if (lastFetchedAt) {
+      try {
+        localStorage.setItem("tidepool_last_fetched_at", String(lastFetchedAt));
+      } catch {
+        // ignore
+      }
+    }
+  }, [lastFetchedAt]);
 
   // ─── Fetch effect ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -196,7 +298,17 @@ export function NewPairsTable({
 
   // ─── Countdown timer ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh) {
+      countdownRef.current = 0;
+      const clearId = setTimeout(() => setCountdown(0), 0);
+      return () => clearTimeout(clearId);
+    }
+
+    // Only reset to full interval if not already restored from localStorage
+    if (countdownRef.current === 0) {
+      countdownRef.current = AUTO_REFRESH_INTERVAL;
+    }
+    const initId = setTimeout(() => setCountdown(countdownRef.current), 0);
 
     const interval = setInterval(() => {
       countdownRef.current--;
@@ -209,7 +321,10 @@ export function NewPairsTable({
       setCountdown(countdownRef.current);
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(initId);
+      clearInterval(interval);
+    };
   }, [autoRefresh]);
 
   // ─── Page Visibility API ───────────────────────────────────────────────────
@@ -290,6 +405,20 @@ export function NewPairsTable({
       return [...pools].sort((a, b) => {
         const aVal = a.createdAt ?? 0;
         const bVal = b.createdAt ?? 0;
+        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+      });
+    }
+    if (sortKey === "marketCap") {
+      return [...pools].sort((a, b) => {
+        const aVal = getPrimaryToken(a).marketCap ?? 0;
+        const bVal = getPrimaryToken(b).marketCap ?? 0;
+        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+      });
+    }
+    if (sortKey === "holders") {
+      return [...pools].sort((a, b) => {
+        const aVal = getPrimaryToken(a).holders ?? 0;
+        const bVal = getPrimaryToken(b).holders ?? 0;
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       });
     }
@@ -376,7 +505,7 @@ export function NewPairsTable({
             </div>
           </div>
         ) : (
-          <table className="w-full text-left">
+          <table className="w-full min-w-[1400px] text-left">
             <thead className="sticky top-0 bg-[var(--panel-bg)] z-10">
               <tr className="border-b border-[var(--panel-border)]">
                 <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
@@ -392,6 +521,12 @@ export function NewPairsTable({
                     onClick={() => handleSort(col.key)}
                   />
                 ))}
+                <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
+                  Freeze
+                </th>
+                <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
+                  Verif.
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -402,7 +537,7 @@ export function NewPairsTable({
               ) : sortedPools.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={13}
                     className="px-3 py-8 text-center text-xs text-zinc-500"
                   >
                     No new pools found
@@ -448,8 +583,26 @@ export function NewPairsTable({
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {pctValue(pool.apr)}
                     </td>
+                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
+                      {pool.binStep ?? "–"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
+                      {pctValue(pool.baseFeePct)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
+                      {formatCompactUsd(getPrimaryToken(pool).marketCap)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
+                      {formatCompactNumber(getPrimaryToken(pool).holders)}
+                    </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-400">
                       {formatAge(pool.createdAt)}
+                    </td>
+                    <td className="px-3 py-2 text-center text-xs">
+                      <FreezeStatus token={getPrimaryToken(pool)} />
+                    </td>
+                    <td className="px-3 py-2 text-center text-xs">
+                      <VerifiedStatus token={getPrimaryToken(pool)} />
                     </td>
                   </tr>
                 ))
