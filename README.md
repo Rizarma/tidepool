@@ -54,11 +54,11 @@ The score can rise when a token has active mint or freeze authority, low liquidi
 
 Tidepool collects live data from public services:
 
-- DexScreener for market data
-- RugCheck for token risk signals
-- Jupiter for token metadata, price, and strict-list status
-- Solana RPC for on-chain mint data
-- Meteora for DLMM pool data and pool discovery by token mint
+- DexScreener
+- RugCheck
+- Jupiter
+- Solana RPC
+- Meteora DLMM
 
 If a source is slow or unavailable, Tidepool still shows what it can and lists the source status in the report.
 
