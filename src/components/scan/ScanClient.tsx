@@ -32,6 +32,7 @@ export default function ScanClient() {
         error={ctrl.error}
         onSubmit={ctrl.onSubmit}
         scanToken={ctrl.scanToken}
+        onGoHome={ctrl.clearScan}
         poolInputRef={ctrl.poolInputRef}
       />
 

@@ -49,6 +49,7 @@ export interface ScanController {
   // Actions
   scanToken: (nextMint?: string) => Promise<void>;
   scanPool: (poolAddress: string) => Promise<void>;
+  clearScan: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 
   // Refs
@@ -227,6 +228,15 @@ export function useScanController(): ScanController {
     }
   }
 
+  function clearScan() {
+    setTokenReport(null);
+    setTokenError(null);
+    setPairReport(null);
+    setPairError(null);
+    setSelectedPoolAddress(null);
+    // Intentionally preserve input values so the user can edit and resubmit
+  }
+
   return {
     mint,
     mode,
@@ -247,6 +257,7 @@ export function useScanController(): ScanController {
     setSelectedPoolAddress,
     scanToken,
     scanPool,
+    clearScan,
     onSubmit,
     poolInputRef,
   };

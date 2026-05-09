@@ -22,6 +22,7 @@ export interface ScanFormProps {
   error: string | null;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   scanToken: (mint: string) => Promise<void>;
+  onGoHome: () => void;
   poolInputRef: RefObject<HTMLInputElement | null>;
 }
 
@@ -43,20 +44,26 @@ export function ScanForm({
   error,
   onSubmit,
   scanToken,
+  onGoHome,
   poolInputRef,
 }: ScanFormProps) {
   return (
     <header className="shrink-0 border-b border-[var(--panel-border)] bg-[var(--panel-bg)]">
       <div className="flex items-center gap-3 px-3 py-2 xl:px-4">
         {/* Brand */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="grid size-7 place-items-center rounded bg-[var(--accent)] text-xs font-black text-[var(--background)]">
+        <button
+          type="button"
+          onClick={onGoHome}
+          className="flex items-center gap-2 shrink-0 cursor-pointer group"
+          aria-label="Go to homepage"
+        >
+          <div className="grid size-7 place-items-center rounded bg-[var(--accent)] text-xs font-black text-[var(--background)] transition group-hover:bg-[var(--accent-dim)]">
             T
           </div>
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-300 hidden sm:inline">
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-300 hidden sm:inline transition group-hover:text-zinc-200">
             Tidepool
           </span>
-        </div>
+        </button>
 
         <div className="h-5 w-px bg-[var(--panel-border)] shrink-0" />
 
