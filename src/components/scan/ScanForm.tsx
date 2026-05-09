@@ -91,25 +91,21 @@ export function ScanForm({
         {/* Scan form inline */}
         <form onSubmit={onSubmit} className="flex flex-1 items-center gap-2 min-w-0" aria-label="Scan address form">
           {mode === "token" ? (
-            <input
+            <AddressInput
               id="mint"
               aria-label="Token mint address"
               value={mint}
-              onChange={(event) => setMint(event.target.value)}
+              onChange={setMint}
               placeholder="Token mint address…"
-              className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
-              spellCheck={false}
             />
           ) : pairInputMode === "pool" ? (
-            <input
-              ref={poolInputRef}
+            <AddressInput
+              inputRef={poolInputRef}
               id="pool"
               aria-label="Meteora DLMM pool or token address"
               value={poolAddress}
-              onChange={(event) => setPoolAddress(event.target.value)}
+              onChange={setPoolAddress}
               placeholder="Pool or token address…"
-              className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
-              spellCheck={false}
             />
           ) : (
             <div className="flex flex-1 gap-1.5 min-w-0">
@@ -190,6 +186,72 @@ export function ScanForm({
         </div>
       )}
     </header>
+  );
+}
+
+function AddressInput({
+  id,
+  inputRef,
+  value,
+  onChange,
+  placeholder,
+  "aria-label": ariaLabel,
+}: {
+  id: string;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  "aria-label": string;
+}) {
+  async function pasteFromClipboard() {
+    const clipboardText = await navigator.clipboard?.readText();
+
+    if (clipboardText) {
+      onChange(clipboardText.trim());
+      inputRef?.current?.focus();
+    }
+  }
+
+  return (
+    <div className="relative flex flex-1 min-w-0 items-center">
+      <input
+        ref={inputRef}
+        id={id}
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] py-1.5 pl-3 pr-9 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+        spellCheck={false}
+      />
+      <button
+        type="button"
+        onClick={() => void pasteFromClipboard()}
+        aria-label={`Paste ${ariaLabel.toLowerCase()} from clipboard`}
+        title="Paste from clipboard"
+        className="absolute right-1 grid size-6 place-items-center rounded text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+      >
+        <ClipboardIcon />
+      </button>
+    </div>
+  );
+}
+
+function ClipboardIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="none">
+      <path
+        d="M7.25 4.25h-.9A2.1 2.1 0 0 0 4.25 6.35v8.3a2.1 2.1 0 0 0 2.1 2.1h7.3a2.1 2.1 0 0 0 2.1-2.1v-8.3a2.1 2.1 0 0 0-2.1-2.1h-.9"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M7.75 5.75h4.5a1 1 0 0 0 1-1v-.5a1 1 0 0 0-1-1h-4.5a1 1 0 0 0-1 1v.5a1 1 0 0 0 1 1Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
   );
 }
 
