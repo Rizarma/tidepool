@@ -63,34 +63,40 @@ export function useScanController(): ScanController {
   const [poolAddress, setPoolAddress] = useState("");
   const [mintA, setMintA] = useState("");
   const [mintB, setMintB] = useState("");
-  const [report, setReport] = useState<ScanReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [tokenReport, setTokenReport] = useState<ScanReport | null>(null);
+  const [pairReport, setPairReport] = useState<ScanReport | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [pairError, setPairError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedPoolAddress, setSelectedPoolAddress] = useState<string | null>(null);
+
+  // Derive public report from current mode so existing consumers stay unchanged
+  const report = mode === "token" ? tokenReport : pairReport;
+  const error = mode === "token" ? tokenError : pairError;
 
   async function scanToken(nextMint = mint) {
     const requestId = ++scanRequestIdRef.current;
     const trimmed = nextMint.trim();
     if (!trimmed) {
-      setError("Paste a Solana mint address to scan.");
+      setTokenError("Paste a Solana mint address to scan.");
       return;
     }
 
     setMint(trimmed);
     setLoading(true);
-    setError(null);
-    setReport(null);
-    setSelectedPoolAddress(null);
+    setTokenError(null);
+    setTokenReport(null);
+    // Preserve selectedPoolAddress across token scans
 
     try {
       const response = await fetch(`/api/scan?mint=${encodeURIComponent(trimmed)}`);
       const data = await response.json();
       if (!response.ok) throw new Error(parseApiError(data, "Scan failed"));
       if (requestId !== scanRequestIdRef.current) return;
-      setReport(data);
+      setTokenReport(data);
     } catch (err) {
       if (requestId !== scanRequestIdRef.current) return;
-      setError(err instanceof Error ? err.message : "Scan failed");
+      setTokenError(err instanceof Error ? err.message : "Scan failed");
     } finally {
       if (requestId === scanRequestIdRef.current) setLoading(false);
     }
@@ -103,18 +109,19 @@ export function useScanController(): ScanController {
     const trimmedMintB = mintB.trim();
 
     if (pairInputMode === "pool" && !trimmedPool) {
-      setError("Paste a Meteora DLMM pool address or token mint to scan.");
+      setPairError("Paste a Meteora DLMM pool address or token mint to scan.");
       return;
     }
     if (pairInputMode === "mints" && (!trimmedMintA || !trimmedMintB)) {
-      setError("Paste both token mint addresses for the DLMM pool.");
+      setPairError("Paste both token mint addresses for the DLMM pool.");
       return;
     }
 
     setLoading(true);
-    setError(null);
-    setReport(null);
+    setPairError(null);
+    setPairReport(null);
     setSelectedPoolAddress(null);
+    // Do not clear tokenReport - preserve token scan results
 
     try {
       const query =
@@ -140,7 +147,7 @@ export function useScanController(): ScanController {
           if (requestId !== scanRequestIdRef.current) return;
           setPoolAddress(trimmedPool);
           setSelectedPoolAddress(getInitialDiscoveryPoolAddress(discoveryData));
-          setReport(discoveryData);
+          setPairReport(discoveryData);
           return;
         }
 
@@ -151,10 +158,10 @@ export function useScanController(): ScanController {
       setPoolAddress(trimmedPool);
       setMintA(trimmedMintA);
       setMintB(trimmedMintB);
-      setReport(data);
+      setPairReport(data);
     } catch (err) {
       if (requestId !== scanRequestIdRef.current) return;
-      setError(err instanceof Error ? err.message : "Pool scan failed");
+      setPairError(err instanceof Error ? err.message : "Pool scan failed");
     } finally {
       if (requestId === scanRequestIdRef.current) setLoading(false);
     }
