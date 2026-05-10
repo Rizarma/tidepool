@@ -8,6 +8,7 @@ import {
   formatTokenPrice,
   formatAge,
   pctValue,
+  shortenAddress,
 } from "@/lib/format";
 
 interface NewPairsResponse {
@@ -74,6 +75,58 @@ function VerifiedStatus({ token }: { token: PairToken }) {
     <span className="inline-flex items-center justify-center size-4 rounded bg-emerald-500/10 text-emerald-400 text-[9px]">✓</span>
   ) : (
     <span className="text-zinc-600">–</span>
+  );
+}
+
+function CopyButton({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleCopy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(address).catch(() => {});
+      setCopied(true);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setCopied(false), 1500);
+    },
+    [address],
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex items-center justify-center rounded p-0.5 text-zinc-600 hover:text-zinc-300 transition"
+      title={copied ? "Copied!" : "Copy address"}
+    >
+      {copied ? (
+        <svg
+          className="size-3"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg
+          className="size-3"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
   );
 }
 
@@ -563,9 +616,15 @@ export function NewPairsTable({
                         {pool.tokenY.verified && <VerificationDot />}
                         {newPoolIds.has(pool.poolAddress) && <NewBadge />}
                       </div>
-                      <div className="text-[10px] text-zinc-500 mt-0.5 truncate max-w-[200px]">
-                        {pool.name ??
-                          `${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-zinc-500 truncate max-w-[140px]">
+                          {pool.name ??
+                            `${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
+                        </span>
+                        <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
+                          {shortenAddress(pool.poolAddress)}
+                        </span>
+                        <CopyButton address={pool.poolAddress} />
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">

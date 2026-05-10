@@ -37,6 +37,12 @@ export function short(value?: string | null): string | undefined {
   return value.length > 12 ? `${value.slice(0, 5)}…${value.slice(-5)}` : value;
 }
 
+/** Shorten a base58 address — 7x8K…3aB9 */
+export function shortenAddress(addr: string, start = 4, end = 4): string {
+  if (addr.length <= start + end + 1) return addr;
+  return `${addr.slice(0, start)}…${addr.slice(-end)}`;
+}
+
 export function yesNo(value?: boolean): string {
   if (value == null) return "Unknown";
   return value ? "Yes" : "No";
