@@ -10,6 +10,35 @@ import { SourcesList } from "@/components/report/SourcesList";
 import { DataRow, MetricCell, PanelSection, TokenSummaryCompact } from "@/components/report/report-atoms";
 import { DiscoveryPanel } from "@/components/report/DiscoveryPanel";
 
+function IndicatorCard({
+  label,
+  value,
+  currentPrice,
+  symbolY,
+}: {
+  label: string;
+  value?: number;
+  currentPrice?: number;
+  symbolY: string;
+}) {
+  const isAbove = value != null && currentPrice != null && currentPrice > value;
+  const isBelow = value != null && currentPrice != null && currentPrice < value;
+
+  return (
+    <div className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${isAbove ? "text-emerald-300" : isBelow ? "text-red-300" : "text-zinc-100"}`}>
+        {formatTokenPrice(value)} <span className="text-zinc-500 text-[10px]">{symbolY}</span>
+      </p>
+      {(isAbove || isBelow) && (
+        <p className={`text-[10px] mt-0.5 ${isAbove ? "text-emerald-400" : "text-red-400"}`}>
+          {isAbove ? "▲ Above current price" : "▼ Below current price"}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function PairReportLayout({
   report,
   discovery,
@@ -93,6 +122,23 @@ export function PairReportLayout({
             </p>
           </div>
         </PanelSection>
+
+        {/* Indicators */}
+        {report.indicators?.timeframes?.length ? (
+          <PanelSection title="Moving Averages" className="mt-3">
+            <div className="grid grid-cols-3 gap-2">
+              {report.indicators.timeframes.map((tf) => (
+                <IndicatorCard
+                  key={tf.timeframe}
+                  label={`${tf.timeframe} SMA(20)`}
+                  value={tf.sma20}
+                  currentPrice={pair?.priceTokenYPerTokenX}
+                  symbolY={symbolY}
+                />
+              ))}
+            </div>
+          </PanelSection>
+        ) : null}
 
         {/* Fees */}
         <PanelSection title="Pool Fees" className="mt-3">
