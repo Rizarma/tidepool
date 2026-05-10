@@ -7,12 +7,15 @@ import { NewPairsTable } from "@/components/pairs/NewPairsTable";
 import { TokenReportLayout } from "@/components/report/TokenReportLayout";
 import { PairReportLayout } from "@/components/report/PairReportLayout";
 import { poolReportFromDiscovery } from "@/components/report/pool-report-from-discovery";
+import { IndicatorConfigProvider } from "@/components/indicators/IndicatorConfigContext";
+import { IndicatorBottomBar } from "@/components/indicators/IndicatorBottomBar";
 
 export default function ScanClient() {
   const ctrl = useScanController();
 
   return (
-    <div className="app-shell flex flex-col h-full">
+    <IndicatorConfigProvider>
+      <div className="app-shell flex flex-col h-full">
       {/* ─── Command Bar ─────────────────────────────────────────────── */}
       <ScanForm
         mode={ctrl.mode}
@@ -71,6 +74,8 @@ export default function ScanClient() {
           <TokenReportLayout report={ctrl.report} />
         )}
       </main>
+      <IndicatorBottomBar />
     </div>
+    </IndicatorConfigProvider>
   );
 }
