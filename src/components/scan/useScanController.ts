@@ -207,6 +207,7 @@ export function useScanController(): ScanController {
     setPairError(null);
     setPairReport(null);
     setSelectedPoolAddress(null);
+    setPoolAddress(trimmed);
 
     try {
       const response = await fetch(

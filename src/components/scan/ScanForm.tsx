@@ -212,11 +212,15 @@ function AddressInput({
   "aria-label": string;
 }) {
   async function pasteFromClipboard() {
-    const clipboardText = await navigator.clipboard?.readText();
+    try {
+      const clipboardText = await navigator.clipboard?.readText();
 
-    if (clipboardText) {
-      onChange(clipboardText.trim());
-      inputRef?.current?.focus();
+      if (clipboardText) {
+        onChange(clipboardText.trim());
+        inputRef?.current?.focus();
+      }
+    } catch {
+      // Silently ignore — clipboard permission may be denied
     }
   }
 

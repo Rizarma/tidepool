@@ -52,6 +52,8 @@ const sortableColumns: {
   { key: "createdAt", label: "Age", align: "right" },
 ];
 
+const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Verif.
+
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 function getPrimaryToken(pair: DlmmPairInfo): PairToken {
@@ -62,19 +64,19 @@ function getPrimaryToken(pair: DlmmPairInfo): PairToken {
 
 function FreezeStatus({ token }: { token: PairToken }) {
   if (token.freezeAuthorityDisabled === true) {
-    return <span className="text-emerald-400">Off</span>;
+    return <span className="text-emerald-400" aria-label="Freeze authority disabled">Off</span>;
   }
   if (token.freezeAuthorityDisabled === false) {
-    return <span className="text-red-400">On</span>;
+    return <span className="text-red-400" aria-label="Freeze authority enabled">On</span>;
   }
-  return <span className="text-zinc-500">–</span>;
+  return <span className="text-zinc-500" aria-label="Freeze authority unknown">–</span>;
 }
 
 function VerifiedStatus({ token }: { token: PairToken }) {
   return token.verified ? (
-    <span className="inline-flex items-center justify-center size-4 rounded bg-emerald-500/10 text-emerald-400 text-[9px]">✓</span>
+    <span className="inline-flex items-center justify-center size-4 rounded bg-emerald-500/10 text-emerald-400 text-[9px]" aria-label="Verified">✓</span>
   ) : (
-    <span className="text-zinc-600">–</span>
+    <span className="text-zinc-600" aria-label="Not verified">–</span>
   );
 }
 
@@ -85,13 +87,20 @@ function CopyButton({ address }: { address: string }) {
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      navigator.clipboard.writeText(address).catch(() => {});
-      setCopied(true);
+      navigator.clipboard.writeText(address)
+        .then(() => setCopied(true))
+        .catch(() => {});
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => setCopied(false), 1500);
     },
     [address],
   );
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   return (
     <button
@@ -133,7 +142,7 @@ function CopyButton({ address }: { address: string }) {
 function VerificationDot() {
   return (
     <span
-      className="inline-block size-1.5 rounded-full bg-emerald-400 shrink-0"
+      className="inline-block size-1.5 rounded-full bg-[var(--accent)] shrink-0"
       title="Verified"
       aria-label="Verified"
     />
@@ -165,17 +174,20 @@ function SortHeader({
     <th
       scope="col"
       aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : undefined}
-      onClick={onClick}
-      className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "text-right" : ""}`}
+      className={`px-0 py-0 text-[10px] font-semibold uppercase tracking-wider ${align === "right" ? "text-right" : ""}`}
     >
-      <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onClick}
+        className={`inline-flex items-center gap-1 px-3 py-2 cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"}`}
+      >
         {label}
         {active && (
           <span className="text-[8px] text-[var(--accent)]">
             {dir === "asc" ? "▲" : "▼"}
           </span>
         )}
-      </span>
+      </button>
     </th>
   );
 }
@@ -187,42 +199,11 @@ function SkeletonRow() {
         <div className="h-3 bg-zinc-800 rounded animate-pulse w-28" />
         <div className="h-2 bg-zinc-800 rounded animate-pulse w-20 mt-1.5" />
       </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-16 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-14 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-14 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-10 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-10 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-10 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-6 ml-auto" />
-      </td>
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-8 ml-auto" />
-      </td>
+      {Array.from({ length: TOTAL_COLUMNS - 1 }).map((_, i) => (
+        <td key={i} className="px-3 py-2.5">
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      ))}
     </tr>
   );
 }
@@ -410,15 +391,15 @@ export function NewPairsTable({
     [sortKey],
   );
 
-  function triggerRefresh() {
+  const triggerRefresh = useCallback(() => {
     const now = Date.now();
     if (now - lastFetchTimeRef.current < MIN_COOLDOWN_MS) return;
     setTick((t) => t + 1);
-  }
+  }, []);
 
-  function toggleAutoRefresh() {
+  const toggleAutoRefresh = useCallback(() => {
     setAutoRefresh((prev) => !prev);
-  }
+  }, []);
 
   // ─── Derived data ─────────────────────────────────────────────────────────
 
@@ -559,7 +540,7 @@ export function NewPairsTable({
               ) : sortedPools.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={13}
+                    colSpan={TOTAL_COLUMNS}
                     className="px-3 py-8 text-center text-xs text-zinc-500"
                   >
                     No new pools found
@@ -569,8 +550,16 @@ export function NewPairsTable({
                 sortedPools.map((pool) => (
                   <tr
                     key={pool.poolAddress}
+                    tabIndex={0}
+                    role="button"
                     onClick={() => onSelectPool(pool.poolAddress)}
-                    className="border-b border-[var(--panel-border)] cursor-pointer transition hover:bg-white/[0.02]"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectPool(pool.poolAddress);
+                      }
+                    }}
+                    className="border-b border-[var(--panel-border)] cursor-pointer transition hover:bg-white/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
                   >
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -602,6 +591,7 @@ export function NewPairsTable({
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on GMGN"
+                          aria-label="View on GMGN"
                         >
                           GMGN
                         </a>
@@ -612,6 +602,7 @@ export function NewPairsTable({
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on DexTools"
+                          aria-label="View on DexTools"
                         >
                           Dex
                         </a>
@@ -622,6 +613,7 @@ export function NewPairsTable({
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on Meteora"
+                          aria-label="View on Meteora"
                         >
                           Met
                         </a>
