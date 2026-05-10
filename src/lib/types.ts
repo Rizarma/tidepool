@@ -81,6 +81,26 @@ export interface SourceStatus {
   error?: string;
 }
 
+// ─── Indicators ──────────────────────────────────────────────────────────────
+
+export type IndicatorType = "sma";
+
+export interface IndicatorValue {
+  type: IndicatorType;
+  value?: number;
+  period: number;
+  dataQuality: "full" | "partial" | "insufficient";
+}
+
+export interface IndicatorTimeframe {
+  timeframe: string;
+  values: IndicatorValue[];
+}
+
+export interface PoolIndicators {
+  timeframes: IndicatorTimeframe[];
+}
+
 // ─── Full Report ─────────────────────────────────────────────────────────────
 
 export interface TokenReport {
@@ -136,6 +156,7 @@ export interface DlmmPairInfo {
 export interface PoolReport {
   kind: "pair";
   pair: DlmmPairInfo;
+  indicators?: PoolIndicators;
   sources: SourceStatus[];
   /** ISO timestamp */
   fetchedAt: string;

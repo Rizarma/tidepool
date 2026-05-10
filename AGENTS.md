@@ -26,6 +26,12 @@ Next.js 16 application for tidepool scanning and risk analysis.
 - `GET /api/pools/new` proxies Meteora's new-pools endpoint and returns `{ pools: DlmmPairInfo[], total, pages }` with `createdAt` populated from `pool.created_at`.
 - The New Pairs table supports periodic auto-refresh (60s interval, 15s cooldown). Toggle state and countdown are persisted in `localStorage` with keys `tidepool_auto_refresh` and `tidepool_last_fetched_at`.
 - The Tidepool logo button calls `clearScan()` which returns to the New Pairs table while preserving the search bar inputs.
+- Pool reports include configurable technical indicators (SMA) fetched from a separate endpoint `GET /api/indicators?pool=<address>&timeframes=1m,5m,15m&indicators=sma:20`. This is separate from the pool scan so indicator latency does not block pool data.
+- The indicators subsystem lives in `src/components/indicators/` (UI: `IndicatorsPanel`, `IndicatorBottomBar`, `IndicatorSettings`, `IndicatorConfigContext`), `src/lib/indicators/` (math + registry), `src/lib/providers-ohlcv.ts` (Birdeye fetcher), and `src/lib/indicator-config.ts` (config types + localStorage helpers).
+- Adding a new indicator type requires a single entry in `src/lib/indicators/registry.ts` — no other files need changes.
+- Pool price ratios for indicators are computed as `tokenX_USD / tokenY_USD` at matching timestamps from Birdeye price histories.
+- Indicator config is persisted in `localStorage` under key `tidepool_indicator_config`.
+- `IndicatorSettings.tsx` uses local draft state — changes only apply on the "Apply" button click. Do not change this to immediate apply.
 
 ## External Services and APIs
 
@@ -45,6 +51,7 @@ Next.js 16 application for tidepool scanning and risk analysis.
 - **Solana program IDs**: Defined in `src/lib/solana-programs.ts` for SPL Token and Token-2022 account checks.
   - SPL Token: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`
   - Token-2022: `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`
+- **Birdeye API** (`https://public-api.birdeye.so`): Used in `src/lib/providers-ohlcv.ts` for token price history (OHLCV) at 1m/5m/15m/1h/4h/1d timeframes. Endpoint: `GET /defi/history_price?address=<mint>&type=<timeframe>&time_from=<unix>&time_to=<unix>`. Requires `BIRDEYE_API_KEY` header and `x-chain: solana`. Implements retry with exponential backoff on 429 rate limits. Gracefully degrades (omits indicators) when the key is missing.
 
 The app does not use Solana or Meteora SDK packages. It calls these services with native `fetch` and a small JSON-RPC helper.
 

@@ -64,6 +64,7 @@ const UNAVAILABLE_PATTERNS = [
   /502/,
   /429/,
   /rate.?limit/i,
+  /too.?many/i,
   /service.?unavailable/i,
 ];
 

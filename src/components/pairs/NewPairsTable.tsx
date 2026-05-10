@@ -221,11 +221,8 @@ export function NewPairsTable({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(() => {
-    try {
-      return localStorage.getItem("tidepool_auto_refresh") === "true";
-    } catch {
-      return false;
-    }
+    try { return localStorage.getItem("tidepool_auto_refresh") === "true"; }
+    catch { return false; }
   });
   const [countdown, setCountdown] = useState(() => {
     try {
@@ -238,9 +235,7 @@ export function NewPairsTable({
       if (elapsed >= 0 && elapsed < intervalMs) {
         return Math.max(1, Math.ceil((intervalMs - elapsed) / 1000));
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
     return 0;
   });
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);

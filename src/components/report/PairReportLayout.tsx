@@ -9,6 +9,7 @@ import {
 import { SourcesList } from "@/components/report/SourcesList";
 import { DataRow, MetricCell, PanelSection, TokenSummaryCompact } from "@/components/report/report-atoms";
 import { DiscoveryPanel } from "@/components/report/DiscoveryPanel";
+import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanel";
 
 export function PairReportLayout({
   report,
@@ -80,27 +81,38 @@ export function PairReportLayout({
 
         {/* Price */}
         <PanelSection title="Price">
-          <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2 mb-2">
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Y per X</p>
-            <p className="text-sm font-semibold text-zinc-100 mt-0.5">
-              1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
-            </p>
-          </div>
-          <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Inverse</p>
-            <p className="text-sm font-semibold text-zinc-100 mt-0.5">
-              1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
-            </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Y per X</p>
+              <p className="text-sm font-semibold text-zinc-100 mt-0.5">
+                1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
+              </p>
+            </div>
+            <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Inverse</p>
+              <p className="text-sm font-semibold text-zinc-100 mt-0.5">
+                1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
+              </p>
+            </div>
           </div>
         </PanelSection>
 
-        {/* Fees */}
-        <PanelSection title="Pool Fees" className="mt-3">
+        {/* Pool Information */}
+        <PanelSection title="Pool Information" className="mt-3">
           <DataRow label="Base fee" value={feePct(pair?.baseFeePct)} />
           <DataRow label="Dynamic fee" value={feePct(pair?.dynamicFeePct)} />
           <DataRow label="Max fee" value={feePct(pair?.maxFeePct)} />
           <DataRow label="Protocol fee" value={feePct(pair?.protocolFeePct)} />
           <DataRow label="APR / APY" value={`${pctValue(pair?.apr)} / ${pctValue(pair?.apy)}`} />
+        </PanelSection>
+
+        {/* Indicators */}
+        <PanelSection title="Indicators" className="mt-3">
+          <IndicatorsPanel
+            poolAddress={pair?.poolAddress}
+            currentPrice={pair?.priceTokenYPerTokenX}
+            symbolY={symbolY}
+          />
         </PanelSection>
 
         {/* Tags */}

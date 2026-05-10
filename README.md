@@ -36,6 +36,7 @@ Pool scans show:
 - Blacklist status and pool tags
 - A pool chooser when more than one matching pool exists
 - Which data sources answered the scan
+- SMA (Simple Moving Average) indicators at configurable timeframes (1m, 5m, 15m, 1h, 4h, 1d), with a settings panel to toggle timeframes and adjust the SMA period
 
 If no Meteora DLMM pool matches a token mint, try Token mode for a broader token risk scan. The token may trade on another DEX.
 
@@ -61,6 +62,7 @@ Tidepool collects live data from public services:
 - Jupiter
 - Solana RPC
 - Meteora DLMM
+- Birdeye (price history for SMA indicators)
 
 If a source is slow or unavailable, Tidepool still shows what it can and lists the source status in the report.
 
@@ -90,7 +92,7 @@ This section is for people who want to run the app on their own computer.
    pnpm build
    ```
 
-Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RPC_URL` or `SOLANA_RPC_URL` if you want to use your own Solana RPC endpoint.
+Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RPC_URL` or `SOLANA_RPC_URL` if you want to use your own Solana RPC endpoint. You can also set `BIRDEYE_API_KEY` if you want SMA indicators on pool scans. Without it, pool scans still work but indicators are omitted.
 
 ## Project Notes
 

@@ -299,4 +299,5 @@ describe("GET /api/scan/pair", () => {
       expect(body.pair.poolAddress).toBe(VALID_POOL);
     });
   });
+
 });
