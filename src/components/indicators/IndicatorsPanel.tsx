@@ -19,9 +19,40 @@ interface IndicatorApiResponse {
 
 function indicatorLabel(indicator: IndicatorValue): string {
   if (indicator.type === "supertrend") {
-    return `ST(${indicator.period}${indicator.multiplier ? `,${indicator.multiplier}` : ""})`;
+    return `Supertrend(${indicator.period}${indicator.multiplier ? `,${indicator.multiplier}` : ""})`;
   }
   return `SMA(${indicator.period})`;
+}
+
+function groupByIndicator(data: PoolIndicators): Array<{
+  type: string;
+  label: string;
+  items: Array<{ timeframe: string; indicator: IndicatorValue }>;
+}> {
+  if (!data.timeframes.length) return [];
+
+  const result: Array<{
+    type: string;
+    label: string;
+    items: Array<{ timeframe: string; indicator: IndicatorValue }>;
+  }> = [];
+
+  const numIndicators = data.timeframes[0].values.length;
+
+  for (let i = 0; i < numIndicators; i++) {
+    const firstIndicator = data.timeframes[0].values[i];
+    if (!firstIndicator) continue;
+
+    const label = indicatorLabel(firstIndicator);
+    const items = data.timeframes.map((tf) => ({
+      timeframe: tf.timeframe,
+      indicator: tf.values[i]!,
+    }));
+
+    result.push({ type: firstIndicator.type, label, items });
+  }
+
+  return result;
 }
 
 function IndicatorCard({
@@ -165,18 +196,25 @@ export function IndicatorsPanel({
       </div>
 
       {data?.timeframes && data.timeframes.length > 0 ? (
-        <div className="grid grid-cols-3 gap-2">
-          {data.timeframes.flatMap((tf) =>
-            tf.values.map((indicator) => (
-              <IndicatorCard
-                key={`${tf.timeframe}-${indicator.type}`}
-                label={`${tf.timeframe} ${indicatorLabel(indicator)}`}
-                indicator={indicator}
-                currentPrice={currentPrice}
-                symbolY={symbolY}
-              />
-            )),
-          )}
+        <div>
+          {groupByIndicator(data).map(({ type, label, items }) => (
+            <div key={type} className="mb-3 last:mb-0">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
+                {label}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {items.map(({ timeframe, indicator }) => (
+                  <IndicatorCard
+                    key={timeframe}
+                    label={timeframe}
+                    indicator={indicator}
+                    currentPrice={currentPrice}
+                    symbolY={symbolY}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : !loading ? (
         <p className="text-[10px] text-zinc-500">No indicator data available.</p>
