@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GET } from "./route";
+import { GET, clearIndicatorResponseCache } from "./route";
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -60,6 +60,7 @@ function makePairInfo() {
 describe("GET /api/indicators", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    clearIndicatorResponseCache();
   });
 
   describe("parameter validation", () => {
