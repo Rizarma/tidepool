@@ -9,13 +9,16 @@ export type OhlcvProviderName = "meteora" | "birdeye";
 
 export interface IndicatorConfig {
   timeframes: string[];
-  indicators: Array<{ type: string; period: number; enabled?: boolean }>;
+  indicators: Array<{ type: string; period: number; enabled?: boolean; multiplier?: number }>;
   provider: OhlcvProviderName;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
   timeframes: ["5m", "1h", "4h"],
-  indicators: [{ type: "sma", period: 20, enabled: true }],
+  indicators: [
+    { type: "sma", period: 20, enabled: true },
+    { type: "supertrend", period: 10, multiplier: 3, enabled: false },
+  ],
   provider: "meteora",
 };
 
@@ -41,12 +44,20 @@ export function toBirdeyeTimeframe(tf: string): string {
 
 /**
  * Serialize config to URL query params.
+ *
+ * Format: `type:period` for single-param indicators,
+ *         `type:period:multiplier` for indicators with a multiplier (e.g. supertrend)
  */
 export function serializeConfig(config: IndicatorConfig): string {
   const tf = config.timeframes.join(",");
   const ind = config.indicators
     .filter((i) => i.enabled !== false)
-    .map((i) => `${i.type}:${i.period}`)
+    .map((i) => {
+      if (i.multiplier !== undefined) {
+        return `${i.type}:${i.period}:${i.multiplier}`;
+      }
+      return `${i.type}:${i.period}`;
+    })
     .join(",");
   const provider = config.provider ?? "meteora";
   return `timeframes=${encodeURIComponent(tf)}&indicators=${encodeURIComponent(ind)}&provider=${encodeURIComponent(provider)}`;
@@ -108,6 +119,8 @@ function isValidConfig(raw: unknown): raw is IndicatorConfig {
     if (typeof (ind as Record<string, unknown>).period !== "number") return false;
     const enabled = (ind as Record<string, unknown>).enabled;
     if (enabled !== undefined && typeof enabled !== "boolean") return false;
+    const multiplier = (ind as Record<string, unknown>).multiplier;
+    if (multiplier !== undefined && typeof multiplier !== "number") return false;
   }
   const provider = c.provider;
   if (provider !== undefined && provider !== "meteora" && provider !== "birdeye") {

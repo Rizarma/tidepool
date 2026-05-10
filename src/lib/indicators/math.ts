@@ -105,13 +105,14 @@ export function supertrend(
   const upperBasic: (number | null)[] = [];
   const lowerBasic: (number | null)[] = [];
   for (let i = 0; i < highs.length; i++) {
-    if (atrValues[i] === null) {
+    const atrVal = atrValues[i];
+    if (atrVal === null) {
       upperBasic.push(null);
       lowerBasic.push(null);
     } else {
       const mid = (highs[i] + lows[i]) / 2;
-      upperBasic.push(mid + multiplier * atrValues[i]);
-      lowerBasic.push(mid - multiplier * atrValues[i]);
+      upperBasic.push(mid + multiplier * atrVal);
+      lowerBasic.push(mid - multiplier * atrVal);
     }
   }
 
@@ -126,24 +127,29 @@ export function supertrend(
   const trend: number[] = new Array(highs.length).fill(0); // 1 = up, -1 = down
 
   // Initialize first valid candle
-  finalUpper[startIdx] = upperBasic[startIdx];
-  finalLower[startIdx] = lowerBasic[startIdx];
-  if (closes[startIdx] > upperBasic[startIdx]) {
-    st[startIdx] = lowerBasic[startIdx];
+  // startIdx = period, and ATR is valid from period-1 onward, so basic
+  // bands are guaranteed non-null at this index.
+  const initUpper = upperBasic[startIdx] as number;
+  const initLower = lowerBasic[startIdx] as number;
+  finalUpper[startIdx] = initUpper;
+  finalLower[startIdx] = initLower;
+  if (closes[startIdx] > initUpper) {
+    st[startIdx] = initLower;
     trend[startIdx] = 1;
   } else {
-    st[startIdx] = upperBasic[startIdx];
+    st[startIdx] = initUpper;
     trend[startIdx] = -1;
   }
 
   for (let i = startIdx + 1; i < highs.length; i++) {
-    const ub = upperBasic[i]!;
-    const lb = lowerBasic[i]!;
+    const ub = upperBasic[i] as number;
+    const lb = lowerBasic[i] as number;
+    const prevSt = st[i - 1] as number;
 
     // Final Upper Band
     if (trend[i - 1] === -1) {
       // Downtrend: upper band can only fall or stay flat
-      finalUpper[i] = Math.min(ub, finalUpper[i - 1]!);
+      finalUpper[i] = Math.min(ub, finalUpper[i - 1] as number);
     } else {
       // Uptrend: reset to basic
       finalUpper[i] = ub;
@@ -152,19 +158,19 @@ export function supertrend(
     // Final Lower Band
     if (trend[i - 1] === 1) {
       // Uptrend: lower band can only rise or stay flat
-      finalLower[i] = Math.max(lb, finalLower[i - 1]!);
+      finalLower[i] = Math.max(lb, finalLower[i - 1] as number);
     } else {
       // Downtrend: reset to basic
       finalLower[i] = lb;
     }
 
     // Determine trend and supertrend value
-    if (closes[i] > st[i - 1]!) {
+    if (closes[i] > prevSt) {
       trend[i] = 1; // up
-      st[i] = finalLower[i];
+      st[i] = finalLower[i] as number;
     } else {
       trend[i] = -1; // down
-      st[i] = finalUpper[i];
+      st[i] = finalUpper[i] as number;
     }
   }
 

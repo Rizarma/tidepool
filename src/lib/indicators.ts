@@ -6,7 +6,7 @@
 
 import type { PriceHistoryResult } from "@/lib/providers-ohlcv";
 import type { IndicatorType, IndicatorValue, IndicatorTimeframe, PoolIndicators } from "@/lib/types";
-import { getIndicator } from "@/lib/indicators/registry";
+import { getIndicator, type IndicatorResult } from "@/lib/indicators/registry";
 
 // ─── Re-exports ─────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ export function computePoolRatios(
 
 export interface BuildConfig {
   timeframes: string[];
-  indicators: Array<{ type: IndicatorType; period: number }>;
+  indicators: Array<{ type: IndicatorType; period: number; multiplier?: number }>;
 }
 
 /**
@@ -66,6 +66,10 @@ export interface BuildConfig {
  * Each history item's `value` is already the pool price (tokenY per tokenX),
  * so no ratio computation is needed. Used by Meteora OHLCV and by the
  * legacy Birdeye path after ratios are computed.
+ *
+ * For indicators that require OHLC (e.g. supertrend), high/low are extracted
+ * from the history when available (Meteora). When missing (Birdeye),
+ * they are approximated from adjacent closes and marked `isApproximate`.
  */
 export function buildPoolIndicatorsDirect(
   histories: PriceHistoryResult[],
@@ -86,27 +90,76 @@ export function buildPoolIndicatorsDirect(
       });
       continue;
     }
-    const values: number[] = history.items.map((p) => p.value);
+
+    const closes: number[] = history.items.map((p) => p.value);
+
+    // Detect real OHLC from Meteora vs close-only from Birdeye
+    const hasRealOhlc = history.items.some(
+      (p) => p.high !== undefined && p.low !== undefined,
+    );
+
+    let highs: number[] | undefined;
+    let lows: number[] | undefined;
+    let isApproximate = false;
+
+    if (hasRealOhlc) {
+      highs = history.items.map((p) => p.high ?? p.value);
+      lows = history.items.map((p) => p.low ?? p.value);
+    } else {
+      // Approximate from adjacent closes for Birdeye fallback
+      highs = closes.map((c, idx) =>
+        idx === 0 ? c : Math.max(c, closes[idx - 1]),
+      );
+      lows = closes.map((c, idx) =>
+        idx === 0 ? c : Math.min(c, closes[idx - 1]),
+      );
+      isApproximate = true;
+    }
+
     const indicatorValues: IndicatorValue[] = [];
 
     for (const indConfig of config.indicators) {
       const definition = getIndicator(indConfig.type);
-      const value =
-        values.length >= definition.minDataPoints
-          ? definition.compute(values, { period: indConfig.period })
-          : null;
+      const multiplier =
+        indConfig.multiplier ?? definition.defaultMultiplier;
+
+      const enoughData = closes.length >= definition.minDataPoints;
+      const ohlcReady =
+        !definition.requiresOhlc || highs !== undefined;
+
+      let result: IndicatorResult = { value: null };
+
+      if (enoughData && ohlcReady) {
+        result = definition.compute(
+          { closes, highs, lows },
+          { period: indConfig.period, multiplier },
+        );
+      }
+
+      // Data quality: full requires real OHLC when needed + enough candles
+      let dataQuality: "full" | "partial" | "insufficient";
+      if (closes.length === 0) {
+        dataQuality = "insufficient";
+      } else if (definition.requiresOhlc && !hasRealOhlc) {
+        dataQuality = "partial";
+      } else if (closes.length < indConfig.period) {
+        dataQuality = "partial";
+      } else {
+        dataQuality = "full";
+      }
 
       indicatorValues.push({
         type: indConfig.type,
-        value: value ?? undefined,
+        value: result.value ?? undefined,
         period: indConfig.period,
-        dataQuality:
-          values.length >= indConfig.period
-            ? "full"
-            : values.length > 0
-              ? "partial"
-              : "insufficient",
-        availableDataPoints: values.length,
+        dataQuality,
+        availableDataPoints: closes.length,
+        trend: result.trend,
+        isApproximate:
+          definition.requiresOhlc && isApproximate ? true : undefined,
+        multiplier: definition.defaultMultiplier !== undefined
+          ? multiplier
+          : undefined,
       });
     }
 
