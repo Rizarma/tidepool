@@ -2,6 +2,13 @@
   "name": "tidepool",
   "version": "0.1.0",
   "private": true,
+  "description": "Screening tool for Solana tokens and Meteora DLMM pools — risk scores, live data, and technical indicators.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rizarma/tidepool.git"
+  },
+  "license": "MIT",
+  "author": "Rizarma <rizarma@gmail.com>",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
