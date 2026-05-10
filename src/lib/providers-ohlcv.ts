@@ -186,7 +186,9 @@ export async function fetchBirdeyePriceHistory(
     try {
       json = JSON.parse(text);
     } catch {
-      throw new Error("Invalid JSON in response");
+      // Show a preview of what Birdeye actually returned for debugging
+      const preview = text.slice(0, 300).replace(/\s+/g, " ");
+      throw new Error(`Invalid JSON in response (preview: ${preview})`);
     }
 
     // Log non-OK responses with the body for debugging
