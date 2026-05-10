@@ -5,28 +5,36 @@
  * and the API requests to /api/indicators.
  */
 
+export type OhlcvProviderName = "meteora" | "birdeye";
+
 export interface IndicatorConfig {
   timeframes: string[];
   indicators: Array<{ type: string; period: number; enabled?: boolean }>;
+  provider: OhlcvProviderName;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
-  timeframes: ["1m", "5m", "15m"],
+  timeframes: ["5m", "1h", "4h"],
   indicators: [{ type: "sma", period: 20, enabled: true }],
+  provider: "meteora",
 };
 
-export const AVAILABLE_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+export const AVAILABLE_TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
 
-/** Map UI-friendly timeframe names to Birdeye API casing. */
+/** Map UI-friendly timeframe names to Birdeye API casing.
+ * @deprecated Kept for internal Birdeye provider use only.
+ */
 export const BIRDEYE_TIMEFRAME_MAP: Record<string, string> = {
-  "1m": "1m",
   "5m": "5m",
-  "15m": "15m",
+  "30m": "30m",
   "1h": "1H",
+  "2h": "2H",
   "4h": "4H",
-  "1d": "1D",
+  "12h": "12H",
+  "24h": "24H",
 };
 
+/** @deprecated Use the Birdeye provider internally instead. */
 export function toBirdeyeTimeframe(tf: string): string {
   return BIRDEYE_TIMEFRAME_MAP[tf] ?? tf;
 }
@@ -40,7 +48,8 @@ export function serializeConfig(config: IndicatorConfig): string {
     .filter((i) => i.enabled !== false)
     .map((i) => `${i.type}:${i.period}`)
     .join(",");
-  return `timeframes=${encodeURIComponent(tf)}&indicators=${encodeURIComponent(ind)}`;
+  const provider = config.provider ?? "meteora";
+  return `timeframes=${encodeURIComponent(tf)}&indicators=${encodeURIComponent(ind)}&provider=${encodeURIComponent(provider)}`;
 }
 
 /**
@@ -62,13 +71,28 @@ export function loadConfig(): IndicatorConfig {
     const raw = localStorage.getItem("tidepool_indicator_config");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (isValidConfig(parsed)) return parsed;
+      if (isValidConfig(parsed)) {
+        const config = parsed as IndicatorConfig;
+        if (needsMigration(config)) {
+          console.info("[IndicatorConfig] Migrated stale timeframes/provider to defaults");
+          return {
+            ...DEFAULT_CONFIG,
+            indicators: config.indicators.map((ind) => ({
+              ...ind,
+              enabled: ind.enabled ?? true,
+            })),
+          };
+        }
+        return config;
+      }
     }
   } catch {
     // ignore
   }
   return DEFAULT_CONFIG;
 }
+
+const OLD_TIMEFRAMES = new Set(["1m", "15m", "1d"]);
 
 function isValidConfig(raw: unknown): raw is IndicatorConfig {
   if (!raw || typeof raw !== "object") return false;
@@ -82,5 +106,15 @@ function isValidConfig(raw: unknown): raw is IndicatorConfig {
     const enabled = (ind as Record<string, unknown>).enabled;
     if (enabled !== undefined && typeof enabled !== "boolean") return false;
   }
+  const provider = c.provider;
+  if (provider !== undefined && provider !== "meteora" && provider !== "birdeye") {
+    return false;
+  }
   return true;
+}
+
+function needsMigration(config: IndicatorConfig): boolean {
+  const hasOldTimeframe = config.timeframes.some((tf) => OLD_TIMEFRAMES.has(tf));
+  const hasMissingProvider = !config.provider;
+  return hasOldTimeframe || hasMissingProvider;
 }

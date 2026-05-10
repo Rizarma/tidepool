@@ -1,21 +1,23 @@
 /**
- * GET /api/indicators?pool=<address>&timeframes=1m,5m,15m&indicators=sma:20
+ * GET /api/indicators?pool=<address>&timeframes=5m,1h,4h&indicators=sma:20&provider=meteora
  *
  * Fetches configurable technical indicators for a pool.
  * Separate from pool scan so indicator latency doesn't block pool data.
+ * Supports Meteora DLMM OHLCV (default) and Birdeye token-price history.
  */
 
 import { isValidSolanaAddress } from "@/lib/validation";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
-import { fetchBirdeyePriceHistory } from "@/lib/providers-ohlcv";
-import { buildPoolIndicators } from "@/lib/indicators";
+import { getProvider, type OhlcvProvider } from "@/lib/providers-ohlcv";
+import { buildPoolIndicatorsDirect } from "@/lib/indicators";
 import { isValidIndicatorType } from "@/lib/indicators/registry";
-import { toBirdeyeTimeframe } from "@/lib/indicator-config";
 import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import type { IndicatorType, PoolIndicators, SourceStatus, DlmmPairInfo } from "@/lib/types";
+import type { OhlcvProviderName } from "@/lib/indicator-config";
 
-const VALID_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+const VALID_TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
+const VALID_PROVIDERS: OhlcvProviderName[] = ["meteora", "birdeye"];
 
 type Timeframe = (typeof VALID_TIMEFRAMES)[number];
 
@@ -33,11 +35,12 @@ const responseCache = new Map<string, ResponseCacheEntry>();
 
 function responseCacheKey(
   pool: string,
+  provider: string,
   timeframes: string[],
   indicators: Array<{ type: string; period: number }>,
 ): string {
   const ind = indicators.map((i) => `${i.type}:${i.period}`).join(",");
-  return `${pool}:${timeframes.join(",")}:${ind}`;
+  return `${pool}:${provider}:${timeframes.join(",")}:${ind}`;
 }
 
 function getCachedResponse(key: string): string | undefined {
@@ -84,9 +87,10 @@ async function handleIndicators(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
 
   const pool = searchParams.get("pool")?.trim();
-  const timeframesParam = searchParams.get("timeframes")?.trim() ?? "1m,5m,15m";
+  const timeframesParam = searchParams.get("timeframes")?.trim() ?? "5m,1h,4h";
   const rawIndicators = searchParams.get("indicators");
   const indicatorsParam = rawIndicators === null ? "sma:20" : rawIndicators.trim();
+  const providerParam = searchParams.get("provider")?.trim() ?? "meteora";
 
   // Validate pool
   if (!pool || !isValidSolanaAddress(pool)) {
@@ -96,6 +100,16 @@ async function handleIndicators(request: Request): Promise<Response> {
       400,
     );
   }
+
+  // Validate provider
+  if (!VALID_PROVIDERS.includes(providerParam as OhlcvProviderName)) {
+    return apiErrorResponse(
+      "INVALID_PARAMETER",
+      `Invalid provider: ${providerParam} (expected: ${VALID_PROVIDERS.join(", ")})`,
+      400,
+    );
+  }
+  const providerName = providerParam as OhlcvProviderName;
 
   // Parse timeframes
   const timeframes = timeframesParam
@@ -146,7 +160,7 @@ async function handleIndicators(request: Request): Promise<Response> {
   }
 
   // Check API-level cache before doing any work
-  const cacheKey = responseCacheKey(pool, timeframes, indicators);
+  const cacheKey = responseCacheKey(pool, providerName, timeframes, indicators);
   const cachedBody = getCachedResponse(cacheKey);
   if (cachedBody) {
     return new Response(cachedBody, {
@@ -154,7 +168,7 @@ async function handleIndicators(request: Request): Promise<Response> {
     });
   }
 
-  // Fetch pool data to get token mints
+  // Fetch pool data to get token mints (needed for all paths)
   const poolResult = await timedFetch("meteora_dlmm", () =>
     fetchMeteoraDlmmPool(pool),
   );
@@ -187,19 +201,30 @@ async function handleIndicators(request: Request): Promise<Response> {
     });
   }
 
-  // Fetch indicators from Birdeye
-  const apiKey = process.env.BIRDEYE_API_KEY;
-  if (!apiKey) {
-    return Response.json({
+  const provider = getProvider(providerName);
+
+  // If Birdeye is selected, check API key
+  if (providerName === "birdeye" && !process.env.BIRDEYE_API_KEY) {
+    sources.push({
+      provider: "birdeye",
+      success: false,
+      latencyMs: 0,
+      error: sanitizeSourceError("BIRDEYE_API_KEY is not configured"),
+    });
+    const body = JSON.stringify({
       indicators: { timeframes: [] } satisfies PoolIndicators,
       sources,
+    });
+    setCachedResponse(cacheKey, body, 20_000);
+    return new Response(body, {
+      headers: { "Content-Type": "application/json" },
     });
   }
 
   const start = Date.now();
   try {
     const indicatorData = await Promise.race([
-      fetchBirdeyeIndicators(pair, timeframes as Timeframe[], indicators),
+      fetchIndicators(provider, providerName, pool, pair, timeframes as Timeframe[], indicators),
       new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error("Indicator fetch timeout")),
@@ -208,7 +233,11 @@ async function handleIndicators(request: Request): Promise<Response> {
       ),
     ]);
     const latencyMs = Date.now() - start;
-    sources.push({ provider: "birdeye", success: true, latencyMs });
+    sources.push({
+      provider: providerName === "meteora" ? "meteora_dlmm" : "birdeye",
+      success: true,
+      latencyMs,
+    });
 
     const body = JSON.stringify({ indicators: indicatorData, sources });
     // Cache for 20s — short enough to stay fresh, long enough to absorb
@@ -221,9 +250,9 @@ async function handleIndicators(request: Request): Promise<Response> {
   } catch (err) {
     const latencyMs = Date.now() - start;
     const rawError = err instanceof Error ? err.message : String(err);
-    console.error("[Birdeye] Indicator fetch failed:", rawError);
+    console.error(`[${providerName}] Indicator fetch failed:`, rawError);
     sources.push({
-      provider: "birdeye",
+      provider: providerName === "meteora" ? "meteora_dlmm" : "birdeye",
       success: false,
       latencyMs,
       error: sanitizeSourceError(rawError),
@@ -235,30 +264,26 @@ async function handleIndicators(request: Request): Promise<Response> {
   }
 }
 
-async function fetchBirdeyeIndicators(
+async function fetchIndicators(
+  provider: OhlcvProvider,
+  providerName: OhlcvProviderName,
+  poolAddress: string,
   pair: DlmmPairInfo,
   timeframes: Timeframe[],
   indicators: Array<{ type: IndicatorType; period: number }>,
 ): Promise<PoolIndicators> {
-  const tokenX = pair.tokenX;
-  const tokenY = pair.tokenY;
-
   // Fetch only enough history for the longest indicator period + alignment buffer.
   // The lower-level cache key includes periods, so this stays correct.
   const maxPeriod = Math.max(...indicators.map((ind) => ind.period));
   const periodsNeeded = maxPeriod + 5;
 
-  const xHistories = [];
-  const yHistories = [];
+  const histories = [];
   for (let i = 0; i < timeframes.length; i++) {
     const tf = timeframes[i];
-    const birdeyeTf = toBirdeyeTimeframe(tf);
-    const [x, y] = await Promise.all([
-      fetchBirdeyePriceHistory(tokenX.mint, birdeyeTf, periodsNeeded),
-      fetchBirdeyePriceHistory(tokenY.mint, birdeyeTf, periodsNeeded),
-    ]);
-    xHistories.push(x);
-    yHistories.push(y);
+    // For Birdeye, the provider needs the pair info to get token mints.
+    // For Meteora, the pair info is unused.
+    const history = await provider.fetchHistory(poolAddress, tf, periodsNeeded);
+    histories.push(history);
     // Short delay between timeframes to stay polite, but only when there
     // are more to fetch. The low-level cache already absorbs most calls.
     if (i < timeframes.length - 1) {
@@ -266,7 +291,7 @@ async function fetchBirdeyeIndicators(
     }
   }
 
-  return buildPoolIndicators(xHistories, yHistories, {
+  return buildPoolIndicatorsDirect(histories, {
     timeframes,
     indicators,
   });

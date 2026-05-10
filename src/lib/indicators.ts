@@ -1,10 +1,10 @@
 /**
  * Technical indicator calculations.
  *
- * Pure functions that operate on arrays of numbers (pool-ratio closes).
+ * Pure functions that operate on arrays of numbers (pool-price closes).
  */
 
-import type { BirdeyeHistoryResult } from "@/lib/providers-ohlcv";
+import type { PriceHistoryResult } from "@/lib/providers-ohlcv";
 import type { IndicatorType, IndicatorValue, IndicatorTimeframe, PoolIndicators } from "@/lib/types";
 import { getIndicator } from "@/lib/indicators/registry";
 
@@ -31,8 +31,8 @@ export interface PoolRatiosResult {
  *   pool price (Y per X) = 0.50 / 150 = 0.00333 SOL per tokenX
  */
 export function computePoolRatios(
-  xHistory: BirdeyeHistoryResult,
-  yHistory: BirdeyeHistoryResult,
+  xHistory: PriceHistoryResult,
+  yHistory: PriceHistoryResult,
 ): PoolRatiosResult {
   const yMap = new Map<number, number>();
   for (const point of yHistory.items) {
@@ -61,38 +61,38 @@ export interface BuildConfig {
 }
 
 /**
- * Build PoolIndicators from paired Birdeye histories for tokenX and tokenY.
+ * Build PoolIndicators from pre-computed pool price histories.
  *
- * `xHistories` and `yHistories` must be in the same order as `config.timeframes`.
- * For each timeframe, computes pool ratios and evaluates every indicator in config
- * using the registry.
+ * Each history item's `value` is already the pool price (tokenY per tokenX),
+ * so no ratio computation is needed. Used by Meteora OHLCV and by the
+ * legacy Birdeye path after ratios are computed.
  */
-export function buildPoolIndicators(
-  xHistories: BirdeyeHistoryResult[],
-  yHistories: BirdeyeHistoryResult[],
+export function buildPoolIndicatorsDirect(
+  histories: PriceHistoryResult[],
   config: BuildConfig,
 ): PoolIndicators {
   const timeframes: IndicatorTimeframe[] = [];
 
   for (let i = 0; i < config.timeframes.length; i++) {
-    const result = computePoolRatios(xHistories[i], yHistories[i]);
-    const values: IndicatorValue[] = [];
+    const history = histories[i];
+    const values: number[] = history.items.map((p) => p.value);
+    const indicatorValues: IndicatorValue[] = [];
 
     for (const indConfig of config.indicators) {
       const definition = getIndicator(indConfig.type);
       const value =
-        result.ratios.length >= definition.minDataPoints
-          ? definition.compute(result.ratios, { period: indConfig.period })
+        values.length >= definition.minDataPoints
+          ? definition.compute(values, { period: indConfig.period })
           : null;
 
-      values.push({
+      indicatorValues.push({
         type: indConfig.type,
         value: value ?? undefined,
         period: indConfig.period,
         dataQuality:
-          result.ratios.length >= indConfig.period
+          values.length >= indConfig.period
             ? "full"
-            : result.ratios.length > 0
+            : values.length > 0
               ? "partial"
               : "insufficient",
       });
@@ -100,9 +100,41 @@ export function buildPoolIndicators(
 
     timeframes.push({
       timeframe: config.timeframes[i],
-      values,
+      values: indicatorValues,
     });
   }
 
   return { timeframes };
+}
+
+/**
+ * Build PoolIndicators from paired token histories (legacy Birdeye path).
+ *
+ * `xHistories` and `yHistories` must be in the same order as `config.timeframes`.
+ * For each timeframe, computes pool ratios and evaluates every indicator in config
+ * using the registry. Delegates to `buildPoolIndicatorsDirect` after ratio computation.
+ */
+export function buildPoolIndicators(
+  xHistories: PriceHistoryResult[],
+  yHistories: PriceHistoryResult[],
+  config: BuildConfig,
+): PoolIndicators {
+  const histories: PriceHistoryResult[] = [];
+
+  for (let i = 0; i < config.timeframes.length; i++) {
+    const yMap = new Map<number, number>();
+    for (const p of yHistories[i].items) {
+      yMap.set(p.unixTime, p.value);
+    }
+    const items: { unixTime: number; value: number }[] = [];
+    for (const x of xHistories[i].items) {
+      const yPrice = yMap.get(x.unixTime);
+      if (yPrice && yPrice > 0 && x.value > 0) {
+        items.push({ unixTime: x.unixTime, value: x.value / yPrice });
+      }
+    }
+    histories.push({ items });
+  }
+
+  return buildPoolIndicatorsDirect(histories, config);
 }
