@@ -106,6 +106,7 @@ export function buildPoolIndicatorsDirect(
             : values.length > 0
               ? "partial"
               : "insufficient",
+        availableDataPoints: values.length,
       });
     }
 

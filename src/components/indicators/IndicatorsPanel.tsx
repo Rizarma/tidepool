@@ -22,33 +22,53 @@ function IndicatorCard({
   value,
   currentPrice,
   symbolY,
+  dataQuality,
+  availableDataPoints,
+  period,
 }: {
   label: string;
   value?: number;
   currentPrice?: number;
   symbolY: string;
+  dataQuality?: "full" | "partial" | "insufficient";
+  availableDataPoints?: number;
+  period: number;
 }) {
   const isAbove = value != null && currentPrice != null && currentPrice > value;
   const isBelow = value != null && currentPrice != null && currentPrice < value;
+  const hasValue = value != null && !Number.isNaN(value);
 
   return (
     <div className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2">
       <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
-      <p
-        className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${
-          isAbove ? "text-emerald-300" : isBelow ? "text-red-300" : "text-zinc-100"
-        }`}
-      >
-        {formatTokenPrice(value)}{" "}
-        <span className="text-zinc-500 text-[10px]">{symbolY}</span>
-      </p>
-      {(isAbove || isBelow) && (
+      {hasValue ? (
+        <p
+          className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${
+            isAbove ? "text-emerald-300" : isBelow ? "text-red-300" : "text-zinc-100"
+          }`}
+        >
+          {formatTokenPrice(value)}{" "}
+          <span className="text-zinc-500 text-[10px]">{symbolY}</span>
+        </p>
+      ) : (
+        <p className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-500">
+          —
+        </p>
+      )}
+      {hasValue && (isAbove || isBelow) && (
         <p
           className={`text-[10px] mt-0.5 ${
             isAbove ? "text-emerald-400" : "text-red-400"
           }`}
         >
           {isAbove ? "▲ Above current price" : "▼ Below current price"}
+        </p>
+      )}
+      {!hasValue && dataQuality && (
+        <p className="text-[10px] mt-0.5 text-zinc-500">
+          {dataQuality === "insufficient"
+            ? "No data available"
+            : `Need ${period} candles, have ${availableDataPoints ?? "?"}`}
         </p>
       )}
     </div>
@@ -123,8 +143,9 @@ export function IndicatorsPanel({
       {data?.timeframes && data.timeframes.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
           {data.timeframes.map((tf) => {
-            const value = tf.values?.[0]?.value;
-            const period = tf.values?.[0]?.period ?? 20;
+            const firstValue = tf.values?.[0];
+            const value = firstValue?.value;
+            const period = firstValue?.period ?? 20;
             return (
               <IndicatorCard
                 key={tf.timeframe}
@@ -132,6 +153,9 @@ export function IndicatorsPanel({
                 value={value}
                 currentPrice={currentPrice}
                 symbolY={symbolY}
+                dataQuality={firstValue?.dataQuality}
+                availableDataPoints={firstValue?.availableDataPoints}
+                period={period}
               />
             );
           })}
