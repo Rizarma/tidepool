@@ -166,7 +166,7 @@ export async function fetchBirdeyePriceHistory(
   const from = now - lookbackSeconds(timeframe, periods);
 
   const url =
-    `${BIRDEYE_BASE_URL}/history/price?` +
+    `${BIRDEYE_BASE_URL}/defi/history/price?` +
     `address=${encodeURIComponent(mint)}` +
     `&type=${encodeURIComponent(timeframe)}` +
     `&time_from=${from}` +
@@ -188,7 +188,7 @@ export async function fetchBirdeyePriceHistory(
     } catch {
       // Show a preview of what Birdeye actually returned for debugging
       const preview = text.slice(0, 300).replace(/\s+/g, " ");
-      throw new Error(`Invalid JSON in response (preview: ${preview})`);
+      throw new Error(`Invalid JSON in response (status: ${res.status}, url: ${url}, preview: ${preview})`);
     }
 
     // Log non-OK responses with the body for debugging
