@@ -28,8 +28,8 @@ const registry: Record<IndicatorType, IndicatorDefinition> = {
   },
 };
 
-export function getIndicator(type: IndicatorType): IndicatorDefinition {
-  const def = registry[type];
+export function getIndicator(type: string): IndicatorDefinition {
+  const def = registry[type as IndicatorType];
   if (!def) {
     throw new Error(`Unknown indicator type: ${type}`);
   }

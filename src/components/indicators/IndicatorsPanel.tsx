@@ -100,7 +100,7 @@ export function IndicatorsPanel({
     })();
 
     return () => { cancelled = true; };
-  }, [poolAddress, config, isReady]);
+  }, [poolAddress, config, isReady, hasEnabledIndicators]);
 
   if (!poolAddress || config.timeframes.length === 0 || !hasEnabledIndicators) {
     return null;

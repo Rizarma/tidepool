@@ -40,7 +40,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
         // Don't allow deselecting the last timeframe
         return prev;
       }
-      return has ? prev.filter((t) => t !== tf) : [...prev, t];
+      return has ? prev.filter((t) => t !== tf) : [...prev, tf];
     });
   };
 
