@@ -3,8 +3,13 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { sma, computePoolRatios, buildPoolIndicators } from "./indicators";
-import type { BirdeyeHistoryResult } from "./providers-ohlcv";
+import {
+  sma,
+  computePoolRatios,
+  buildPoolIndicators,
+  buildPoolIndicatorsDirect,
+} from "./indicators";
+import type { PriceHistoryResult } from "./providers-ohlcv";
 
 describe("sma", () => {
   it("returns null for empty array", () => {
@@ -45,13 +50,13 @@ describe("sma", () => {
 
 describe("computePoolRatios", () => {
   it("computes ratios from matching timestamps", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 0.5 },  // tokenX = $0.50
         { unixTime: 1001, value: 0.6 },  // tokenX = $0.60
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 150 },   // tokenY (SOL) = $150
         { unixTime: 1001, value: 160 },   // tokenY (SOL) = $160
@@ -68,14 +73,14 @@ describe("computePoolRatios", () => {
   });
 
   it("ignores timestamps that only exist in one history", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 1.0 },
         { unixTime: 1001, value: 1.0 },
         { unixTime: 1002, value: 1.0 },
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 2.0 },
         { unixTime: 1002, value: 2.0 },
@@ -90,13 +95,13 @@ describe("computePoolRatios", () => {
   });
 
   it("skips points where Y price is zero or negative", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 1.0 },
         { unixTime: 1001, value: 1.0 },
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 0 },     // invalid
         { unixTime: 1001, value: -1 },    // invalid
@@ -109,13 +114,13 @@ describe("computePoolRatios", () => {
   });
 
   it("skips points where X price is zero or negative", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 0 },
         { unixTime: 1001, value: 1.0 },
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 2.0 },
         { unixTime: 1001, value: 2.0 },
@@ -135,10 +140,10 @@ describe("computePoolRatios", () => {
   });
 
   it("handles duplicate timestamps by keeping last value", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [{ unixTime: 1000, value: 1.0 }],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 2.0 },
         { unixTime: 1000, value: 4.0 }, // duplicate — last wins
@@ -152,14 +157,87 @@ describe("computePoolRatios", () => {
   });
 });
 
-describe("buildPoolIndicators", () => {
+describe("buildPoolIndicatorsDirect", () => {
   const defaultConfig = {
-    timeframes: ["1m", "5m", "15m"],
+    timeframes: ["5m", "1h", "4h"],
     indicators: [{ type: "sma" as const, period: 20 }],
   };
 
-  it("builds indicators for all three timeframes", () => {
-    const makeHistory = (basePrice: number): BirdeyeHistoryResult => ({
+  it("builds indicators for all timeframes from direct price histories", () => {
+    const makeHistory = (basePrice: number): PriceHistoryResult => ({
+      items: Array.from({ length: 25 }, (_, i) => ({
+        unixTime: 1000 + i,
+        value: basePrice + i * 0.01,
+      })),
+    });
+
+    const histories = [makeHistory(0.007), makeHistory(0.007), makeHistory(0.007)];
+
+    const indicators = buildPoolIndicatorsDirect(histories, defaultConfig);
+
+    expect(indicators.timeframes).toHaveLength(3);
+    expect(indicators.timeframes[0].timeframe).toBe("5m");
+    expect(indicators.timeframes[1].timeframe).toBe("1h");
+    expect(indicators.timeframes[2].timeframe).toBe("4h");
+
+    // Each timeframe should have one value (SMA)
+    expect(indicators.timeframes[0].values).toHaveLength(1);
+    expect(indicators.timeframes[0].values[0].type).toBe("sma");
+    expect(indicators.timeframes[0].values[0].period).toBe(20);
+    expect(indicators.timeframes[0].values[0].value).toBeDefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
+  });
+
+  it("returns no value when not enough data points", () => {
+    const histories: PriceHistoryResult[] = [
+      { items: [{ unixTime: 1000, value: 0.007 }] },
+      { items: [{ unixTime: 1000, value: 0.007 }] },
+      { items: [{ unixTime: 1000, value: 0.007 }] },
+    ];
+
+    const indicators = buildPoolIndicatorsDirect(histories, defaultConfig);
+
+    expect(indicators.timeframes[0].values[0].value).toBeUndefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("partial");
+    expect(indicators.timeframes[1].values[0].dataQuality).toBe("partial");
+    expect(indicators.timeframes[2].values[0].dataQuality).toBe("partial");
+  });
+
+  it("handles mixed success across timeframes", () => {
+    const h1: PriceHistoryResult = {
+      items: Array.from({ length: 25 }, (_, i) => ({ unixTime: 1000 + i, value: 0.007 })),
+    };
+    const h2: PriceHistoryResult = {
+      items: Array.from({ length: 10 }, (_, i) => ({ unixTime: 1000 + i, value: 0.007 })),
+    };
+    const h3: PriceHistoryResult = {
+      items: [],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([h1, h2, h3], defaultConfig);
+
+    expect(indicators.timeframes[0].timeframe).toBe("5m");
+    expect(indicators.timeframes[0].values[0].value).toBeDefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
+
+    expect(indicators.timeframes[1].timeframe).toBe("1h");
+    expect(indicators.timeframes[1].values[0].value).toBeUndefined();
+    expect(indicators.timeframes[1].values[0].dataQuality).toBe("partial");
+
+    expect(indicators.timeframes[2].timeframe).toBe("4h");
+    expect(indicators.timeframes[2].values[0].value).toBeUndefined();
+    expect(indicators.timeframes[2].values[0].dataQuality).toBe("insufficient");
+  });
+});
+
+describe("buildPoolIndicators (legacy Birdeye path)", () => {
+  const defaultConfig = {
+    timeframes: ["5m", "1h", "4h"],
+    indicators: [{ type: "sma" as const, period: 20 }],
+  };
+
+  it("builds indicators from paired x/y histories", () => {
+    const makeHistory = (basePrice: number): PriceHistoryResult => ({
       items: Array.from({ length: 25 }, (_, i) => ({
         unixTime: 1000 + i,
         value: basePrice + i * 0.01,
@@ -172,72 +250,7 @@ describe("buildPoolIndicators", () => {
     const indicators = buildPoolIndicators(xHistories, yHistories, defaultConfig);
 
     expect(indicators.timeframes).toHaveLength(3);
-    expect(indicators.timeframes[0].timeframe).toBe("1m");
-    expect(indicators.timeframes[1].timeframe).toBe("5m");
-    expect(indicators.timeframes[2].timeframe).toBe("15m");
-
-    // Each timeframe should have one value (SMA)
-    expect(indicators.timeframes[0].values).toHaveLength(1);
-    expect(indicators.timeframes[0].values[0].type).toBe("sma");
-    expect(indicators.timeframes[0].values[0].period).toBe(20);
-    expect(indicators.timeframes[0].values[0].value).toBeDefined();
+    expect(indicators.timeframes[0].timeframe).toBe("5m");
     expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
-  });
-
-  it("returns no value when not enough aligned data", () => {
-    const xHistories: BirdeyeHistoryResult[] = [
-      { items: [{ unixTime: 1000, value: 1.0 }] },
-      { items: [{ unixTime: 1000, value: 1.0 }] },
-      { items: [{ unixTime: 1000, value: 1.0 }] },
-    ];
-    const yHistories: BirdeyeHistoryResult[] = [
-      { items: [{ unixTime: 1000, value: 2.0 }] },
-      { items: [{ unixTime: 1000, value: 2.0 }] },
-      { items: [{ unixTime: 1000, value: 2.0 }] },
-    ];
-
-    const indicators = buildPoolIndicators(xHistories, yHistories, defaultConfig);
-
-    expect(indicators.timeframes[0].values[0].value).toBeUndefined();
-    expect(indicators.timeframes[0].values[0].dataQuality).toBe("partial");
-    expect(indicators.timeframes[1].values[0].dataQuality).toBe("partial");
-    expect(indicators.timeframes[2].values[0].dataQuality).toBe("partial");
-  });
-
-  it("handles mixed success across timeframes", () => {
-    const x1m: BirdeyeHistoryResult = {
-      items: Array.from({ length: 25 }, (_, i) => ({ unixTime: 1000 + i, value: 1.0 })),
-    };
-    const y1m: BirdeyeHistoryResult = {
-      items: Array.from({ length: 25 }, (_, i) => ({ unixTime: 1000 + i, value: 2.0 })),
-    };
-
-    const x5m: BirdeyeHistoryResult = {
-      items: Array.from({ length: 10 }, (_, i) => ({ unixTime: 1000 + i, value: 1.0 })),
-    };
-    const y5m: BirdeyeHistoryResult = {
-      items: Array.from({ length: 10 }, (_, i) => ({ unixTime: 1000 + i, value: 2.0 })),
-    };
-
-    const x15m: BirdeyeHistoryResult = {
-      items: [{ unixTime: 1000, value: 1.0 }],
-    };
-    const y15m: BirdeyeHistoryResult = {
-      items: [{ unixTime: 2000, value: 2.0 }],
-    };
-
-    const indicators = buildPoolIndicators([x1m, x5m, x15m], [y1m, y5m, y15m], defaultConfig);
-
-    expect(indicators.timeframes[0].timeframe).toBe("1m");
-    expect(indicators.timeframes[0].values[0].value).toBeDefined();
-    expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
-
-    expect(indicators.timeframes[1].timeframe).toBe("5m");
-    expect(indicators.timeframes[1].values[0].value).toBeUndefined();
-    expect(indicators.timeframes[1].values[0].dataQuality).toBe("partial");
-
-    expect(indicators.timeframes[2].timeframe).toBe("15m");
-    expect(indicators.timeframes[2].values[0].value).toBeUndefined();
-    expect(indicators.timeframes[2].values[0].dataQuality).toBe("insufficient");
   });
 });

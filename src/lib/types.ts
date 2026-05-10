@@ -90,6 +90,8 @@ export interface IndicatorValue {
   value?: number;
   period: number;
   dataQuality: "full" | "partial" | "insufficient";
+  /** Number of data points available for this indicator (may be less than period) */
+  availableDataPoints?: number;
 }
 
 export interface IndicatorTimeframe {

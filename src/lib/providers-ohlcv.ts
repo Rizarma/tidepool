@@ -1,91 +1,104 @@
 /**
- * Birdeye OHLCV / price-history provider for Solana.
+ * OHLCV / price-history providers for technical indicators.
  *
- * Fetches token price history at 1m/5m/15m timeframes. Used to compute
- * technical indicators (moving averages) on pool scan reports.
- *
- * API: https://public-api.birdeye.so
- * Endpoint: GET /history/price?address={mint}&type={timeframe}&time_from={unix}&time_to={unix}
+ * Supports:
+ * - Birdeye: token-level USD prices (requires API key)
+ * - Meteora DLMM: pool-native OHLCV (no auth required)
  */
 
 import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
+import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
+import type { DlmmPairInfo } from "@/lib/types";
 
 const BIRDEYE_BASE_URL = "https://public-api.birdeye.so";
+const METEORA_BASE_URL = "https://dlmm.datapi.meteora.ag";
 
-// ─── In-memory cache ─────────────────────────────────────────────────────────
+// ─── Shared Types ───────────────────────────────────────────────────────────
 
-interface CacheEntry {
-  data: BirdeyeHistoryResult;
-  expiry: number;
+export interface PricePoint {
+  /** Unix timestamp in seconds */
+  unixTime: number;
+  /** Price value at that timestamp (pool price for Meteora, USD for Birdeye tokens) */
+  value: number;
 }
 
-/** Time-to-live per timeframe (ms). Shorter for high-resolution data. */
-const CACHE_TTL_MS: Record<string, number> = {
-  "1m": 30_000,   // 30s — 1m candles change frequently
-  "5m": 120_000,  // 2min
-  "15m": 300_000, // 5min
-  "1H": 600_000,  // 10min
-  "4H": 1_800_000,// 30min
-  "1D": 3_600_000,// 1h
+export interface PriceHistoryResult {
+  items: PricePoint[];
+}
+
+/** @deprecated Use PriceHistoryResult instead */
+export type BirdeyeHistoryResult = PriceHistoryResult;
+
+// ─── Provider Interface ─────────────────────────────────────────────────────
+
+export interface OhlcvProvider {
+  /** Fetch price history for a pool. Timeframe is user-facing (e.g. "5m", "1h"). */
+  fetchHistory(poolAddress: string, timeframe: string, periods: number): Promise<PriceHistoryResult>;
+}
+
+// ─── Birdeye Provider ────────────────────────────────────────────────────────
+
+const BIRDEYE_CACHE_TTL_MS: Record<string, number> = {
+  "5m": 120_000,
+  "30m": 300_000,
+  "1h": 600_000,
+  "2h": 900_000,
+  "4h": 1_800_000,
+  "12h": 3_600_000,
+  "24h": 7_200_000,
 };
 
-const priceHistoryCache = new Map<string, CacheEntry>();
+/** Map UI-friendly names to Birdeye API casing. Kept internal to the provider. */
+const BIRDEYE_TIMEFRAME_MAP: Record<string, string> = {
+  "5m": "5m",
+  "30m": "30m",
+  "1h": "1H",
+  "2h": "2H",
+  "4h": "4H",
+  "12h": "12H",
+  "24h": "24H",
+};
 
-function cacheKey(mint: string, timeframe: string, periods: number): string {
+function toBirdeyeTimeframe(tf: string): string {
+  return BIRDEYE_TIMEFRAME_MAP[tf] ?? tf;
+}
+
+const birdeyeCache = new Map<string, { data: PriceHistoryResult; expiry: number }>();
+
+function birdeyeCacheKey(mint: string, timeframe: string, periods: number): string {
   return `${mint}:${timeframe}:${periods}`;
 }
 
-function getCached(key: string): BirdeyeHistoryResult | undefined {
-  const entry = priceHistoryCache.get(key);
+function getBirdeyeCached(key: string): PriceHistoryResult | undefined {
+  const entry = birdeyeCache.get(key);
   if (!entry) return undefined;
   if (Date.now() > entry.expiry) {
-    priceHistoryCache.delete(key);
+    birdeyeCache.delete(key);
     return undefined;
   }
   return entry.data;
 }
 
-function setCached(key: string, data: BirdeyeHistoryResult, timeframe: string): void {
-  const ttl = CACHE_TTL_MS[timeframe] ?? 60_000;
-  priceHistoryCache.set(key, { data, expiry: Date.now() + ttl });
+function setBirdeyeCached(key: string, data: PriceHistoryResult, timeframe: string): void {
+  const ttl = BIRDEYE_CACHE_TTL_MS[timeframe] ?? 60_000;
+  birdeyeCache.set(key, { data, expiry: Date.now() + ttl });
 }
 
-/** Purge stale entries periodically to prevent unbounded growth. */
-function purgeStaleCacheEntries(): void {
+function purgeBirdeyeCache(): void {
   const now = Date.now();
-  for (const [key, entry] of priceHistoryCache) {
-    if (now > entry.expiry) priceHistoryCache.delete(key);
+  for (const [key, entry] of birdeyeCache) {
+    if (now > entry.expiry) birdeyeCache.delete(key);
   }
 }
 
-// ─── Types ─────────────────────────────────────────────────────────────────
-
-export interface PricePoint {
-  /** Unix timestamp in seconds */
-  unixTime: number;
-  /** Price in USD at that timestamp */
-  value: number;
-}
-
-export interface BirdeyeHistoryResult {
-  items: PricePoint[];
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getApiKey(): string | undefined {
+function getBirdeyeApiKey(): string | undefined {
   return process.env.BIRDEYE_API_KEY;
 }
 
-/**
- * Extract a Birdeye error message from the response if present.
- */
 function extractBirdeyeError(raw: unknown): string | undefined {
   if (!isObject(raw)) return undefined;
   const msg = toString(prop(raw, "message")) ?? toString(prop(raw, "error")) ?? toString(prop(raw, "msg"));
   if (msg) return msg;
-
-  // Some error shapes: { data: { message: "..." } }
   const data = prop(raw, "data");
   if (isObject(data)) {
     return toString(prop(data, "message")) ?? toString(prop(data, "error")) ?? undefined;
@@ -93,56 +106,36 @@ function extractBirdeyeError(raw: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Parse Birdeye price history response.
- *
- * Tries multiple response shapes because Birdeye's format varies by endpoint
- * version, auth tier, and token availability.
- */
-function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
+function parseBirdeyeHistory(raw: unknown): PriceHistoryResult {
   if (!isObject(raw)) {
     throw new Error("Invalid Birdeye response: expected object");
   }
-
-  // Check for explicit error first
   const errorMsg = extractBirdeyeError(raw);
   if (errorMsg) {
     throw new Error(`Birdeye error: ${errorMsg}`);
   }
 
-  // Try multiple response shapes to find the items array
   let itemsRaw: unknown[] | undefined;
-
-  // Shape 1: { data: { items: [...] } }
   const data = prop(raw, "data");
   if (isObject(data)) {
     const nestedItems = prop(data, "items");
     if (Array.isArray(nestedItems)) itemsRaw = nestedItems;
   }
-
-  // Shape 2: { data: [...] } (array directly in data)
   if (!itemsRaw && Array.isArray(data)) {
     itemsRaw = data;
   }
-
-  // Shape 3: { items: [...] } (top-level items)
   if (!itemsRaw) {
     const topItems = prop(raw, "items");
     if (Array.isArray(topItems)) itemsRaw = topItems;
   }
-
-  // Shape 4: { history: [...] }
   if (!itemsRaw) {
     const history = prop(raw, "history");
     if (Array.isArray(history)) itemsRaw = history;
   }
-
-  // Shape 5: { prices: [...] }
   if (!itemsRaw) {
     const prices = prop(raw, "prices");
     if (Array.isArray(prices)) itemsRaw = prices;
   }
-
   if (!itemsRaw) {
     const availableKeys = Object.keys(raw).join(", ");
     throw new Error(
@@ -153,8 +146,6 @@ function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
   const seen = new Map<number, PricePoint>();
   for (const item of itemsRaw) {
     if (!isObject(item)) continue;
-
-    // Try multiple timestamp field names
     const unixTime =
       toNumber(prop(item, "unixTime")) ??
       toNumber(prop(item, "unix_time")) ??
@@ -162,60 +153,29 @@ function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
       toNumber(prop(item, "time")) ??
       toNumber(prop(item, "t")) ??
       toNumber(prop(item, "date"));
-
-    // Try multiple price field names
     const value =
       toNumber(prop(item, "value")) ??
       toNumber(prop(item, "price")) ??
       toNumber(prop(item, "p")) ??
       toNumber(prop(item, "close")) ??
       toNumber(prop(item, "v"));
-
     if (unixTime !== undefined && value !== undefined) {
-      seen.set(unixTime, { unixTime, value }); // last wins
+      seen.set(unixTime, { unixTime, value });
     }
   }
 
   const items = Array.from(seen.values());
-  // Sort by time ascending (oldest first) so SMA math is natural
   items.sort((a, b) => a.unixTime - b.unixTime);
-
   return { items };
 }
 
-/**
- * Compute how many seconds of history we need for a given timeframe + period,
- * with a modest buffer for gaps / sparse trading.
- */
-function lookbackSeconds(timeframe: string, periods: number): number {
-  const minutesPerCandle: Record<string, number> = {
-    "1m": 1,
-    "5m": 5,
-    "15m": 15,
-    "1H": 60,
-    "4H": 240,
-    "1D": 1440,
-  };
-  const minutes = minutesPerCandle[timeframe] ?? 15;
-  // 1.5× buffer for sparse tokens — reduced from 2× to save CUs while still
-  // covering typical gap patterns on Meteora pools.
-  const minutesNeeded = minutes * periods * 1.5;
-  return Math.max(minutesNeeded * 60, 600); // minimum 10 min
-}
-
-/**
- * Fetch price history for a single token mint from Birdeye.
- *
- * Checks an in-memory cache first to avoid redundant API calls.
- * Retries on 429/Too many requests with exponential backoff (2s, 4s, 8s).
- */
-export async function fetchBirdeyePriceHistory(
+async function fetchBirdeyeTokenHistory(
   mint: string,
   timeframe: string,
   periods: number,
   retries = 3,
-): Promise<BirdeyeHistoryResult> {
-  const apiKey = getApiKey();
+): Promise<PriceHistoryResult> {
+  const apiKey = getBirdeyeApiKey();
   if (!apiKey) {
     throw new Error("BIRDEYE_API_KEY is not configured");
   }
@@ -223,16 +183,12 @@ export async function fetchBirdeyePriceHistory(
   const now = Math.floor(Date.now() / 1000);
   const from = now - lookbackSeconds(timeframe, periods);
 
-  // ─── Cache check ──────────────────────────────────────────────────────────
-  const key = cacheKey(mint, timeframe, periods);
-  const cached = getCached(key);
-  if (cached) {
-    return cached;
-  }
+  const key = birdeyeCacheKey(mint, timeframe, periods);
+  const cached = getBirdeyeCached(key);
+  if (cached) return cached;
 
-  // Purge stale entries every ~100 requests to keep memory bounded
-  if (priceHistoryCache.size > 0 && priceHistoryCache.size % 100 === 0) {
-    purgeStaleCacheEntries();
+  if (birdeyeCache.size > 0 && birdeyeCache.size % 100 === 0) {
+    purgeBirdeyeCache();
   }
 
   const url =
@@ -250,10 +206,7 @@ export async function fetchBirdeyePriceHistory(
 
     try {
       const res = await fetch(url, {
-        headers: {
-          "X-API-KEY": apiKey,
-          "x-chain": "solana",
-        },
+        headers: { "X-API-KEY": apiKey, "x-chain": "solana" },
         signal: controller.signal,
       });
 
@@ -272,7 +225,7 @@ export async function fetchBirdeyePriceHistory(
       }
 
       const result = parseBirdeyeHistory(json);
-      setCached(key, result, timeframe);
+      setBirdeyeCached(key, result, timeframe);
       return result;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -282,7 +235,7 @@ export async function fetchBirdeyePriceHistory(
         msg.toLowerCase().includes("too many requests") ||
         msg.toLowerCase().includes("rate limit");
       if (isRateLimited && attempt < retries) {
-        const waitMs = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        const waitMs = 2000 * Math.pow(2, attempt);
         console.log(
           `[Birdeye] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
         );
@@ -298,6 +251,239 @@ export async function fetchBirdeyePriceHistory(
   throw lastError ?? new Error("Max retries exceeded");
 }
 
+// ─── Meteora Provider ───────────────────────────────────────────────────────
+
+const METEORA_CACHE_TTL_MS: Record<string, number> = {
+  "5m": 120_000,
+  "30m": 300_000,
+  "1h": 600_000,
+  "2h": 900_000,
+  "4h": 1_800_000,
+  "12h": 3_600_000,
+  "24h": 7_200_000,
+};
+
+const meteoraCache = new Map<string, { data: PriceHistoryResult; expiry: number }>();
+
+function meteoraCacheKey(pool: string, timeframe: string, periods: number): string {
+  return `${pool}:${timeframe}:${periods}`;
+}
+
+function getMeteoraCached(key: string): PriceHistoryResult | undefined {
+  const entry = meteoraCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiry) {
+    meteoraCache.delete(key);
+    return undefined;
+  }
+  return entry.data;
+}
+
+function setMeteoraCached(key: string, data: PriceHistoryResult, timeframe: string): void {
+  const ttl = METEORA_CACHE_TTL_MS[timeframe] ?? 60_000;
+  meteoraCache.set(key, { data, expiry: Date.now() + ttl });
+}
+
+function purgeMeteoraCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of meteoraCache) {
+    if (now > entry.expiry) meteoraCache.delete(key);
+  }
+}
+
+function extractMeteoraError(raw: unknown): string | undefined {
+  if (!isObject(raw)) return undefined;
+  return toString(prop(raw, "message")) ?? toString(prop(raw, "error")) ?? undefined;
+}
+
+function parseMeteoraOhlcv(raw: unknown): PriceHistoryResult {
+  if (!isObject(raw)) {
+    throw new Error("Invalid Meteora OHLCV response: expected object");
+  }
+  const data = prop(raw, "data");
+  if (!Array.isArray(data)) {
+    throw new Error("Invalid Meteora OHLCV response: expected data array");
+  }
+  const items: PricePoint[] = [];
+  for (const item of data) {
+    if (!isObject(item)) continue;
+    const unixTime = toNumber(prop(item, "timestamp"));
+    const value = toNumber(prop(item, "close"));
+    if (unixTime !== undefined && value !== undefined) {
+      items.push({ unixTime, value });
+    }
+  }
+  items.sort((a, b) => a.unixTime - b.unixTime);
+  return { items };
+}
+
+async function fetchMeteoraOhlcv(
+  poolAddress: string,
+  timeframe: string,
+  periods: number,
+  retries = 3,
+): Promise<PriceHistoryResult> {
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - lookbackSeconds(timeframe, periods);
+
+  const key = meteoraCacheKey(poolAddress, timeframe, periods);
+  const cached = getMeteoraCached(key);
+  if (cached) return cached;
+
+  if (meteoraCache.size > 0 && meteoraCache.size % 100 === 0) {
+    purgeMeteoraCache();
+  }
+
+  const url =
+    `${METEORA_BASE_URL}/pools/${encodeURIComponent(poolAddress)}/ohlcv?` +
+    `timeframe=${encodeURIComponent(timeframe)}` +
+    `&start_time=${from}` +
+    `&end_time=${now}`;
+
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+
+      const text = await res.text();
+      let json: unknown;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        const preview = text.slice(0, 300).replace(/\s+/g, " ");
+        throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+      }
+
+      if (!res.ok) {
+        const errMsg = extractMeteoraError(json) ?? `HTTP ${res.status}`;
+        throw new Error(errMsg);
+      }
+
+      const result = parseMeteoraOhlcv(json);
+      setMeteoraCached(key, result, timeframe);
+      return result;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const msg = lastError.message;
+      const isRateLimited =
+        msg.includes("429") ||
+        msg.toLowerCase().includes("too many requests") ||
+        msg.toLowerCase().includes("rate limit");
+      if (isRateLimited && attempt < retries) {
+        const waitMs = 2000 * Math.pow(2, attempt);
+        console.log(
+          `[Meteora] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
+        );
+        await delay(waitMs);
+        continue;
+      }
+      throw lastError;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastError ?? new Error("Max retries exceeded");
+}
+
+// ─── Shared Helpers ─────────────────────────────────────────────────────────
+
+function lookbackSeconds(timeframe: string, periods: number): number {
+  const minutesPerCandle: Record<string, number> = {
+    "5m": 5,
+    "30m": 30,
+    "1h": 60,
+    "2h": 120,
+    "4h": 240,
+    "12h": 720,
+    "24h": 1440,
+  };
+  const minutes = minutesPerCandle[timeframe] ?? 60;
+  const minutesNeeded = minutes * periods * 1.5;
+  return Math.max(minutesNeeded * 60, 600);
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ─── Birdeye Pool Lookup Cache ─────────────────────────────────────────────
+// Avoids refetching the same pool multiple times when the route requests
+// multiple timeframes in a single indicator fetch cycle.
+
+interface PoolCacheEntry {
+  pair: DlmmPairInfo;
+  expiry: number;
+}
+
+const poolCache = new Map<string, PoolCacheEntry>();
+const POOL_CACHE_TTL_MS = 30_000;
+
+function getCachedPool(address: string): DlmmPairInfo | undefined {
+  const entry = poolCache.get(address);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiry) {
+    poolCache.delete(address);
+    return undefined;
+  }
+  return entry.pair;
+}
+
+function setCachedPool(address: string, pair: DlmmPairInfo): void {
+  poolCache.set(address, { pair, expiry: Date.now() + POOL_CACHE_TTL_MS });
+}
+
+// ─── Provider Implementations ───────────────────────────────────────────────
+
+const birdeyeProvider: OhlcvProvider = {
+  async fetchHistory(poolAddress, timeframe, periods) {
+    const apiKey = getBirdeyeApiKey();
+    if (!apiKey) {
+      throw new Error("BIRDEYE_API_KEY is not configured");
+    }
+    let pair = getCachedPool(poolAddress);
+    if (!pair) {
+      pair = await fetchMeteoraDlmmPool(poolAddress);
+      setCachedPool(poolAddress, pair);
+    }
+    const birdeyeTf = toBirdeyeTimeframe(timeframe);
+    const [xHistory, yHistory] = await Promise.all([
+      fetchBirdeyeTokenHistory(pair.tokenX.mint, birdeyeTf, periods),
+      fetchBirdeyeTokenHistory(pair.tokenY.mint, birdeyeTf, periods),
+    ]);
+    // Compute pool ratios: tokenX_USD / tokenY_USD = tokenY per tokenX
+    const yMap = new Map<number, number>();
+    for (const p of yHistory.items) {
+      yMap.set(p.unixTime, p.value);
+    }
+    const ratios: PricePoint[] = [];
+    for (const x of xHistory.items) {
+      const yPrice = yMap.get(x.unixTime);
+      if (yPrice && yPrice > 0 && x.value > 0) {
+        ratios.push({ unixTime: x.unixTime, value: x.value / yPrice });
+      }
+    }
+    return { items: ratios };
+  },
+};
+
+const meteoraProvider: OhlcvProvider = {
+  async fetchHistory(poolAddress, timeframe, periods) {
+    return fetchMeteoraOhlcv(poolAddress, timeframe, periods);
+  },
+};
+
+export function getProvider(name: "meteora" | "birdeye"): OhlcvProvider {
+  switch (name) {
+    case "meteora":
+      return meteoraProvider;
+    case "birdeye":
+      return birdeyeProvider;
+    default:
+      throw new Error(`Unknown OHLCV provider: ${name}`);
+  }
 }

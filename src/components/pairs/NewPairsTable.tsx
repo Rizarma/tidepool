@@ -10,6 +10,7 @@ import {
   pctValue,
   shortenAddress,
 } from "@/lib/format";
+import { CopyButton } from "@/components/CopyButton";
 
 interface NewPairsResponse {
   pools: DlmmPairInfo[];
@@ -77,65 +78,6 @@ function VerifiedStatus({ token }: { token: PairToken }) {
     <span className="inline-flex items-center justify-center size-4 rounded bg-emerald-500/10 text-emerald-400 text-[9px]" aria-label="Verified">✓</span>
   ) : (
     <span className="text-zinc-600" aria-label="Not verified">–</span>
-  );
-}
-
-function CopyButton({ address }: { address: string }) {
-  const [copied, setCopied] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleCopy = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      navigator.clipboard.writeText(address)
-        .then(() => setCopied(true))
-        .catch(() => {});
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => setCopied(false), 1500);
-    },
-    [address],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="inline-flex items-center justify-center rounded p-0.5 text-zinc-600 hover:text-zinc-300 transition"
-      title={copied ? "Copied!" : "Copy address"}
-    >
-      {copied ? (
-        <svg
-          className="size-3"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      ) : (
-        <svg
-          className="size-3"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
-      )}
-    </button>
   );
 }
 
@@ -220,30 +162,23 @@ export function NewPairsTable({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(() => {
-    try { return localStorage.getItem("tidepool_auto_refresh") === "true"; }
-    catch { return false; }
-  });
-  const [countdown, setCountdown] = useState(() => {
-    try {
-      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-      if (!savedAt) return 0;
-      const lastFetch = parseInt(savedAt, 10);
-      if (isNaN(lastFetch)) return 0;
-      const elapsed = Date.now() - lastFetch;
-      const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
-      if (elapsed >= 0 && elapsed < intervalMs) {
-        return Math.max(1, Math.ceil((intervalMs - elapsed) / 1000));
-      }
-    } catch { /* ignore */ }
-    return 0;
-  });
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
 
   const lastFetchTimeRef = useRef<number>(0);
 
-  // ─── Persist auto-refresh preference ──────────────────────────────────────
+  // ─── Restore + persist auto-refresh preference ────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("tidepool_auto_refresh");
+      if (saved === "true") setAutoRefresh(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem("tidepool_auto_refresh", String(autoRefresh));
@@ -252,7 +187,26 @@ export function NewPairsTable({
     }
   }, [autoRefresh]);
 
-  // ─── Persist last fetch timestamp ─────────────────────────────────────────
+  // ─── Restore + persist last fetch timestamp ─────────────────────────────────
+  useEffect(() => {
+    try {
+      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+      if (savedAt) {
+        const lastFetch = parseInt(savedAt, 10);
+        if (!isNaN(lastFetch)) {
+          setLastFetchedAt(lastFetch);
+          const elapsed = Date.now() - lastFetch;
+          const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
+          if (elapsed >= 0 && elapsed < intervalMs) {
+            setCountdown(Math.max(1, Math.ceil((intervalMs - elapsed) / 1000)));
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     if (lastFetchedAt) {
       try {
@@ -580,6 +534,17 @@ export function NewPairsTable({
                         <CopyButton address={pool.poolAddress} />
                         <span className="mx-1 text-zinc-700">|</span>
                         <a
+                          href={`https://app.meteora.ag/dlmm/${pool.poolAddress}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
+                          title="View on Meteora"
+                          aria-label="View on Meteora"
+                        >
+                          Met
+                        </a>
+                        <a
                           href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -599,18 +564,18 @@ export function NewPairsTable({
                           title="View on DexTools"
                           aria-label="View on DexTools"
                         >
-                          Dex
+                          DexT
                         </a>
                         <a
-                          href={`https://app.meteora.ag/dlmm/${pool.poolAddress}`}
+                          href={`https://dexscreener.com/solana/${pool.poolAddress}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
-                          title="View on Meteora"
-                          aria-label="View on Meteora"
+                          title="View on DexScreener"
+                          aria-label="View on DexScreener"
                         >
-                          Met
+                          DexS
                         </a>
                       </div>
                     </td>

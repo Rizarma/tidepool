@@ -10,7 +10,7 @@
 
 import { useState } from "react";
 import { useIndicatorConfig } from "./IndicatorConfigContext";
-import { AVAILABLE_TIMEFRAMES } from "@/lib/indicator-config";
+import { AVAILABLE_TIMEFRAMES, type OhlcvProviderName } from "@/lib/indicator-config";
 import { getAvailableIndicators, getIndicator } from "@/lib/indicators/registry";
 
 export function IndicatorSettings({ onClose }: { onClose: () => void }) {
@@ -19,6 +19,9 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
   // Local draft state — changes here don't affect global config until Apply
   const [draftTimeframes, setDraftTimeframes] = useState<string[]>(
     config.timeframes,
+  );
+  const [draftProvider, setDraftProvider] = useState<OhlcvProviderName>(
+    config.provider ?? "meteora",
   );
 
   // Initialise draft indicators with all registered types so new indicators
@@ -66,6 +69,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
     updateConfig({
       timeframes: draftTimeframes,
       indicators: draftIndicators,
+      provider: draftProvider,
     });
     onClose();
   };
@@ -82,6 +86,28 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
         <h3 className="mb-3 text-sm font-semibold text-zinc-100">
           Indicator Settings
         </h3>
+
+        {/* Provider */}
+        <div className="mb-4">
+          <p className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">
+            Data Provider
+          </p>
+          <div className="flex gap-2">
+            {(["meteora", "birdeye"] as OhlcvProviderName[]).map((name) => (
+              <button
+                key={name}
+                onClick={() => setDraftProvider(name)}
+                className={`flex-1 rounded px-2 py-1 text-[10px] font-medium capitalize ${
+                  draftProvider === name
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : "bg-white/[0.04] text-zinc-500"
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Timeframes */}
         <div className="mb-4">
