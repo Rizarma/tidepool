@@ -1,8 +1,9 @@
 /**
  * Indicator settings modal.
  *
- * Lets the user toggle timeframes and adjust indicator periods.
- * Changes are applied via the IndicatorConfigContext.
+ * Lets the user toggle timeframes and enable/disable individual indicators
+ * with configurable periods. Changes are applied via the
+ * IndicatorConfigContext only on the "Apply" button click.
  */
 
 "use client";
@@ -10,6 +11,7 @@
 import { useState } from "react";
 import { useIndicatorConfig } from "./IndicatorConfigContext";
 import { AVAILABLE_TIMEFRAMES } from "@/lib/indicator-config";
+import { getAvailableIndicators, getIndicator } from "@/lib/indicators/registry";
 
 export function IndicatorSettings({ onClose }: { onClose: () => void }) {
   const { config, updateConfig } = useIndicatorConfig();
@@ -18,9 +20,18 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
   const [draftTimeframes, setDraftTimeframes] = useState<string[]>(
     config.timeframes,
   );
-  const [draftPeriod, setDraftPeriod] = useState(
-    config.indicators[0]?.period ?? 20,
-  );
+
+  // Initialise draft indicators with all registered types so new indicators
+  // automatically appear even if they weren't in the saved config.
+  const [draftIndicators, setDraftIndicators] = useState(() => {
+    const available = getAvailableIndicators();
+    return available.map((type) => {
+      const existing = config.indicators.find((i) => i.type === type);
+      if (existing) return { ...existing };
+      const def = getIndicator(type);
+      return { type, period: def.defaultPeriod, enabled: false };
+    });
+  });
 
   const handleToggleTimeframe = (tf: string) => {
     setDraftTimeframes((prev) => {
@@ -33,19 +44,28 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
     });
   };
 
-  const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value, 10);
+  const handleToggleIndicator = (type: string) => {
+    setDraftIndicators((prev) =>
+      prev.map((ind) =>
+        ind.type === type ? { ...ind, enabled: !ind.enabled } : ind,
+      ),
+    );
+  };
+
+  const handlePeriodChange = (type: string, val: number) => {
     if (!isNaN(val) && val > 0) {
-      setDraftPeriod(val);
+      setDraftIndicators((prev) =>
+        prev.map((ind) =>
+          ind.type === type ? { ...ind, period: val } : ind,
+        ),
+      );
     }
   };
 
   const handleApply = () => {
     updateConfig({
       timeframes: draftTimeframes,
-      indicators: config.indicators.map((ind) =>
-        ind.type === "sma" ? { ...ind, period: draftPeriod } : ind,
-      ),
+      indicators: draftIndicators,
     });
     onClose();
   };
@@ -56,7 +76,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-80 rounded-lg border border-[var(--panel-border)] bg-[var(--panel-bg)] p-4"
+        className="w-80 max-h-[80vh] overflow-y-auto rounded-lg border border-[var(--panel-border)] bg-[var(--panel-bg)] p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-3 text-sm font-semibold text-zinc-100">
@@ -85,19 +105,58 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        {/* Period */}
-        <div className="mb-4">
-          <p className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">
-            SMA Period
+        {/* Indicators */}
+        <div className="mb-4 space-y-3">
+          <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+            Indicators
           </p>
-          <input
-            type="number"
-            value={draftPeriod}
-            onChange={handlePeriodChange}
-            min={1}
-            max={200}
-            className="w-full rounded border border-[var(--panel-border)] bg-[var(--background)] px-2 py-1 text-sm text-zinc-100"
-          />
+          {draftIndicators.map((ind) => {
+            const def = getIndicator(ind.type);
+            return (
+              <div
+                key={ind.type}
+                className="rounded border border-[var(--panel-border)] bg-[var(--background)] p-2.5"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs font-medium text-zinc-100">
+                      {def.name}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      {def.description}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleIndicator(ind.type)}
+                    className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                      ind.enabled
+                        ? "bg-emerald-500/20 text-emerald-300"
+                        : "bg-white/[0.04] text-zinc-500"
+                    }`}
+                  >
+                    {ind.enabled ? "On" : "Off"}
+                  </button>
+                </div>
+                {ind.enabled && (
+                  <div>
+                    <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+                      Period
+                    </p>
+                    <input
+                      type="number"
+                      value={ind.period}
+                      onChange={(e) =>
+                        handlePeriodChange(ind.type, parseInt(e.target.value, 10))
+                      }
+                      min={1}
+                      max={200}
+                      className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm text-zinc-100"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Actions */}

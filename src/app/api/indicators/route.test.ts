@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GET } from "./route";
+import { GET, clearIndicatorResponseCache } from "./route";
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -60,6 +60,7 @@ function makePairInfo() {
 describe("GET /api/indicators", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    clearIndicatorResponseCache();
   });
 
   describe("parameter validation", () => {
@@ -185,6 +186,19 @@ describe("GET /api/indicators", () => {
   });
 
   describe("error handling", () => {
+    it("returns empty indicators when no indicators are requested", async () => {
+      vi.stubEnv("BIRDEYE_API_KEY", "test-key");
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}&indicators=`));
+      expect(res.status).toBe(200);
+      const body = await parseJson(res);
+
+      expect(body.indicators.timeframes).toEqual([]);
+      expect(body.sources).toHaveLength(1);
+      expect(body.sources[0].provider).toBe("meteora_dlmm");
+    });
+
     it("returns empty indicators when BIRDEYE_API_KEY is not set", async () => {
       vi.stubEnv("BIRDEYE_API_KEY", "");
       vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());

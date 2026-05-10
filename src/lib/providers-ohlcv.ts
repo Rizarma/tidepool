@@ -12,6 +12,52 @@ import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
 
 const BIRDEYE_BASE_URL = "https://public-api.birdeye.so";
 
+// ─── In-memory cache ─────────────────────────────────────────────────────────
+
+interface CacheEntry {
+  data: BirdeyeHistoryResult;
+  expiry: number;
+}
+
+/** Time-to-live per timeframe (ms). Shorter for high-resolution data. */
+const CACHE_TTL_MS: Record<string, number> = {
+  "1m": 30_000,   // 30s — 1m candles change frequently
+  "5m": 120_000,  // 2min
+  "15m": 300_000, // 5min
+  "1H": 600_000,  // 10min
+  "4H": 1_800_000,// 30min
+  "1D": 3_600_000,// 1h
+};
+
+const priceHistoryCache = new Map<string, CacheEntry>();
+
+function cacheKey(mint: string, timeframe: string, periods: number): string {
+  return `${mint}:${timeframe}:${periods}`;
+}
+
+function getCached(key: string): BirdeyeHistoryResult | undefined {
+  const entry = priceHistoryCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiry) {
+    priceHistoryCache.delete(key);
+    return undefined;
+  }
+  return entry.data;
+}
+
+function setCached(key: string, data: BirdeyeHistoryResult, timeframe: string): void {
+  const ttl = CACHE_TTL_MS[timeframe] ?? 60_000;
+  priceHistoryCache.set(key, { data, expiry: Date.now() + ttl });
+}
+
+/** Purge stale entries periodically to prevent unbounded growth. */
+function purgeStaleCacheEntries(): void {
+  const now = Date.now();
+  for (const [key, entry] of priceHistoryCache) {
+    if (now > entry.expiry) priceHistoryCache.delete(key);
+  }
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface PricePoint {
@@ -139,7 +185,7 @@ function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
 
 /**
  * Compute how many seconds of history we need for a given timeframe + period,
- * with a generous buffer for gaps / sparse trading.
+ * with a modest buffer for gaps / sparse trading.
  */
 function lookbackSeconds(timeframe: string, periods: number): number {
   const minutesPerCandle: Record<string, number> = {
@@ -151,14 +197,16 @@ function lookbackSeconds(timeframe: string, periods: number): number {
     "1D": 1440,
   };
   const minutes = minutesPerCandle[timeframe] ?? 15;
-  // 2× buffer for sparse tokens that may have missing candles
-  const minutesNeeded = minutes * periods * 2;
+  // 1.5× buffer for sparse tokens — reduced from 2× to save CUs while still
+  // covering typical gap patterns on Meteora pools.
+  const minutesNeeded = minutes * periods * 1.5;
   return Math.max(minutesNeeded * 60, 600); // minimum 10 min
 }
 
 /**
  * Fetch price history for a single token mint from Birdeye.
  *
+ * Checks an in-memory cache first to avoid redundant API calls.
  * Retries on 429/Too many requests with exponential backoff (2s, 4s, 8s).
  */
 export async function fetchBirdeyePriceHistory(
@@ -174,6 +222,18 @@ export async function fetchBirdeyePriceHistory(
 
   const now = Math.floor(Date.now() / 1000);
   const from = now - lookbackSeconds(timeframe, periods);
+
+  // ─── Cache check ──────────────────────────────────────────────────────────
+  const key = cacheKey(mint, timeframe, periods);
+  const cached = getCached(key);
+  if (cached) {
+    return cached;
+  }
+
+  // Purge stale entries every ~100 requests to keep memory bounded
+  if (priceHistoryCache.size > 0 && priceHistoryCache.size % 100 === 0) {
+    purgeStaleCacheEntries();
+  }
 
   const url =
     `${BIRDEYE_BASE_URL}/defi/history_price?` +
@@ -211,7 +271,9 @@ export async function fetchBirdeyePriceHistory(
         throw new Error(errMsg);
       }
 
-      return parseBirdeyeHistory(json);
+      const result = parseBirdeyeHistory(json);
+      setCached(key, result, timeframe);
+      return result;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       const msg = lastError.message;

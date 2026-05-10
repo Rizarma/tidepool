@@ -22,6 +22,51 @@ type Timeframe = (typeof VALID_TIMEFRAMES)[number];
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// ─── API-level response cache ───────────────────────────────────────────────
+
+interface ResponseCacheEntry {
+  body: string;
+  expiry: number;
+}
+
+const responseCache = new Map<string, ResponseCacheEntry>();
+
+function responseCacheKey(
+  pool: string,
+  timeframes: string[],
+  indicators: Array<{ type: string; period: number }>,
+): string {
+  const ind = indicators.map((i) => `${i.type}:${i.period}`).join(",");
+  return `${pool}:${timeframes.join(",")}:${ind}`;
+}
+
+function getCachedResponse(key: string): string | undefined {
+  // Purge stale entries occasionally to prevent unbounded growth
+  if (responseCache.size > 200) {
+    const now = Date.now();
+    for (const [k, entry] of responseCache) {
+      if (now > entry.expiry) responseCache.delete(k);
+    }
+  }
+
+  const entry = responseCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiry) {
+    responseCache.delete(key);
+    return undefined;
+  }
+  return entry.body;
+}
+
+function setCachedResponse(key: string, body: string, ttlMs: number): void {
+  responseCache.set(key, { body, expiry: Date.now() + ttlMs });
+}
+
+/** Clear the API response cache. Primarily useful in tests. */
+export function clearIndicatorResponseCache(): void {
+  responseCache.clear();
+}
+
 export async function GET(request: Request): Promise<Response> {
   try {
     return await handleIndicators(request);
@@ -40,7 +85,8 @@ async function handleIndicators(request: Request): Promise<Response> {
 
   const pool = searchParams.get("pool")?.trim();
   const timeframesParam = searchParams.get("timeframes")?.trim() ?? "1m,5m,15m";
-  const indicatorsParam = searchParams.get("indicators")?.trim() ?? "sma:20";
+  const rawIndicators = searchParams.get("indicators");
+  const indicatorsParam = rawIndicators === null ? "sma:20" : rawIndicators.trim();
 
   // Validate pool
   if (!pool || !isValidSolanaAddress(pool)) {
@@ -99,12 +145,13 @@ async function handleIndicators(request: Request): Promise<Response> {
     indicators.push({ type, period });
   }
 
-  if (indicators.length === 0) {
-    return apiErrorResponse(
-      "INVALID_PARAMETER",
-      "No valid indicators specified",
-      400,
-    );
+  // Check API-level cache before doing any work
+  const cacheKey = responseCacheKey(pool, timeframes, indicators);
+  const cachedBody = getCachedResponse(cacheKey);
+  if (cachedBody) {
+    return new Response(cachedBody, {
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Fetch pool data to get token mints
@@ -127,6 +174,18 @@ async function handleIndicators(request: Request): Promise<Response> {
   }
 
   const pair: DlmmPairInfo = poolResult.value.data;
+
+  // If no indicators are enabled, return empty response immediately
+  if (indicators.length === 0) {
+    const body = JSON.stringify({
+      indicators: { timeframes: [] } satisfies PoolIndicators,
+      sources,
+    });
+    setCachedResponse(cacheKey, body, 20_000);
+    return new Response(body, {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   // Fetch indicators from Birdeye
   const apiKey = process.env.BIRDEYE_API_KEY;
@@ -151,7 +210,14 @@ async function handleIndicators(request: Request): Promise<Response> {
     const latencyMs = Date.now() - start;
     sources.push({ provider: "birdeye", success: true, latencyMs });
 
-    return Response.json({ indicators: indicatorData, sources });
+    const body = JSON.stringify({ indicators: indicatorData, sources });
+    // Cache for 20s — short enough to stay fresh, long enough to absorb
+    // repeat views, refreshes, and rapid navigation.
+    setCachedResponse(cacheKey, body, 20_000);
+
+    return new Response(body, {
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
     const latencyMs = Date.now() - start;
     const rawError = err instanceof Error ? err.message : String(err);
@@ -177,17 +243,27 @@ async function fetchBirdeyeIndicators(
   const tokenX = pair.tokenX;
   const tokenY = pair.tokenY;
 
+  // Fetch only enough history for the longest indicator period + alignment buffer.
+  // The lower-level cache key includes periods, so this stays correct.
+  const maxPeriod = Math.max(...indicators.map((ind) => ind.period));
+  const periodsNeeded = maxPeriod + 5;
+
   const xHistories = [];
   const yHistories = [];
-  for (const tf of timeframes) {
+  for (let i = 0; i < timeframes.length; i++) {
+    const tf = timeframes[i];
     const birdeyeTf = toBirdeyeTimeframe(tf);
     const [x, y] = await Promise.all([
-      fetchBirdeyePriceHistory(tokenX.mint, birdeyeTf, 25),
-      fetchBirdeyePriceHistory(tokenY.mint, birdeyeTf, 25),
+      fetchBirdeyePriceHistory(tokenX.mint, birdeyeTf, periodsNeeded),
+      fetchBirdeyePriceHistory(tokenY.mint, birdeyeTf, periodsNeeded),
     ]);
     xHistories.push(x);
     yHistories.push(y);
-    await delay(1000);
+    // Short delay between timeframes to stay polite, but only when there
+    // are more to fetch. The low-level cache already absorbs most calls.
+    if (i < timeframes.length - 1) {
+      await delay(300);
+    }
   }
 
   return buildPoolIndicators(xHistories, yHistories, {
