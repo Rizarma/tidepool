@@ -15,7 +15,21 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
   indicators: [{ type: "sma", period: 20 }],
 };
 
-export const AVAILABLE_TIMEFRAMES = ["1m", "5m", "15m"] as const;
+export const AVAILABLE_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+
+/** Map UI-friendly timeframe names to Birdeye API casing. */
+export const BIRDEYE_TIMEFRAME_MAP: Record<string, string> = {
+  "1m": "1m",
+  "5m": "5m",
+  "15m": "15m",
+  "1h": "1H",
+  "4h": "4H",
+  "1d": "1D",
+};
+
+export function toBirdeyeTimeframe(tf: string): string {
+  return BIRDEYE_TIMEFRAME_MAP[tf] ?? tf;
+}
 
 /**
  * Serialize config to URL query params.

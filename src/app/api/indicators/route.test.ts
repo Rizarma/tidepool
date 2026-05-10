@@ -81,7 +81,7 @@ describe("GET /api/indicators", () => {
     it("returns INVALID_PARAMETER 400 for invalid timeframe", async () => {
       vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
 
-      const res = await GET(makeRequest(`pool=${VALID_POOL}&timeframes=1h`));
+      const res = await GET(makeRequest(`pool=${VALID_POOL}&timeframes=99x`));
       expect(res.status).toBe(400);
       const body = await parseJson(res);
       expect(body.error.code).toBe("INVALID_PARAMETER");

@@ -141,13 +141,18 @@ function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
  * Compute how many seconds of history we need for a given timeframe + period,
  * with a generous buffer for gaps / sparse trading.
  */
-function lookbackSeconds(
-  timeframe: "1m" | "5m" | "15m",
-  periods: number,
-): number {
-  const minutesPerCandle = timeframe === "1m" ? 1 : timeframe === "5m" ? 5 : 15;
+function lookbackSeconds(timeframe: string, periods: number): number {
+  const minutesPerCandle: Record<string, number> = {
+    "1m": 1,
+    "5m": 5,
+    "15m": 15,
+    "1H": 60,
+    "4H": 240,
+    "1D": 1440,
+  };
+  const minutes = minutesPerCandle[timeframe] ?? 15;
   // 2× buffer for sparse tokens that may have missing candles
-  const minutesNeeded = minutesPerCandle * periods * 2;
+  const minutesNeeded = minutes * periods * 2;
   return Math.max(minutesNeeded * 60, 600); // minimum 10 min
 }
 
@@ -158,7 +163,7 @@ function lookbackSeconds(
  */
 export async function fetchBirdeyePriceHistory(
   mint: string,
-  timeframe: "1m" | "5m" | "15m",
+  timeframe: string,
   periods: number,
   retries = 3,
 ): Promise<BirdeyeHistoryResult> {

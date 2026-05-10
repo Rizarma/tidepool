@@ -10,11 +10,12 @@ import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
 import { fetchBirdeyePriceHistory } from "@/lib/providers-ohlcv";
 import { buildPoolIndicators } from "@/lib/indicators";
 import { isValidIndicatorType } from "@/lib/indicators/registry";
+import { toBirdeyeTimeframe } from "@/lib/indicator-config";
 import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import type { IndicatorType, PoolIndicators, SourceStatus, DlmmPairInfo } from "@/lib/types";
 
-const VALID_TIMEFRAMES = ["1m", "5m", "15m"] as const;
+const VALID_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
 
 type Timeframe = (typeof VALID_TIMEFRAMES)[number];
 
@@ -179,9 +180,10 @@ async function fetchBirdeyeIndicators(
   const xHistories = [];
   const yHistories = [];
   for (const tf of timeframes) {
+    const birdeyeTf = toBirdeyeTimeframe(tf);
     const [x, y] = await Promise.all([
-      fetchBirdeyePriceHistory(tokenX.mint, tf, 25),
-      fetchBirdeyePriceHistory(tokenY.mint, tf, 25),
+      fetchBirdeyePriceHistory(tokenX.mint, birdeyeTf, 25),
+      fetchBirdeyePriceHistory(tokenY.mint, birdeyeTf, 25),
     ]);
     xHistories.push(x);
     yHistories.push(y);
