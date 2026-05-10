@@ -12,18 +12,41 @@ import { useIndicatorConfig } from "./IndicatorConfigContext";
 import { AVAILABLE_TIMEFRAMES } from "@/lib/indicator-config";
 
 export function IndicatorSettings({ onClose }: { onClose: () => void }) {
-  const { config, toggleTimeframe, setIndicatorPeriod } = useIndicatorConfig();
-  const [period, setPeriod] = useState(config.indicators[0]?.period ?? 20);
+  const { config, updateConfig } = useIndicatorConfig();
+
+  // Local draft state — changes here don't affect global config until Apply
+  const [draftTimeframes, setDraftTimeframes] = useState<string[]>(
+    config.timeframes,
+  );
+  const [draftPeriod, setDraftPeriod] = useState(
+    config.indicators[0]?.period ?? 20,
+  );
+
+  const handleToggleTimeframe = (tf: string) => {
+    setDraftTimeframes((prev) => {
+      const has = prev.includes(tf);
+      if (has && prev.length === 1) {
+        // Don't allow deselecting the last timeframe
+        return prev;
+      }
+      return has ? prev.filter((t) => t !== tf) : [...prev, tf];
+    });
+  };
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
     if (!isNaN(val) && val > 0) {
-      setPeriod(val);
+      setDraftPeriod(val);
     }
   };
 
   const handleApply = () => {
-    setIndicatorPeriod("sma", period);
+    updateConfig({
+      timeframes: draftTimeframes,
+      indicators: config.indicators.map((ind) =>
+        ind.type === "sma" ? { ...ind, period: draftPeriod } : ind,
+      ),
+    });
     onClose();
   };
 
@@ -49,9 +72,9 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
             {AVAILABLE_TIMEFRAMES.map((tf) => (
               <button
                 key={tf}
-                onClick={() => toggleTimeframe(tf)}
+                onClick={() => handleToggleTimeframe(tf)}
                 className={`rounded px-2 py-1 text-[10px] font-medium ${
-                  config.timeframes.includes(tf)
+                  draftTimeframes.includes(tf)
                     ? "bg-emerald-500/20 text-emerald-300"
                     : "bg-white/[0.04] text-zinc-500"
                 }`}
@@ -69,7 +92,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
           </p>
           <input
             type="number"
-            value={period}
+            value={draftPeriod}
             onChange={handlePeriodChange}
             min={1}
             max={200}
