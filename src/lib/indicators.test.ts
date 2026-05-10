@@ -36,6 +36,11 @@ describe("sma", () => {
     const values = Array.from({ length: 100 }, (_, i) => i + 1);
     expect(sma(values, 20)).toBe(90.5); // average of 81..100
   });
+
+  it("handles period = 1 edge case", () => {
+    expect(sma([5], 1)).toBe(5);
+    expect(sma([3, 7, 9], 1)).toBe(9); // last value only
+  });
 });
 
 describe("computePoolRatios", () => {
@@ -53,12 +58,13 @@ describe("computePoolRatios", () => {
       ],
     };
 
-    const ratios = computePoolRatios(xHistory, yHistory);
+    const { ratios, skipped } = computePoolRatios(xHistory, yHistory);
     // 0.50 / 150 = 0.003333...
     // 0.60 / 160 = 0.00375
     expect(ratios).toHaveLength(2);
     expect(ratios[0]).toBeCloseTo(0.5 / 150, 6);
     expect(ratios[1]).toBeCloseTo(0.6 / 160, 6);
+    expect(skipped).toBe(0);
   });
 
   it("ignores timestamps that only exist in one history", () => {
@@ -76,10 +82,11 @@ describe("computePoolRatios", () => {
       ],
     };
 
-    const ratios = computePoolRatios(xHistory, yHistory);
+    const { ratios, skipped } = computePoolRatios(xHistory, yHistory);
     expect(ratios).toHaveLength(2); // only 1000 and 1002 match
     expect(ratios[0]).toBe(0.5);
     expect(ratios[1]).toBe(0.5);
+    expect(skipped).toBe(1); // 1001 missing in Y
   });
 
   it("skips points where Y price is zero or negative", () => {
@@ -96,8 +103,9 @@ describe("computePoolRatios", () => {
       ],
     };
 
-    const ratios = computePoolRatios(xHistory, yHistory);
+    const { ratios, skipped } = computePoolRatios(xHistory, yHistory);
     expect(ratios).toHaveLength(0);
+    expect(skipped).toBe(2);
   });
 
   it("skips points where X price is zero or negative", () => {
@@ -114,13 +122,33 @@ describe("computePoolRatios", () => {
       ],
     };
 
-    const ratios = computePoolRatios(xHistory, yHistory);
+    const { ratios, skipped } = computePoolRatios(xHistory, yHistory);
     expect(ratios).toHaveLength(1);
     expect(ratios[0]).toBe(0.5);
+    expect(skipped).toBe(1);
   });
 
   it("returns empty array when both histories are empty", () => {
-    expect(computePoolRatios({ items: [] }, { items: [] })).toEqual([]);
+    const { ratios, skipped } = computePoolRatios({ items: [] }, { items: [] });
+    expect(ratios).toEqual([]);
+    expect(skipped).toBe(0);
+  });
+
+  it("handles duplicate timestamps by keeping last value", () => {
+    const xHistory: BirdeyeHistoryResult = {
+      items: [{ unixTime: 1000, value: 1.0 }],
+    };
+    const yHistory: BirdeyeHistoryResult = {
+      items: [
+        { unixTime: 1000, value: 2.0 },
+        { unixTime: 1000, value: 4.0 }, // duplicate — last wins
+      ],
+    };
+
+    const { ratios, skipped } = computePoolRatios(xHistory, yHistory);
+    expect(ratios).toHaveLength(1);
+    expect(ratios[0]).toBe(0.25); // 1.0 / 4.0
+    expect(skipped).toBe(0);
   });
 });
 
@@ -148,6 +176,10 @@ describe("buildPoolIndicators", () => {
     expect(indicators.timeframes[0].sma20).toBeDefined();
     expect(indicators.timeframes[1].sma20).toBeDefined();
     expect(indicators.timeframes[2].sma20).toBeDefined();
+
+    expect(indicators.timeframes[0].dataQuality).toBe("full");
+    expect(indicators.timeframes[1].dataQuality).toBe("full");
+    expect(indicators.timeframes[2].dataQuality).toBe("full");
   });
 
   it("returns undefined sma20 when not enough aligned data", () => {
@@ -167,5 +199,49 @@ describe("buildPoolIndicators", () => {
     expect(indicators.timeframes[0].sma20).toBeUndefined();
     expect(indicators.timeframes[1].sma20).toBeUndefined();
     expect(indicators.timeframes[2].sma20).toBeUndefined();
+
+    expect(indicators.timeframes[0].dataQuality).toBe("partial");
+    expect(indicators.timeframes[1].dataQuality).toBe("partial");
+    expect(indicators.timeframes[2].dataQuality).toBe("partial");
+  });
+
+  it("handles mixed success across timeframes", () => {
+    // 1m: enough data (25 points)
+    const x1m: BirdeyeHistoryResult = {
+      items: Array.from({ length: 25 }, (_, i) => ({ unixTime: 1000 + i, value: 1.0 })),
+    };
+    const y1m: BirdeyeHistoryResult = {
+      items: Array.from({ length: 25 }, (_, i) => ({ unixTime: 1000 + i, value: 2.0 })),
+    };
+
+    // 5m: only 10 points (partial)
+    const x5m: BirdeyeHistoryResult = {
+      items: Array.from({ length: 10 }, (_, i) => ({ unixTime: 1000 + i, value: 1.0 })),
+    };
+    const y5m: BirdeyeHistoryResult = {
+      items: Array.from({ length: 10 }, (_, i) => ({ unixTime: 1000 + i, value: 2.0 })),
+    };
+
+    // 15m: no matching data (insufficient)
+    const x15m: BirdeyeHistoryResult = {
+      items: [{ unixTime: 1000, value: 1.0 }],
+    };
+    const y15m: BirdeyeHistoryResult = {
+      items: [{ unixTime: 2000, value: 2.0 }], // different timestamp
+    };
+
+    const indicators = buildPoolIndicators([x1m, x5m, x15m], [y1m, y5m, y15m]);
+
+    expect(indicators.timeframes[0].timeframe).toBe("1m");
+    expect(indicators.timeframes[0].sma20).toBeDefined();
+    expect(indicators.timeframes[0].dataQuality).toBe("full");
+
+    expect(indicators.timeframes[1].timeframe).toBe("5m");
+    expect(indicators.timeframes[1].sma20).toBeUndefined(); // 10 < 20 needed
+    expect(indicators.timeframes[1].dataQuality).toBe("partial");
+
+    expect(indicators.timeframes[2].timeframe).toBe("15m");
+    expect(indicators.timeframes[2].sma20).toBeUndefined();
+    expect(indicators.timeframes[2].dataQuality).toBe("insufficient");
   });
 });

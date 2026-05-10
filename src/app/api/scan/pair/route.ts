@@ -129,28 +129,15 @@ async function fetchPoolIndicators(
     return {};
   }
 
-  const timeframes: Array<"1m" | "5m" | "15m"> = ["1m", "5m", "15m"];
-  const tokenX = pair.tokenX;
-  const tokenY = pair.tokenY;
-
   const start = Date.now();
   try {
-    // Fetch sequentially with 1000ms delay to respect Birdeye free-tier rate limits
-    const xHistories = [];
-    for (const tf of timeframes) {
-      xHistories.push(await fetchBirdeyePriceHistory(tokenX.mint, tf, 25));
-      await delay(1000);
-    }
-
-    const yHistories = [];
-    for (const tf of timeframes) {
-      yHistories.push(await fetchBirdeyePriceHistory(tokenY.mint, tf, 25));
-      await delay(1000);
-    }
-
-    const indicators = buildPoolIndicators(xHistories, yHistories);
+    const { indicators } = await Promise.race([
+      fetchPoolIndicatorsInternal(pair),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Indicator fetch timeout")), 30_000)
+      ),
+    ]);
     const latencyMs = Date.now() - start;
-
     return {
       indicators,
       source: { provider: "birdeye", success: true, latencyMs },
@@ -158,7 +145,6 @@ async function fetchPoolIndicators(
   } catch (err) {
     const latencyMs = Date.now() - start;
     const rawError = err instanceof Error ? err.message : String(err);
-    // Debug log so devs can see the raw Birdeye error in server terminal
     console.error("[Birdeye] Indicator fetch failed:", rawError);
     return {
       source: {
@@ -169,6 +155,30 @@ async function fetchPoolIndicators(
       },
     };
   }
+}
+
+async function fetchPoolIndicatorsInternal(
+  pair: DlmmPairInfo,
+): Promise<{ indicators: PoolIndicators }> {
+  const timeframes: Array<"1m" | "5m" | "15m"> = ["1m", "5m", "15m"];
+  const tokenX = pair.tokenX;
+  const tokenY = pair.tokenY;
+
+  // Fetch X and Y for each timeframe in parallel, with 1000ms delay between timeframes
+  const xHistories = [];
+  const yHistories = [];
+  for (const tf of timeframes) {
+    const [x, y] = await Promise.all([
+      fetchBirdeyePriceHistory(tokenX.mint, tf, 25),
+      fetchBirdeyePriceHistory(tokenY.mint, tf, 25),
+    ]);
+    xHistories.push(x);
+    yHistories.push(y);
+    await delay(1000);
+  }
+
+  const indicators = buildPoolIndicators(xHistories, yHistories);
+  return { indicators };
 }
 
 function delay(ms: number): Promise<void> {

@@ -5,16 +5,13 @@
  */
 
 import type { BirdeyeHistoryResult } from "@/lib/providers-ohlcv";
+import type { IndicatorTimeframe, PoolIndicators } from "@/lib/types";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export interface IndicatorTimeframe {
-  timeframe: "1m" | "5m" | "15m";
-  sma20?: number;
-}
-
-export interface PoolIndicators {
-  timeframes: IndicatorTimeframe[];
+export interface PoolRatiosResult {
+  ratios: number[];
+  skipped: number;
 }
 
 // ─── Core Math ───────────────────────────────────────────────────────────────
@@ -44,21 +41,24 @@ export function sma(values: number[], period: number): number | null {
 export function computePoolRatios(
   xHistory: BirdeyeHistoryResult,
   yHistory: BirdeyeHistoryResult,
-): number[] {
+): PoolRatiosResult {
   const yMap = new Map<number, number>();
   for (const point of yHistory.items) {
     yMap.set(point.unixTime, point.value);
   }
 
   const ratios: number[] = [];
+  let skipped = 0;
   for (const xPoint of xHistory.items) {
     const yPrice = yMap.get(xPoint.unixTime);
     if (yPrice && yPrice > 0 && xPoint.value > 0) {
       ratios.push(xPoint.value / yPrice);
+    } else {
+      skipped++;
     }
   }
 
-  return ratios;
+  return { ratios, skipped };
 }
 
 // ─── Orchestration ───────────────────────────────────────────────────────────
@@ -79,11 +79,18 @@ export function buildPoolIndicators(
   const timeframes: IndicatorTimeframe[] = [];
 
   for (let i = 0; i < TIMEFRAMES.length; i++) {
-    const ratios = computePoolRatios(xHistories[i], yHistories[i]);
-    const sma20 = sma(ratios, SMA_PERIOD);
+    const result = computePoolRatios(xHistories[i], yHistories[i]);
+    const sma20 = sma(result.ratios, SMA_PERIOD);
+    const dataQuality: IndicatorTimeframe["dataQuality"] =
+      result.ratios.length >= SMA_PERIOD
+        ? "full"
+        : result.ratios.length > 0
+          ? "partial"
+          : "insufficient";
     timeframes.push({
       timeframe: TIMEFRAMES[i],
       sma20: sma20 ?? undefined,
+      dataQuality,
     });
   }
 

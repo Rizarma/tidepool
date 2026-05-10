@@ -104,7 +104,7 @@ function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
     );
   }
 
-  const items: PricePoint[] = [];
+  const seen = new Map<number, PricePoint>();
   for (const item of itemsRaw) {
     if (!isObject(item)) continue;
 
@@ -126,10 +126,11 @@ function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
       toNumber(prop(item, "v"));
 
     if (unixTime !== undefined && value !== undefined) {
-      items.push({ unixTime, value });
+      seen.set(unixTime, { unixTime, value }); // last wins
     }
   }
 
+  const items = Array.from(seen.values());
   // Sort by time ascending (oldest first) so SMA math is natural
   items.sort((a, b) => a.unixTime - b.unixTime);
 
@@ -176,6 +177,8 @@ export async function fetchBirdeyePriceHistory(
     `&time_from=${from}` +
     `&time_to=${now}`;
 
+  let lastError: Error | undefined;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
@@ -198,14 +201,15 @@ export async function fetchBirdeyePriceHistory(
         throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
       }
 
-      if (!res.ok) {
+      if (!res.ok || prop(json, "success") === false) {
         const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
         throw new Error(errMsg);
       }
 
       return parseBirdeyeHistory(json);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const msg = lastError.message;
       const isRateLimited =
         msg.includes("429") ||
         msg.toLowerCase().includes("too many requests") ||
@@ -218,13 +222,13 @@ export async function fetchBirdeyePriceHistory(
         await delay(waitMs);
         continue;
       }
-      throw err;
+      throw lastError;
     } finally {
       clearTimeout(timer);
     }
   }
 
-  throw new Error("Max retries exceeded");
+  throw lastError ?? new Error("Max retries exceeded");
 }
 
 function delay(ms: number): Promise<void> {

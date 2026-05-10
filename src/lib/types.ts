@@ -86,6 +86,7 @@ export interface SourceStatus {
 export interface IndicatorTimeframe {
   timeframe: "1m" | "5m" | "15m";
   sma20?: number;
+  dataQuality?: "full" | "partial" | "insufficient";
 }
 
 export interface PoolIndicators {
