@@ -104,7 +104,7 @@ export function IndicatorsPanel({
   }
 
   return (
-    <div className="mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <p className="text-[10px] uppercase tracking-wider text-zinc-500">
           Moving Averages

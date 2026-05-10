@@ -97,20 +97,22 @@ export function PairReportLayout({
           </div>
         </PanelSection>
 
-        {/* Indicators */}
-        <IndicatorsPanel
-          poolAddress={pair?.poolAddress}
-          currentPrice={pair?.priceTokenYPerTokenX}
-          symbolY={symbolY}
-        />
-
-        {/* Fees */}
-        <PanelSection title="Pool Fees" className="mt-3">
+        {/* Pool Information */}
+        <PanelSection title="Pool Information" className="mt-3">
           <DataRow label="Base fee" value={feePct(pair?.baseFeePct)} />
           <DataRow label="Dynamic fee" value={feePct(pair?.dynamicFeePct)} />
           <DataRow label="Max fee" value={feePct(pair?.maxFeePct)} />
           <DataRow label="Protocol fee" value={feePct(pair?.protocolFeePct)} />
           <DataRow label="APR / APY" value={`${pctValue(pair?.apr)} / ${pctValue(pair?.apy)}`} />
+        </PanelSection>
+
+        {/* Indicators */}
+        <PanelSection title="Indicators" className="mt-3">
+          <IndicatorsPanel
+            poolAddress={pair?.poolAddress}
+            currentPrice={pair?.priceTokenYPerTokenX}
+            symbolY={symbolY}
+          />
         </PanelSection>
 
         {/* Tags */}
