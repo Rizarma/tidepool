@@ -594,6 +594,37 @@ export function NewPairsTable({
                           {shortenAddress(pool.poolAddress)}
                         </span>
                         <CopyButton address={pool.poolAddress} />
+                        <span className="mx-1 text-zinc-700">|</span>
+                        <a
+                          href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
+                          title="View on GMGN"
+                        >
+                          GMGN
+                        </a>
+                        <a
+                          href={`https://www.dextools.io/app/en/solana/pair-explorer/${pool.poolAddress}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
+                          title="View on DexTools"
+                        >
+                          Dex
+                        </a>
+                        <a
+                          href={`https://app.meteora.ag/dlmm/${pool.poolAddress}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
+                          title="View on Meteora"
+                        >
+                          Met
+                        </a>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
