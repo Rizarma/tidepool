@@ -14,7 +14,11 @@ export function IndicatorBottomBar() {
   const { config } = useIndicatorConfig();
   const [showSettings, setShowSettings] = useState(false);
 
-  const summary = `${config.timeframes.join(" · ")} · SMA(${config.indicators[0]?.period ?? 20})`;
+  const enabledIndicators = config.indicators.filter((i) => i.enabled !== false);
+  const summary =
+    enabledIndicators.length === 0
+      ? "Indicators off"
+      : `${config.timeframes.join(" · ")} · ${enabledIndicators.map((i) => `${i.type.toUpperCase()}(${i.period})`).join(" · ")}`;
 
   return (
     <>

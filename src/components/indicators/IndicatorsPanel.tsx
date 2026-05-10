@@ -69,9 +69,14 @@ export function IndicatorsPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const hasEnabledIndicators = config.indicators.some(
+    (i) => i.enabled !== false,
+  );
+
   useEffect(() => {
     if (!poolAddress || !isReady) return;
     if (config.timeframes.length === 0) return;
+    if (!hasEnabledIndicators) return;
 
     let cancelled = false;
 
@@ -97,7 +102,7 @@ export function IndicatorsPanel({
     return () => { cancelled = true; };
   }, [poolAddress, config, isReady]);
 
-  if (!poolAddress || config.timeframes.length === 0) {
+  if (!poolAddress || config.timeframes.length === 0 || !hasEnabledIndicators) {
     return null;
   }
 

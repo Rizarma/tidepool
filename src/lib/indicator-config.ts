@@ -7,12 +7,12 @@
 
 export interface IndicatorConfig {
   timeframes: string[];
-  indicators: Array<{ type: string; period: number }>;
+  indicators: Array<{ type: string; period: number; enabled?: boolean }>;
 }
 
 export const DEFAULT_CONFIG: IndicatorConfig = {
   timeframes: ["1m", "5m", "15m"],
-  indicators: [{ type: "sma", period: 20 }],
+  indicators: [{ type: "sma", period: 20, enabled: true }],
 };
 
 export const AVAILABLE_TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
@@ -36,7 +36,10 @@ export function toBirdeyeTimeframe(tf: string): string {
  */
 export function serializeConfig(config: IndicatorConfig): string {
   const tf = config.timeframes.join(",");
-  const ind = config.indicators.map((i) => `${i.type}:${i.period}`).join(",");
+  const ind = config.indicators
+    .filter((i) => i.enabled !== false)
+    .map((i) => `${i.type}:${i.period}`)
+    .join(",");
   return `timeframes=${encodeURIComponent(tf)}&indicators=${encodeURIComponent(ind)}`;
 }
 
@@ -76,6 +79,8 @@ function isValidConfig(raw: unknown): raw is IndicatorConfig {
     if (!ind || typeof ind !== "object") return false;
     if (typeof (ind as Record<string, unknown>).type !== "string") return false;
     if (typeof (ind as Record<string, unknown>).period !== "number") return false;
+    const enabled = (ind as Record<string, unknown>).enabled;
+    if (enabled !== undefined && typeof enabled !== "boolean") return false;
   }
   return true;
 }

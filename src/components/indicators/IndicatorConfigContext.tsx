@@ -25,6 +25,8 @@ interface IndicatorConfigContextType {
   setIndicatorPeriod: (type: string, period: number) => void;
   /** Toggle a timeframe on/off */
   toggleTimeframe: (timeframe: string) => void;
+  /** Enable or disable an indicator type */
+  toggleIndicator: (type: string) => void;
   /** True while restoring from localStorage (first render) */
   isReady: boolean;
 }
@@ -68,9 +70,22 @@ export function IndicatorConfigProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const toggleIndicator = useCallback((type: string) => {
+    setConfig((prev) => {
+      const next = {
+        ...prev,
+        indicators: prev.indicators.map((ind) =>
+          ind.type === type ? { ...ind, enabled: !ind.enabled } : ind,
+        ),
+      };
+      saveConfig(next);
+      return next;
+    });
+  }, []);
+
   return (
     <IndicatorConfigContext.Provider
-      value={{ config, updateConfig, setIndicatorPeriod, toggleTimeframe, isReady }}
+      value={{ config, updateConfig, setIndicatorPeriod, toggleTimeframe, toggleIndicator, isReady }}
     >
       {children}
     </IndicatorConfigContext.Provider>

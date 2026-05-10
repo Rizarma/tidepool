@@ -85,7 +85,8 @@ async function handleIndicators(request: Request): Promise<Response> {
 
   const pool = searchParams.get("pool")?.trim();
   const timeframesParam = searchParams.get("timeframes")?.trim() ?? "1m,5m,15m";
-  const indicatorsParam = searchParams.get("indicators")?.trim() ?? "sma:20";
+  const rawIndicators = searchParams.get("indicators");
+  const indicatorsParam = rawIndicators === null ? "sma:20" : rawIndicators.trim();
 
   // Validate pool
   if (!pool || !isValidSolanaAddress(pool)) {
@@ -144,14 +145,6 @@ async function handleIndicators(request: Request): Promise<Response> {
     indicators.push({ type, period });
   }
 
-  if (indicators.length === 0) {
-    return apiErrorResponse(
-      "INVALID_PARAMETER",
-      "No valid indicators specified",
-      400,
-    );
-  }
-
   // Check API-level cache before doing any work
   const cacheKey = responseCacheKey(pool, timeframes, indicators);
   const cachedBody = getCachedResponse(cacheKey);
@@ -181,6 +174,18 @@ async function handleIndicators(request: Request): Promise<Response> {
   }
 
   const pair: DlmmPairInfo = poolResult.value.data;
+
+  // If no indicators are enabled, return empty response immediately
+  if (indicators.length === 0) {
+    const body = JSON.stringify({
+      indicators: { timeframes: [] } satisfies PoolIndicators,
+      sources,
+    });
+    setCachedResponse(cacheKey, body, 20_000);
+    return new Response(body, {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   // Fetch indicators from Birdeye
   const apiKey = process.env.BIRDEYE_API_KEY;
