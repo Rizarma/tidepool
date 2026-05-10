@@ -135,17 +135,17 @@ async function fetchPoolIndicators(
 
   const start = Date.now();
   try {
-    // Fetch sequentially with 150ms delay to avoid Birdeye rate limits
+    // Fetch sequentially with 1000ms delay to respect Birdeye free-tier rate limits
     const xHistories = [];
     for (const tf of timeframes) {
       xHistories.push(await fetchBirdeyePriceHistory(tokenX.mint, tf, 25));
-      await delay(150);
+      await delay(1000);
     }
 
     const yHistories = [];
     for (const tf of timeframes) {
       yHistories.push(await fetchBirdeyePriceHistory(tokenY.mint, tf, 25));
-      await delay(150);
+      await delay(1000);
     }
 
     const indicators = buildPoolIndicators(xHistories, yHistories);

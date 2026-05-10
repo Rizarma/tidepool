@@ -152,11 +152,14 @@ function lookbackSeconds(
 
 /**
  * Fetch price history for a single token mint from Birdeye.
+ *
+ * Retries on 429/Too many requests with exponential backoff (2s, 4s, 8s).
  */
 export async function fetchBirdeyePriceHistory(
   mint: string,
   timeframe: "1m" | "5m" | "15m",
   periods: number,
+  retries = 3,
 ): Promise<BirdeyeHistoryResult> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -173,36 +176,57 @@ export async function fetchBirdeyePriceHistory(
     `&time_from=${from}` +
     `&time_to=${now}`;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15_000);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
 
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "X-API-KEY": apiKey,
-        "x-chain": "solana",
-      },
-      signal: controller.signal,
-    });
-
-    const text = await res.text();
-    let json: unknown;
     try {
-      json = JSON.parse(text);
-    } catch {
-      // Show a preview of what Birdeye actually returned for debugging
-      const preview = text.slice(0, 300).replace(/\s+/g, " ");
-      throw new Error(`Invalid JSON in response (status: ${res.status}, url: ${url}, preview: ${preview})`);
-    }
+      const res = await fetch(url, {
+        headers: {
+          "X-API-KEY": apiKey,
+          "x-chain": "solana",
+        },
+        signal: controller.signal,
+      });
 
-    // Log non-OK responses with the body for debugging
-    if (!res.ok) {
-      const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
-      throw new Error(errMsg);
-    }
+      const text = await res.text();
+      let json: unknown;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        const preview = text.slice(0, 300).replace(/\s+/g, " ");
+        throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+      }
 
-    return parseBirdeyeHistory(json);
-  } finally {
-    clearTimeout(timer);
+      if (!res.ok) {
+        const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
+        throw new Error(errMsg);
+      }
+
+      return parseBirdeyeHistory(json);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRateLimited =
+        msg.includes("429") ||
+        msg.toLowerCase().includes("too many requests") ||
+        msg.toLowerCase().includes("rate limit");
+      if (isRateLimited && attempt < retries) {
+        const waitMs = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        console.log(
+          `[Birdeye] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
+        );
+        await delay(waitMs);
+        continue;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  throw new Error("Max retries exceeded");
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

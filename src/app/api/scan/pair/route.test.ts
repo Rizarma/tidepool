@@ -349,7 +349,7 @@ describe("GET /api/scan/pair", () => {
       expect(body.sources[1].provider).toBe("birdeye");
       expect(body.sources[1].success).toBe(true);
       expect(typeof body.sources[1].latencyMs).toBe("number");
-    });
+    }, 15_000);
 
     it("skips indicators and adds failed source when Birdeye errors", async () => {
       vi.stubEnv("BIRDEYE_API_KEY", "test-key");
