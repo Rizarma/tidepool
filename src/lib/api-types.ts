@@ -58,6 +58,17 @@ export interface TokenReport {
   fetchedAt?: string;
 }
 
+// ─── Indicators ──────────────────────────────────────────────────────────────
+
+export interface IndicatorTimeframe {
+  timeframe?: "1m" | "5m" | "15m";
+  sma20?: number;
+}
+
+export interface PoolIndicators {
+  timeframes?: IndicatorTimeframe[];
+}
+
 // ─── Pair / Pool Report ──────────────────────────────────────────────────────
 
 export type PairToken = Partial<StrictPairToken>;
@@ -69,6 +80,7 @@ export interface PoolReport {
     tokenY?: PairToken;
     tags?: string[];
   };
+  indicators?: PoolIndicators;
   sources?: SourceStatus[];
   fetchedAt?: string;
 }
