@@ -123,7 +123,11 @@ export function buildPoolIndicatorsDirect(
       const multiplier =
         indConfig.multiplier ?? definition.defaultMultiplier;
 
-      const enoughData = closes.length >= definition.minDataPoints;
+      const minPoints =
+        typeof definition.minDataPoints === "function"
+          ? definition.minDataPoints({ period: indConfig.period })
+          : definition.minDataPoints;
+      const enoughData = closes.length >= minPoints;
       const ohlcReady =
         !definition.requiresOhlc || highs !== undefined;
 
@@ -136,13 +140,21 @@ export function buildPoolIndicatorsDirect(
         );
       }
 
-      // Data quality: full requires real OHLC when needed + enough candles
+      const fullThreshold =
+        definition.fullQualityDataPoints?.({ period: indConfig.period }) ??
+        minPoints;
+
+      // Data quality: insufficient = no data at all;
+      // partial = some data but not enough for reliable result or missing OHLC;
+      // full = enough data for a trustworthy result.
       let dataQuality: "full" | "partial" | "insufficient";
       if (closes.length === 0) {
         dataQuality = "insufficient";
-      } else if (definition.requiresOhlc && !hasRealOhlc) {
+      } else if (closes.length < minPoints) {
         dataQuality = "partial";
-      } else if (closes.length < indConfig.period) {
+      } else if (closes.length < fullThreshold) {
+        dataQuality = "partial";
+      } else if (definition.requiresOhlc && !hasRealOhlc) {
         dataQuality = "partial";
       } else {
         dataQuality = "full";
@@ -156,10 +168,13 @@ export function buildPoolIndicatorsDirect(
         availableDataPoints: closes.length,
         trend: result.trend,
         isApproximate:
-          definition.requiresOhlc && isApproximate ? true : undefined,
+          definition.requiresOhlc && isApproximate && closes.length > 0
+            ? true
+            : undefined,
         multiplier: definition.defaultMultiplier !== undefined
           ? multiplier
           : undefined,
+        unreliableReason: result.unreliableReason,
       });
     }
 

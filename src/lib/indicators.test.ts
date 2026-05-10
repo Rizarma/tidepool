@@ -348,6 +348,24 @@ describe("supertrend", () => {
     expect(result).not.toBeNull();
     expect(result!.value).toBeGreaterThan(0);
   });
+
+  it("marks flat market as unreliable (low volatility)", () => {
+    const highs = Array.from({ length: 25 }, () => 10);
+    const lows = Array.from({ length: 25 }, () => 9.99999);
+    const closes = Array.from({ length: 25 }, () => 10);
+    const result = supertrend(highs, lows, closes, 10, 3);
+    expect(result).not.toBeNull();
+    expect(result!.unreliableReason).toBe("low_volatility");
+  });
+
+  it("does not mark volatile market as unreliable", () => {
+    const highs = Array.from({ length: 25 }, (_, i) => 10 + i * 0.5);
+    const lows = Array.from({ length: 25 }, (_, i) => 9 + i * 0.5);
+    const closes = Array.from({ length: 25 }, (_, i) => 9.8 + i * 0.5);
+    const result = supertrend(highs, lows, closes, 10, 3);
+    expect(result).not.toBeNull();
+    expect(result!.unreliableReason).toBeUndefined();
+  });
 });
 
 // ─── Supertrend Integration ──────────────────────────────────────────────────
@@ -394,6 +412,42 @@ describe("buildPoolIndicatorsDirect with supertrend", () => {
     expect(indicators.timeframes[0].values[0].type).toBe("supertrend");
     expect(indicators.timeframes[0].values[0].isApproximate).toBe(true);
     expect(indicators.timeframes[0].values[0].dataQuality).toBe("partial");
+  });
+
+  it("marks supertrend as partial when between min and full thresholds", () => {
+    // Supertrend minDataPoints = 11, fullQualityDataPoints = 21.
+    // 15 candles is enough to compute but not enough for reliable quality.
+    const history: PriceHistoryResult = {
+      items: Array.from({ length: 15 }, (_, i) => ({
+        unixTime: 1000 + i,
+        value: 0.007 + i * 0.0001,
+        high: 0.0075 + i * 0.0001,
+        low: 0.0065 + i * 0.0001,
+      })),
+    };
+
+    const config = {
+      timeframes: ["5m"],
+      indicators: [{ type: "supertrend" as const, period: 10, multiplier: 3 }],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([history], config);
+    expect(indicators.timeframes[0].values[0].type).toBe("supertrend");
+    expect(indicators.timeframes[0].values[0].value).toBeDefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("partial");
+  });
+
+  it("does not set isApproximate when data is completely missing", () => {
+    const history: PriceHistoryResult = { items: [] };
+
+    const config = {
+      timeframes: ["5m"],
+      indicators: [{ type: "supertrend" as const, period: 10, multiplier: 3 }],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([history], config);
+    expect(indicators.timeframes[0].values[0].isApproximate).toBeUndefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("insufficient");
   });
 
   it("renders both sma and supertrend in the same timeframe", () => {

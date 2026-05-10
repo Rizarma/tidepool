@@ -10,7 +10,7 @@ import { isValidSolanaAddress } from "@/lib/validation";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
 import { getProvider, type OhlcvProvider } from "@/lib/providers-ohlcv";
 import { buildPoolIndicatorsDirect } from "@/lib/indicators";
-import { isValidIndicatorType } from "@/lib/indicators/registry";
+import { isValidIndicatorType, getIndicator } from "@/lib/indicators/registry";
 import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import type { IndicatorType, PoolIndicators, SourceStatus } from "@/lib/types";
@@ -164,6 +164,14 @@ async function handleIndicators(request: Request): Promise<Response> {
       return apiErrorResponse(
         "INVALID_PARAMETER",
         `Invalid indicator period: ${periodStr}`,
+        400,
+      );
+    }
+    const def = getIndicator(type);
+    if (def.minPeriod !== undefined && period < def.minPeriod) {
+      return apiErrorResponse(
+        "INVALID_PARAMETER",
+        `${type} period must be at least ${def.minPeriod}`,
         400,
       );
     }

@@ -19,6 +19,8 @@ export interface IndicatorInput {
 export interface IndicatorResult {
   value: number | null;
   trend?: "up" | "down";
+  /** If the computed value is mathematically valid but not analytically reliable. */
+  unreliableReason?: string;
 }
 
 export interface IndicatorDefinition {
@@ -31,8 +33,13 @@ export interface IndicatorDefinition {
   ) => IndicatorResult;
   defaultPeriod: number;
   defaultMultiplier?: number;
-  minDataPoints: number;
+  /** Minimum candles required before compute() is even attempted. */
+  minDataPoints: number | ((config: { period: number }) => number);
   requiresOhlc?: boolean;
+  /** Minimum candles for a reliable result (used for data quality assessment). */
+  fullQualityDataPoints?: (config: { period: number }) => number;
+  /** Minimum allowed period in UI/API validation. */
+  minPeriod?: number;
 }
 
 const registry: Record<IndicatorType, IndicatorDefinition> = {
@@ -44,7 +51,7 @@ const registry: Record<IndicatorType, IndicatorDefinition> = {
       value: sma(closes, config.period),
     }),
     defaultPeriod: 20,
-    minDataPoints: 1,
+    minDataPoints: ({ period }) => period,
   },
   supertrend: {
     type: "supertrend",
@@ -60,12 +67,18 @@ const registry: Record<IndicatorType, IndicatorDefinition> = {
         config.multiplier ?? 3,
       );
       if (!result) return { value: null };
-      return { value: result.value, trend: result.trend };
+      return {
+        value: result.value,
+        trend: result.trend,
+        unreliableReason: result.unreliableReason,
+      };
     },
     defaultPeriod: 10,
     defaultMultiplier: 3,
-    minDataPoints: 2,
+    minDataPoints: ({ period }) => period + 1,
     requiresOhlc: true,
+    fullQualityDataPoints: ({ period }) => period * 2 + 1,
+    minPeriod: 5,
   },
 };
 

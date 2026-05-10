@@ -98,6 +98,8 @@ export interface IndicatorValue {
   trend?: "up" | "down";
   /** True if OHLC data was approximated (e.g. Birdeye fallback) */
   isApproximate?: boolean;
+  /** If the computed value is valid but not analytically reliable */
+  unreliableReason?: string;
 }
 
 export interface IndicatorTimeframe {

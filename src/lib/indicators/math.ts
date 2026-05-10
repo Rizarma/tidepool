@@ -67,6 +67,7 @@ export function atr(
 export interface SupertrendResult {
   value: number;
   trend: "up" | "down";
+  unreliableReason?: string;
 }
 
 /**
@@ -177,8 +178,17 @@ export function supertrend(
   const lastIdx = st.length - 1;
   if (st[lastIdx] === null) return null;
 
+  // Detect flat / low-volatility markets where ATR has collapsed to
+  // near-zero relative to price. In these conditions the trend
+  // direction is arbitrary (depends on init) and not analytically useful.
+  const lastAtr = atrValues[highs.length - 1] as number;
+  const lastClose = closes[highs.length - 1];
+  const relativeAtr = lastClose > 0 ? lastAtr / lastClose : 0;
+  const isUnreliable = relativeAtr < 0.0001;
+
   return {
     value: st[lastIdx],
     trend: trend[lastIdx] === 1 ? "up" : "down",
+    unreliableReason: isUnreliable ? "low_volatility" : undefined,
   };
 }

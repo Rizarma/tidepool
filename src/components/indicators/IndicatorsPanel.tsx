@@ -66,19 +66,22 @@ function IndicatorCard({
   currentPrice?: number;
   symbolY: string;
 }) {
-  const { type, value, period, dataQuality, availableDataPoints, trend, isApproximate } = indicator;
+  const { type, value, period, dataQuality, availableDataPoints, trend, isApproximate, unreliableReason } = indicator;
   const isAbove = value != null && currentPrice != null && currentPrice > value;
   const isBelow = value != null && currentPrice != null && currentPrice < value;
   const hasValue = value != null && !Number.isNaN(value);
 
-  // Colour logic: SMA uses price-vs-indicator; Supertrend uses its own trend direction.
+  // Colour logic: SMA uses price-vs-indicator; Supertrend uses its own trend
+  // direction, but falls back to neutral when the signal is unreliable.
   const priceColor =
     type === "supertrend"
-      ? trend === "up"
-        ? "text-emerald-300"
-        : trend === "down"
-          ? "text-red-300"
-          : "text-zinc-100"
+      ? unreliableReason
+        ? "text-zinc-100"
+        : trend === "up"
+          ? "text-emerald-300"
+          : trend === "down"
+            ? "text-red-300"
+            : "text-zinc-100"
       : isAbove
         ? "text-emerald-300"
         : isBelow
@@ -98,13 +101,18 @@ function IndicatorCard({
           —
         </p>
       )}
-      {type === "supertrend" && trend && (
+      {type === "supertrend" && trend && !unreliableReason && (
         <p
           className={`text-[10px] mt-0.5 ${
             trend === "up" ? "text-emerald-400" : "text-red-400"
           }`}
         >
           {trend === "up" ? "▲ Uptrend" : "▼ Downtrend"}
+        </p>
+      )}
+      {type === "supertrend" && unreliableReason && (
+        <p className="text-[10px] mt-0.5 text-amber-400">
+          {unreliableReason === "low_volatility" ? "Flat / low volatility" : unreliableReason}
         </p>
       )}
       {type === "sma" && hasValue && (isAbove || isBelow) && (
@@ -116,7 +124,7 @@ function IndicatorCard({
           {isAbove ? "▲ Above current price" : "▼ Below current price"}
         </p>
       )}
-      {isApproximate && (
+      {isApproximate && hasValue && (
         <p className="text-[10px] mt-0.5 text-amber-400">Approximated (no OHLC)</p>
       )}
       {!hasValue && dataQuality && (

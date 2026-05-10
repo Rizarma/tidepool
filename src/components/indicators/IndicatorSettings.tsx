@@ -185,7 +185,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                         onChange={(e) =>
                           handlePeriodChange(ind.type, parseInt(e.target.value, 10))
                         }
-                        min={1}
+                        min={def.minPeriod ?? 1}
                         max={200}
                         className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm text-zinc-100"
                       />

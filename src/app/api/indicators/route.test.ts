@@ -138,6 +138,16 @@ describe("GET /api/indicators", () => {
       expect(body.error.code).toBe("INVALID_PARAMETER");
     });
 
+    it("returns INVALID_PARAMETER 400 for supertrend period below minimum", async () => {
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}&indicators=supertrend:4:3`));
+      expect(res.status).toBe(400);
+      const body = await parseJson(res);
+      expect(body.error.code).toBe("INVALID_PARAMETER");
+      expect(body.error.message).toMatch(/period must be at least 5/i);
+    });
+
     it("returns INVALID_PARAMETER 400 for invalid provider", async () => {
       vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
 
