@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useIndicatorConfig } from "./IndicatorConfigContext";
 import { serializeConfig } from "@/lib/indicator-config";
 import { formatTokenPrice } from "@/lib/format";
@@ -69,35 +69,33 @@ export function IndicatorsPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchIndicators = useCallback(async () => {
-    if (!poolAddress || !isReady) return;
-    if (config.timeframes.length === 0) {
-      setData(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const qs = serializeConfig(config);
-      const res = await fetch(`/api/indicators?pool=${poolAddress}&${qs}`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const body: IndicatorApiResponse = await res.json();
-      setData(body.indicators);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [poolAddress, config, isReady]);
-
   useEffect(() => {
-    fetchIndicators();
-  }, [fetchIndicators]);
+    if (!poolAddress || !isReady) return;
+    if (config.timeframes.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const qs = serializeConfig(config);
+        const res = await fetch(`/api/indicators?pool=${poolAddress}&${qs}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const body: IndicatorApiResponse = await res.json();
+        if (!cancelled) setData(body.indicators);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!cancelled) setError(msg);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [poolAddress, config, isReady]);
 
   if (!poolAddress || config.timeframes.length === 0) {
     return null;

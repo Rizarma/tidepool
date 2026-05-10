@@ -11,12 +11,11 @@ import {
   createContext,
   useContext,
   useState,
-  useEffect,
   useCallback,
   type ReactNode,
 } from "react";
 import type { IndicatorConfig } from "@/lib/indicator-config";
-import { DEFAULT_CONFIG, saveConfig, loadConfig } from "@/lib/indicator-config";
+import { saveConfig, loadConfig } from "@/lib/indicator-config";
 
 interface IndicatorConfigContextType {
   config: IndicatorConfig;
@@ -33,14 +32,8 @@ interface IndicatorConfigContextType {
 const IndicatorConfigContext = createContext<IndicatorConfigContextType | null>(null);
 
 export function IndicatorConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<IndicatorConfig>(DEFAULT_CONFIG);
-  const [isReady, setIsReady] = useState(false);
-
-  // Restore from localStorage after hydration
-  useEffect(() => {
-    setConfig(loadConfig());
-    setIsReady(true);
-  }, []);
+  const [config, setConfig] = useState<IndicatorConfig>(() => loadConfig());
+  const isReady = true;
 
   const updateConfig = useCallback((partial: Partial<IndicatorConfig>) => {
     setConfig((prev) => {

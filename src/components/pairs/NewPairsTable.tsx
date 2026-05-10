@@ -220,37 +220,28 @@ export function NewPairsTable({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    try { return localStorage.getItem("tidepool_auto_refresh") === "true"; }
+    catch { return false; }
+  });
+  const [countdown, setCountdown] = useState(() => {
+    try {
+      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+      if (!savedAt) return 0;
+      const lastFetch = parseInt(savedAt, 10);
+      if (isNaN(lastFetch)) return 0;
+      const elapsed = Date.now() - lastFetch;
+      const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
+      if (elapsed >= 0 && elapsed < intervalMs) {
+        return Math.max(1, Math.ceil((intervalMs - elapsed) / 1000));
+      }
+    } catch { /* ignore */ }
+    return 0;
+  });
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
 
   const lastFetchTimeRef = useRef<number>(0);
-
-  // ─── Restore auto-refresh preference from localStorage (client only) ─────
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("tidepool_auto_refresh");
-      if (saved) setAutoRefresh(saved === "true");
-    } catch {
-      // ignore
-    }
-    try {
-      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-      if (savedAt) {
-        const lastFetch = parseInt(savedAt, 10);
-        if (!isNaN(lastFetch)) {
-          const elapsed = Date.now() - lastFetch;
-          const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
-          if (elapsed >= 0 && elapsed < intervalMs) {
-            setCountdown(Math.max(1, Math.ceil((intervalMs - elapsed) / 1000)));
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   // ─── Persist auto-refresh preference ──────────────────────────────────────
   useEffect(() => {
