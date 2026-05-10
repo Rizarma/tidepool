@@ -111,6 +111,7 @@ function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
     // Try multiple timestamp field names
     const unixTime =
       toNumber(prop(item, "unixTime")) ??
+      toNumber(prop(item, "unix_time")) ??
       toNumber(prop(item, "timestamp")) ??
       toNumber(prop(item, "time")) ??
       toNumber(prop(item, "t")) ??
@@ -166,7 +167,7 @@ export async function fetchBirdeyePriceHistory(
   const from = now - lookbackSeconds(timeframe, periods);
 
   const url =
-    `${BIRDEYE_BASE_URL}/defi/history/price?` +
+    `${BIRDEYE_BASE_URL}/defi/history_price?` +
     `address=${encodeURIComponent(mint)}` +
     `&type=${encodeURIComponent(timeframe)}` +
     `&time_from=${from}` +
@@ -177,7 +178,10 @@ export async function fetchBirdeyePriceHistory(
 
   try {
     const res = await fetch(url, {
-      headers: { "x-api-key": apiKey, accept: "application/json" },
+      headers: {
+        "X-API-KEY": apiKey,
+        "x-chain": "solana",
+      },
       signal: controller.signal,
     });
 
