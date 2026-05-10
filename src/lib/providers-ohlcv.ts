@@ -8,7 +8,7 @@
  * Endpoint: GET /history/price?address={mint}&type={timeframe}&time_from={unix}&time_to={unix}
  */
 
-import { isObject, prop, toNumber } from "@/lib/provider-parsing";
+import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
 
 const BIRDEYE_BASE_URL = "https://public-api.birdeye.so";
 
@@ -31,27 +31,99 @@ function getApiKey(): string | undefined {
   return process.env.BIRDEYE_API_KEY;
 }
 
+/**
+ * Extract a Birdeye error message from the response if present.
+ */
+function extractBirdeyeError(raw: unknown): string | undefined {
+  if (!isObject(raw)) return undefined;
+  const msg = toString(prop(raw, "message")) ?? toString(prop(raw, "error")) ?? toString(prop(raw, "msg"));
+  if (msg) return msg;
+
+  // Some error shapes: { data: { message: "..." } }
+  const data = prop(raw, "data");
+  if (isObject(data)) {
+    return toString(prop(data, "message")) ?? toString(prop(data, "error")) ?? undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Parse Birdeye price history response.
+ *
+ * Tries multiple response shapes because Birdeye's format varies by endpoint
+ * version, auth tier, and token availability.
+ */
 function parseBirdeyeHistory(raw: unknown): BirdeyeHistoryResult {
   if (!isObject(raw)) {
     throw new Error("Invalid Birdeye response: expected object");
   }
 
-  // Birdeye wraps in { success: boolean, data: { items: [...] } }
-  const data = prop(raw, "data");
-  if (!isObject(data)) {
-    throw new Error("Invalid Birdeye response: missing data field");
+  // Check for explicit error first
+  const errorMsg = extractBirdeyeError(raw);
+  if (errorMsg) {
+    throw new Error(`Birdeye error: ${errorMsg}`);
   }
 
-  const itemsRaw = prop(data, "items");
-  if (!Array.isArray(itemsRaw)) {
-    throw new Error("Invalid Birdeye response: missing items array");
+  // Try multiple response shapes to find the items array
+  let itemsRaw: unknown[] | undefined;
+
+  // Shape 1: { data: { items: [...] } }
+  const data = prop(raw, "data");
+  if (isObject(data)) {
+    const nestedItems = prop(data, "items");
+    if (Array.isArray(nestedItems)) itemsRaw = nestedItems;
+  }
+
+  // Shape 2: { data: [...] } (array directly in data)
+  if (!itemsRaw && Array.isArray(data)) {
+    itemsRaw = data;
+  }
+
+  // Shape 3: { items: [...] } (top-level items)
+  if (!itemsRaw) {
+    const topItems = prop(raw, "items");
+    if (Array.isArray(topItems)) itemsRaw = topItems;
+  }
+
+  // Shape 4: { history: [...] }
+  if (!itemsRaw) {
+    const history = prop(raw, "history");
+    if (Array.isArray(history)) itemsRaw = history;
+  }
+
+  // Shape 5: { prices: [...] }
+  if (!itemsRaw) {
+    const prices = prop(raw, "prices");
+    if (Array.isArray(prices)) itemsRaw = prices;
+  }
+
+  if (!itemsRaw) {
+    const availableKeys = Object.keys(raw).join(", ");
+    throw new Error(
+      `Invalid Birdeye response: no items/history/prices array found (keys: ${availableKeys})`,
+    );
   }
 
   const items: PricePoint[] = [];
   for (const item of itemsRaw) {
     if (!isObject(item)) continue;
-    const unixTime = toNumber(prop(item, "unixTime"));
-    const value = toNumber(prop(item, "value"));
+
+    // Try multiple timestamp field names
+    const unixTime =
+      toNumber(prop(item, "unixTime")) ??
+      toNumber(prop(item, "timestamp")) ??
+      toNumber(prop(item, "time")) ??
+      toNumber(prop(item, "t")) ??
+      toNumber(prop(item, "date"));
+
+    // Try multiple price field names
+    const value =
+      toNumber(prop(item, "value")) ??
+      toNumber(prop(item, "price")) ??
+      toNumber(prop(item, "p")) ??
+      toNumber(prop(item, "close")) ??
+      toNumber(prop(item, "v"));
+
     if (unixTime !== undefined && value !== undefined) {
       items.push({ unixTime, value });
     }
@@ -109,16 +181,18 @@ export async function fetchBirdeyePriceHistory(
       signal: controller.signal,
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
     const text = await res.text();
     let json: unknown;
     try {
       json = JSON.parse(text);
     } catch {
       throw new Error("Invalid JSON in response");
+    }
+
+    // Log non-OK responses with the body for debugging
+    if (!res.ok) {
+      const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
+      throw new Error(errMsg);
     }
 
     return parseBirdeyeHistory(json);

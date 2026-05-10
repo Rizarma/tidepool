@@ -155,6 +155,8 @@ async function fetchPoolIndicators(
   } catch (err) {
     const latencyMs = Date.now() - start;
     const rawError = err instanceof Error ? err.message : String(err);
+    // Debug log so devs can see the raw Birdeye error in server terminal
+    console.error("[Birdeye] Indicator fetch failed:", rawError);
     return {
       source: {
         provider: "birdeye",
