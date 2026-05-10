@@ -8,6 +8,7 @@
 
 import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
+import type { DlmmPairInfo } from "@/lib/types";
 
 const BIRDEYE_BASE_URL = "https://public-api.birdeye.so";
 const METEORA_BASE_URL = "https://dlmm.datapi.meteora.ag";
@@ -410,6 +411,32 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ─── Birdeye Pool Lookup Cache ─────────────────────────────────────────────
+// Avoids refetching the same pool multiple times when the route requests
+// multiple timeframes in a single indicator fetch cycle.
+
+interface PoolCacheEntry {
+  pair: DlmmPairInfo;
+  expiry: number;
+}
+
+const poolCache = new Map<string, PoolCacheEntry>();
+const POOL_CACHE_TTL_MS = 30_000;
+
+function getCachedPool(address: string): DlmmPairInfo | undefined {
+  const entry = poolCache.get(address);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiry) {
+    poolCache.delete(address);
+    return undefined;
+  }
+  return entry.pair;
+}
+
+function setCachedPool(address: string, pair: DlmmPairInfo): void {
+  poolCache.set(address, { pair, expiry: Date.now() + POOL_CACHE_TTL_MS });
+}
+
 // ─── Provider Implementations ───────────────────────────────────────────────
 
 const birdeyeProvider: OhlcvProvider = {
@@ -418,7 +445,11 @@ const birdeyeProvider: OhlcvProvider = {
     if (!apiKey) {
       throw new Error("BIRDEYE_API_KEY is not configured");
     }
-    const pair = await fetchMeteoraDlmmPool(poolAddress);
+    let pair = getCachedPool(poolAddress);
+    if (!pair) {
+      pair = await fetchMeteoraDlmmPool(poolAddress);
+      setCachedPool(poolAddress, pair);
+    }
     const birdeyeTf = toBirdeyeTimeframe(timeframe);
     const [xHistory, yHistory] = await Promise.all([
       fetchBirdeyeTokenHistory(pair.tokenX.mint, birdeyeTf, periods),

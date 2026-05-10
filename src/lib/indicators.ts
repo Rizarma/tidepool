@@ -75,6 +75,17 @@ export function buildPoolIndicatorsDirect(
 
   for (let i = 0; i < config.timeframes.length; i++) {
     const history = histories[i];
+    if (!history || !Array.isArray(history.items)) {
+      timeframes.push({
+        timeframe: config.timeframes[i],
+        values: config.indicators.map((indConfig) => ({
+          type: indConfig.type,
+          period: indConfig.period,
+          dataQuality: "insufficient" as const,
+        })),
+      });
+      continue;
+    }
     const values: number[] = history.items.map((p) => p.value);
     const indicatorValues: IndicatorValue[] = [];
 

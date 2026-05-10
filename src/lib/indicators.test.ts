@@ -50,13 +50,13 @@ describe("sma", () => {
 
 describe("computePoolRatios", () => {
   it("computes ratios from matching timestamps", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 0.5 },  // tokenX = $0.50
         { unixTime: 1001, value: 0.6 },  // tokenX = $0.60
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 150 },   // tokenY (SOL) = $150
         { unixTime: 1001, value: 160 },   // tokenY (SOL) = $160
@@ -73,14 +73,14 @@ describe("computePoolRatios", () => {
   });
 
   it("ignores timestamps that only exist in one history", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 1.0 },
         { unixTime: 1001, value: 1.0 },
         { unixTime: 1002, value: 1.0 },
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 2.0 },
         { unixTime: 1002, value: 2.0 },
@@ -95,13 +95,13 @@ describe("computePoolRatios", () => {
   });
 
   it("skips points where Y price is zero or negative", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 1.0 },
         { unixTime: 1001, value: 1.0 },
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 0 },     // invalid
         { unixTime: 1001, value: -1 },    // invalid
@@ -114,13 +114,13 @@ describe("computePoolRatios", () => {
   });
 
   it("skips points where X price is zero or negative", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 0 },
         { unixTime: 1001, value: 1.0 },
       ],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 2.0 },
         { unixTime: 1001, value: 2.0 },
@@ -140,10 +140,10 @@ describe("computePoolRatios", () => {
   });
 
   it("handles duplicate timestamps by keeping last value", () => {
-    const xHistory: BirdeyeHistoryResult = {
+    const xHistory: PriceHistoryResult = {
       items: [{ unixTime: 1000, value: 1.0 }],
     };
-    const yHistory: BirdeyeHistoryResult = {
+    const yHistory: PriceHistoryResult = {
       items: [
         { unixTime: 1000, value: 2.0 },
         { unixTime: 1000, value: 4.0 }, // duplicate — last wins

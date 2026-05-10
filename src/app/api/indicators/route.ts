@@ -13,7 +13,7 @@ import { buildPoolIndicatorsDirect } from "@/lib/indicators";
 import { isValidIndicatorType } from "@/lib/indicators/registry";
 import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
-import type { IndicatorType, PoolIndicators, SourceStatus, DlmmPairInfo } from "@/lib/types";
+import type { IndicatorType, PoolIndicators, SourceStatus } from "@/lib/types";
 import type { OhlcvProviderName } from "@/lib/indicator-config";
 
 const VALID_TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
@@ -187,8 +187,6 @@ async function handleIndicators(request: Request): Promise<Response> {
     );
   }
 
-  const pair: DlmmPairInfo = poolResult.value.data;
-
   // If no indicators are enabled, return empty response immediately
   if (indicators.length === 0) {
     const body = JSON.stringify({
@@ -224,7 +222,7 @@ async function handleIndicators(request: Request): Promise<Response> {
   const start = Date.now();
   try {
     const indicatorData = await Promise.race([
-      fetchIndicators(provider, providerName, pool, pair, timeframes as Timeframe[], indicators),
+      fetchIndicators(provider, pool, timeframes as Timeframe[], indicators),
       new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error("Indicator fetch timeout")),
@@ -266,9 +264,7 @@ async function handleIndicators(request: Request): Promise<Response> {
 
 async function fetchIndicators(
   provider: OhlcvProvider,
-  providerName: OhlcvProviderName,
   poolAddress: string,
-  pair: DlmmPairInfo,
   timeframes: Timeframe[],
   indicators: Array<{ type: IndicatorType; period: number }>,
 ): Promise<PoolIndicators> {
@@ -280,8 +276,6 @@ async function fetchIndicators(
   const histories = [];
   for (let i = 0; i < timeframes.length; i++) {
     const tf = timeframes[i];
-    // For Birdeye, the provider needs the pair info to get token mints.
-    // For Meteora, the pair info is unused.
     const history = await provider.fetchHistory(poolAddress, tf, periodsNeeded);
     histories.push(history);
     // Short delay between timeframes to stay polite, but only when there

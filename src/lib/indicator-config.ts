@@ -74,14 +74,17 @@ export function loadConfig(): IndicatorConfig {
       if (isValidConfig(parsed)) {
         const config = parsed as IndicatorConfig;
         if (needsMigration(config)) {
-          console.info("[IndicatorConfig] Migrated stale timeframes/provider to defaults");
-          return {
-            ...DEFAULT_CONFIG,
-            indicators: config.indicators.map((ind) => ({
-              ...ind,
-              enabled: ind.enabled ?? true,
-            })),
+          const migrated: IndicatorConfig = {
+            ...config,
+            provider: config.provider ?? "meteora",
+            timeframes: config.timeframes.filter((tf) => !OLD_TIMEFRAMES.has(tf)),
           };
+          if (migrated.timeframes.length === 0) {
+            migrated.timeframes = [...DEFAULT_CONFIG.timeframes];
+          }
+          console.info("[IndicatorConfig] Migrated stale timeframes/provider to defaults");
+          saveConfig(migrated);
+          return migrated;
         }
         return config;
       }
