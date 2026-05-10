@@ -135,15 +135,18 @@ async function fetchPoolIndicators(
 
   const start = Date.now();
   try {
-    // Fetch all histories in parallel: 3 timeframes × 2 tokens = 6 calls
-    const [xHistories, yHistories] = await Promise.all([
-      Promise.all(
-        timeframes.map((tf) => fetchBirdeyePriceHistory(tokenX.mint, tf, 25))
-      ),
-      Promise.all(
-        timeframes.map((tf) => fetchBirdeyePriceHistory(tokenY.mint, tf, 25))
-      ),
-    ]);
+    // Fetch sequentially with 150ms delay to avoid Birdeye rate limits
+    const xHistories = [];
+    for (const tf of timeframes) {
+      xHistories.push(await fetchBirdeyePriceHistory(tokenX.mint, tf, 25));
+      await delay(150);
+    }
+
+    const yHistories = [];
+    for (const tf of timeframes) {
+      yHistories.push(await fetchBirdeyePriceHistory(tokenY.mint, tf, 25));
+      await delay(150);
+    }
 
     const indicators = buildPoolIndicators(xHistories, yHistories);
     const latencyMs = Date.now() - start;
@@ -166,6 +169,10 @@ async function fetchPoolIndicators(
       },
     };
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 
