@@ -66,7 +66,7 @@ function IndicatorCard({
   currentPrice?: number;
   symbolY: string;
 }) {
-  const { type, value, period, dataQuality, availableDataPoints, trend, isApproximate, unreliableReason } = indicator;
+  const { type, value, period, dataQuality, availableDataPoints, trend, isApproximate, unreliableReason, minDataPoints } = indicator;
   const isAbove = value != null && currentPrice != null && currentPrice > value;
   const isBelow = value != null && currentPrice != null && currentPrice < value;
   const hasValue = value != null && !Number.isNaN(value);
@@ -131,7 +131,12 @@ function IndicatorCard({
         <p className="text-[10px] mt-0.5 text-zinc-500">
           {dataQuality === "insufficient"
             ? "No data available"
-            : `Need ${period} candles, have ${availableDataPoints ?? "?"}`}
+            : `Need ${minDataPoints ?? period} candles, have ${availableDataPoints ?? "?"}`}
+        </p>
+      )}
+      {hasValue && dataQuality === "partial" && availableDataPoints != null && (
+        <p className="text-[10px] mt-0.5 text-amber-400">
+          Limited history — {availableDataPoints} candles
         </p>
       )}
     </div>

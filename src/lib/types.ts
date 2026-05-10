@@ -100,6 +100,8 @@ export interface IndicatorValue {
   isApproximate?: boolean;
   /** If the computed value is valid but not analytically reliable */
   unreliableReason?: string;
+  /** Minimum candles this indicator needs to compute (for UI messaging) */
+  minDataPoints?: number;
 }
 
 export interface IndicatorTimeframe {

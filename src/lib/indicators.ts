@@ -175,6 +175,7 @@ export function buildPoolIndicatorsDirect(
           ? multiplier
           : undefined,
         unreliableReason: result.unreliableReason,
+        minDataPoints: minPoints,
       });
     }
 
