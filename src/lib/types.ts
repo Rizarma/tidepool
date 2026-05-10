@@ -83,7 +83,7 @@ export interface SourceStatus {
 
 // ─── Indicators ──────────────────────────────────────────────────────────────
 
-export type IndicatorType = "sma";
+export type IndicatorType = "sma" | "supertrend";
 
 export interface IndicatorValue {
   type: IndicatorType;
@@ -92,6 +92,12 @@ export interface IndicatorValue {
   dataQuality: "full" | "partial" | "insufficient";
   /** Number of data points available for this indicator (may be less than period) */
   availableDataPoints?: number;
+  /** Supertrend multiplier, if applicable */
+  multiplier?: number;
+  /** Supertrend trend direction: up or down */
+  trend?: "up" | "down";
+  /** True if OHLC data was approximated (e.g. Birdeye fallback) */
+  isApproximate?: boolean;
 }
 
 export interface IndicatorTimeframe {
