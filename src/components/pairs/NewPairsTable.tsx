@@ -179,7 +179,7 @@ function SortHeader({
       <button
         type="button"
         onClick={onClick}
-        className={`inline-flex items-center gap-1 px-3 py-2 cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"}`}
+        className={`inline-flex items-center gap-1 px-3 py-2 cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
       >
         {label}
         {active && (
