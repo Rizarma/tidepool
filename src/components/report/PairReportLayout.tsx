@@ -1,3 +1,5 @@
+"use client";
+
 import type { PoolDiscoveryReport, PoolReport } from "@/lib/api-types";
 import {
   feePct,
@@ -5,11 +7,13 @@ import {
   formatUsd,
   numberOrDash,
   pctValue,
+  shortenAddress,
 } from "@/lib/format";
 import { SourcesList } from "@/components/report/SourcesList";
 import { DataRow, MetricCell, PanelSection, TokenSummaryCompact } from "@/components/report/report-atoms";
 import { DiscoveryPanel } from "@/components/report/DiscoveryPanel";
 import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanel";
+import { CopyButton } from "@/components/CopyButton";
 
 export function PairReportLayout({
   report,
@@ -30,6 +34,8 @@ export function PairReportLayout({
   const symbolX = tokenX?.symbol ?? "Token X";
   const symbolY = tokenY?.symbol ?? "Token Y";
   const name = pair?.name ?? `${symbolX} / ${symbolY}`;
+  const SOL_MINT = "So11111111111111111111111111111111111111112";
+  const gmgnMint = tokenX?.mint === SOL_MINT ? tokenY?.mint : tokenX?.mint;
 
   return (
     <div className="h-full lg:grid lg:grid-cols-[260px_1fr] xl:grid-cols-[280px_1fr_300px] xl:grid-rows-[1fr]">
@@ -40,7 +46,14 @@ export function PairReportLayout({
             Meteora DLMM
           </span>
           <p className="text-sm font-semibold text-zinc-100">{name}</p>
-          <p className="font-mono text-[10px] text-zinc-500 break-all mt-1">{pair?.poolAddress}</p>
+          {pair?.poolAddress && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <p className="font-mono text-[10px] text-zinc-500" title={pair.poolAddress}>
+                {shortenAddress(pair.poolAddress)}
+              </p>
+              <CopyButton address={pair.poolAddress} />
+            </div>
+          )}
         </div>
 
         {/* Status */}
@@ -58,6 +71,48 @@ export function PairReportLayout({
         <PanelSection title={`Token Y — ${symbolY}`} className="mt-3">
           <TokenSummaryCompact token={tokenY} />
         </PanelSection>
+
+        {/* External Links */}
+        {pair?.poolAddress && (
+          <PanelSection title="External Links" className="mt-3">
+            <div className="flex flex-wrap gap-1.5">
+              <a
+                href={`https://app.meteora.ag/dlmm/${pair.poolAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-[10px] text-zinc-500 hover:text-[var(--accent)] transition"
+              >
+                Meteora
+              </a>
+              {gmgnMint && (
+                <a
+                  href={`https://gmgn.ai/sol/token/${gmgnMint}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-[10px] text-zinc-500 hover:text-[var(--accent)] transition"
+                >
+                  GMGN
+                </a>
+              )}
+              <a
+                href={`https://www.dextools.io/app/en/solana/pair-explorer/${pair.poolAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-[10px] text-zinc-500 hover:text-[var(--accent)] transition"
+              >
+                DexTools
+              </a>
+              <a
+                href={`https://dexscreener.com/solana/${pair.poolAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-[10px] text-zinc-500 hover:text-[var(--accent)] transition"
+              >
+                DexScreener
+              </a>
+            </div>
+          </PanelSection>
+        )}
       </aside>
 
       {/* ─── Center: Metrics + Price + Fees ─── */}
