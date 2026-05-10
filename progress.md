@@ -1,28 +1,66 @@
-# Progress
+# Backend Implementation Progress
 
-## Status
-In Progress — Code review fixes applied
+## Completed
 
-## Tasks
-- [x] Birdeye `success: false` handling (critical)
-- [x] Retry error preservation (critical)
-- [x] Timestamp deduplication in parser
-- [x] Overall 30s timeout on `fetchPoolIndicators`
-- [x] Parallel X+Y fetching per timeframe (cuts ~12s → ~6s)
-- [x] `skipped` count in `computePoolRatios`
-- [x] `dataQuality` field on `IndicatorTimeframe` (full/partial/insufficient)
-- [x] Test fixes for new return types
-- [x] All 207 tests passing
+### New Files
+- `src/lib/indicators/math.ts` — Pure SMA math function (extracted to avoid circular deps)
+- `src/lib/indicators/registry.ts` — Indicator registry with SMA registered, ready for EMA/RSI/MACD
+- `src/app/api/indicators/route.ts` — New `GET /api/indicators` endpoint with configurable timeframes + indicators
+- `src/app/api/indicators/route.test.ts` — 10 tests for the new endpoint
 
-## Files Changed
-- `src/lib/providers-ohlcv.ts` — Birdeye fixes + deduplication
-- `src/lib/indicators.ts` — `PoolRatiosResult` + `dataQuality`
-- `src/lib/types.ts` — `dataQuality` field
-- `src/lib/api-types.ts` — `dataQuality` field
-- `src/app/api/scan/pair/route.ts` — timeout + parallel fetching
-- `src/lib/indicators.test.ts` — test fixes + new tests
+### Modified Files
+- `src/lib/types.ts` — Generic indicator types (`IndicatorType`, `IndicatorValue`, `IndicatorTimeframe`)
+- `src/lib/api-types.ts` — Mirrored generic types for frontend
+- `src/lib/indicators.ts` — Refactored `buildPoolIndicators` to accept config + use registry
+- `src/app/api/scan/pair/route.ts` — Removed inline indicator fetching
+- `src/app/api/scan/pair/route.test.ts` — Removed indicator integration tests (moved to new endpoint)
+- `src/lib/indicators.test.ts` — Updated for new `buildPoolIndicators` signature
+- `src/components/report/PairReportLayout.tsx` — Band-aid fix to use new `values` array shape
 
-## Notes
-- Route.ts now uses Promise.race with 30s timeout
-- X+Y fetched in parallel per timeframe, 1s delay between timeframes
-- Tests run 47% faster (3.4s vs 6.4s)
+### Test Results
+- 213 tests passing (up from 207)
+- Build compiles cleanly
+
+## API Contract
+
+### Request
+```
+GET /api/indicators?pool=<address>&timeframes=1m,5m,15m&indicators=sma:20
+```
+
+### Response
+```json
+{
+  "indicators": {
+    "timeframes": [
+      {
+        "timeframe": "1m",
+        "values": [
+          { "type": "sma", "value": 0.0045, "period": 20, "dataQuality": "full" }
+        ]
+      }
+    ]
+  },
+  "sources": [
+    { "provider": "meteora_dlmm", "success": true, "latencyMs": 123 },
+    { "provider": "birdeye", "success": true, "latencyMs": 456 }
+  ]
+}
+```
+
+## Registry Pattern
+
+Adding a new indicator requires only one entry in `src/lib/indicators/registry.ts`:
+
+```ts
+ema: {
+  type: "ema",
+  name: "EMA",
+  description: "Exponential Moving Average",
+  compute: (values, config) => ema(values, config.period),
+  defaultPeriod: 20,
+  minDataPoints: 2,
+},
+```
+
+No other files need changes.

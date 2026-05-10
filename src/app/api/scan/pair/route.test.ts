@@ -12,21 +12,10 @@ vi.mock("@/lib/providers-dlmm", () => ({
   fetchMeteoraDlmmPairByMints: vi.fn(),
 }));
 
-vi.mock("@/lib/providers-ohlcv", () => ({
-  fetchBirdeyePriceHistory: vi.fn(),
-}));
-
-vi.mock("@/lib/indicators", () => ({
-  buildPoolIndicators: vi.fn(),
-}));
-
 import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
 } from "@/lib/providers-dlmm";
-
-import { fetchBirdeyePriceHistory } from "@/lib/providers-ohlcv";
-import { buildPoolIndicators } from "@/lib/indicators";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -311,81 +300,4 @@ describe("GET /api/scan/pair", () => {
     });
   });
 
-  // ─── Indicator Integration ───────────────────────────────────────────────
-
-  describe("indicator integration", () => {
-    it("includes indicators when Birdeye is configured", async () => {
-      vi.stubEnv("BIRDEYE_API_KEY", "test-key");
-      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
-
-      vi.mocked(fetchBirdeyePriceHistory).mockResolvedValue({
-        items: Array.from({ length: 25 }, (_, i) => ({
-          unixTime: 1000 + i,
-          value: 1.0 + i * 0.01,
-        })),
-      });
-
-      vi.mocked(buildPoolIndicators).mockReturnValue({
-        timeframes: [
-          { timeframe: "1m", sma20: 0.0045 },
-          { timeframe: "5m", sma20: 0.0048 },
-          { timeframe: "15m", sma20: 0.0052 },
-        ],
-      });
-
-      const res = await GET(makeRequest(`pool=${VALID_POOL}`));
-      expect(res.status).toBe(200);
-      const body = await parseJson(res);
-
-      expect(body.indicators).toBeDefined();
-      expect(body.indicators.timeframes).toHaveLength(3);
-      expect(body.indicators.timeframes[0]).toEqual({
-        timeframe: "1m",
-        sma20: 0.0045,
-      });
-
-      // Birdeye added as a source
-      expect(body.sources).toHaveLength(2);
-      expect(body.sources[1].provider).toBe("birdeye");
-      expect(body.sources[1].success).toBe(true);
-      expect(typeof body.sources[1].latencyMs).toBe("number");
-    }, 15_000);
-
-    it("skips indicators and adds failed source when Birdeye errors", async () => {
-      vi.stubEnv("BIRDEYE_API_KEY", "test-key");
-      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
-      vi.mocked(fetchBirdeyePriceHistory).mockRejectedValue(
-        new Error("HTTP 429"),
-      );
-
-      const res = await GET(makeRequest(`pool=${VALID_POOL}`));
-      expect(res.status).toBe(200);
-      const body = await parseJson(res);
-
-      // Pool data still present
-      expect(body.kind).toBe("pair");
-      expect(body.pair.poolAddress).toBe(VALID_POOL);
-
-      // No indicators
-      expect(body.indicators).toBeUndefined();
-
-      // Birdeye source shows failure
-      expect(body.sources).toHaveLength(2);
-      expect(body.sources[1].provider).toBe("birdeye");
-      expect(body.sources[1].success).toBe(false);
-      expect(body.sources[1].error).toBe("Provider unavailable");
-    });
-
-    it("skips indicators when BIRDEYE_API_KEY is not set", async () => {
-      vi.stubEnv("BIRDEYE_API_KEY", "");
-      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
-
-      const res = await GET(makeRequest(`pool=${VALID_POOL}`));
-      expect(res.status).toBe(200);
-      const body = await parseJson(res);
-
-      expect(body.indicators).toBeUndefined();
-      expect(body.sources).toHaveLength(1); // only meteora
-    });
-  });
 });

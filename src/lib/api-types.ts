@@ -60,10 +60,18 @@ export interface TokenReport {
 
 // ─── Indicators ──────────────────────────────────────────────────────────────
 
-export interface IndicatorTimeframe {
-  timeframe?: "1m" | "5m" | "15m";
-  sma20?: number;
+export type IndicatorType = "sma";
+
+export interface IndicatorValue {
+  type?: IndicatorType;
+  value?: number;
+  period?: number;
   dataQuality?: "full" | "partial" | "insufficient";
+}
+
+export interface IndicatorTimeframe {
+  timeframe?: string;
+  values?: IndicatorValue[];
 }
 
 export interface PoolIndicators {

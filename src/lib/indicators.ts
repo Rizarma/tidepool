@@ -5,26 +5,18 @@
  */
 
 import type { BirdeyeHistoryResult } from "@/lib/providers-ohlcv";
-import type { IndicatorTimeframe, PoolIndicators } from "@/lib/types";
+import type { IndicatorType, IndicatorValue, IndicatorTimeframe, PoolIndicators } from "@/lib/types";
+import { getIndicator } from "@/lib/indicators/registry";
+
+// ─── Re-exports ─────────────────────────────────────────────────────────────
+
+export { sma } from "@/lib/indicators/math";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface PoolRatiosResult {
   ratios: number[];
   skipped: number;
-}
-
-// ─── Core Math ───────────────────────────────────────────────────────────────
-
-/**
- * Simple Moving Average.
- * Returns null if the array has fewer than `period` elements.
- */
-export function sma(values: number[], period: number): number | null {
-  if (period <= 0 || values.length < period) return null;
-  const slice = values.slice(-period);
-  const sum = slice.reduce((acc, val) => acc + val, 0);
-  return sum / period;
 }
 
 // ─── Pool Ratio ──────────────────────────────────────────────────────────────
@@ -63,34 +55,52 @@ export function computePoolRatios(
 
 // ─── Orchestration ───────────────────────────────────────────────────────────
 
-const TIMEFRAMES: Array<"1m" | "5m" | "15m"> = ["1m", "5m", "15m"];
-const SMA_PERIOD = 20;
+export interface BuildConfig {
+  timeframes: string[];
+  indicators: Array<{ type: IndicatorType; period: number }>;
+}
 
 /**
  * Build PoolIndicators from paired Birdeye histories for tokenX and tokenY.
  *
- * `xHistories` and `yHistories` must each contain exactly 3 results in the
- * same order as TIMEFRAMES (1m, 5m, 15m).
+ * `xHistories` and `yHistories` must be in the same order as `config.timeframes`.
+ * For each timeframe, computes pool ratios and evaluates every indicator in config
+ * using the registry.
  */
 export function buildPoolIndicators(
   xHistories: BirdeyeHistoryResult[],
   yHistories: BirdeyeHistoryResult[],
+  config: BuildConfig,
 ): PoolIndicators {
   const timeframes: IndicatorTimeframe[] = [];
 
-  for (let i = 0; i < TIMEFRAMES.length; i++) {
+  for (let i = 0; i < config.timeframes.length; i++) {
     const result = computePoolRatios(xHistories[i], yHistories[i]);
-    const sma20 = sma(result.ratios, SMA_PERIOD);
-    const dataQuality: IndicatorTimeframe["dataQuality"] =
-      result.ratios.length >= SMA_PERIOD
-        ? "full"
-        : result.ratios.length > 0
-          ? "partial"
-          : "insufficient";
+    const values: IndicatorValue[] = [];
+
+    for (const indConfig of config.indicators) {
+      const definition = getIndicator(indConfig.type);
+      const value =
+        result.ratios.length >= definition.minDataPoints
+          ? definition.compute(result.ratios, { period: indConfig.period })
+          : null;
+
+      values.push({
+        type: indConfig.type,
+        value: value ?? undefined,
+        period: indConfig.period,
+        dataQuality:
+          result.ratios.length >= indConfig.period
+            ? "full"
+            : result.ratios.length > 0
+              ? "partial"
+              : "insufficient",
+      });
+    }
+
     timeframes.push({
-      timeframe: TIMEFRAMES[i],
-      sma20: sma20 ?? undefined,
-      dataQuality,
+      timeframe: config.timeframes[i],
+      values,
     });
   }
 

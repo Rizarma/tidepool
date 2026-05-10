@@ -133,7 +133,7 @@ export function PairReportLayout({
                 <IndicatorCard
                   key={tf.timeframe}
                   label={`${tf.timeframe} SMA(20)`}
-                  value={tf.sma20}
+                  value={tf.values?.[0]?.value}
                   currentPrice={pair?.priceTokenYPerTokenX}
                   symbolY={symbolY}
                 />

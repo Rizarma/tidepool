@@ -153,8 +153,12 @@ describe("computePoolRatios", () => {
 });
 
 describe("buildPoolIndicators", () => {
+  const defaultConfig = {
+    timeframes: ["1m", "5m", "15m"],
+    indicators: [{ type: "sma" as const, period: 20 }],
+  };
+
   it("builds indicators for all three timeframes", () => {
-    // Create 25 aligned data points for each timeframe
     const makeHistory = (basePrice: number): BirdeyeHistoryResult => ({
       items: Array.from({ length: 25 }, (_, i) => ({
         unixTime: 1000 + i,
@@ -165,24 +169,22 @@ describe("buildPoolIndicators", () => {
     const xHistories = [makeHistory(0.5), makeHistory(0.5), makeHistory(0.5)];
     const yHistories = [makeHistory(150), makeHistory(150), makeHistory(150)];
 
-    const indicators = buildPoolIndicators(xHistories, yHistories);
+    const indicators = buildPoolIndicators(xHistories, yHistories, defaultConfig);
 
     expect(indicators.timeframes).toHaveLength(3);
     expect(indicators.timeframes[0].timeframe).toBe("1m");
     expect(indicators.timeframes[1].timeframe).toBe("5m");
     expect(indicators.timeframes[2].timeframe).toBe("15m");
 
-    // All should have SMA values since we provided 25 points (need 20)
-    expect(indicators.timeframes[0].sma20).toBeDefined();
-    expect(indicators.timeframes[1].sma20).toBeDefined();
-    expect(indicators.timeframes[2].sma20).toBeDefined();
-
-    expect(indicators.timeframes[0].dataQuality).toBe("full");
-    expect(indicators.timeframes[1].dataQuality).toBe("full");
-    expect(indicators.timeframes[2].dataQuality).toBe("full");
+    // Each timeframe should have one value (SMA)
+    expect(indicators.timeframes[0].values).toHaveLength(1);
+    expect(indicators.timeframes[0].values[0].type).toBe("sma");
+    expect(indicators.timeframes[0].values[0].period).toBe(20);
+    expect(indicators.timeframes[0].values[0].value).toBeDefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
   });
 
-  it("returns undefined sma20 when not enough aligned data", () => {
+  it("returns no value when not enough aligned data", () => {
     const xHistories: BirdeyeHistoryResult[] = [
       { items: [{ unixTime: 1000, value: 1.0 }] },
       { items: [{ unixTime: 1000, value: 1.0 }] },
@@ -194,19 +196,15 @@ describe("buildPoolIndicators", () => {
       { items: [{ unixTime: 1000, value: 2.0 }] },
     ];
 
-    const indicators = buildPoolIndicators(xHistories, yHistories);
+    const indicators = buildPoolIndicators(xHistories, yHistories, defaultConfig);
 
-    expect(indicators.timeframes[0].sma20).toBeUndefined();
-    expect(indicators.timeframes[1].sma20).toBeUndefined();
-    expect(indicators.timeframes[2].sma20).toBeUndefined();
-
-    expect(indicators.timeframes[0].dataQuality).toBe("partial");
-    expect(indicators.timeframes[1].dataQuality).toBe("partial");
-    expect(indicators.timeframes[2].dataQuality).toBe("partial");
+    expect(indicators.timeframes[0].values[0].value).toBeUndefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("partial");
+    expect(indicators.timeframes[1].values[0].dataQuality).toBe("partial");
+    expect(indicators.timeframes[2].values[0].dataQuality).toBe("partial");
   });
 
   it("handles mixed success across timeframes", () => {
-    // 1m: enough data (25 points)
     const x1m: BirdeyeHistoryResult = {
       items: Array.from({ length: 25 }, (_, i) => ({ unixTime: 1000 + i, value: 1.0 })),
     };
@@ -214,7 +212,6 @@ describe("buildPoolIndicators", () => {
       items: Array.from({ length: 25 }, (_, i) => ({ unixTime: 1000 + i, value: 2.0 })),
     };
 
-    // 5m: only 10 points (partial)
     const x5m: BirdeyeHistoryResult = {
       items: Array.from({ length: 10 }, (_, i) => ({ unixTime: 1000 + i, value: 1.0 })),
     };
@@ -222,26 +219,25 @@ describe("buildPoolIndicators", () => {
       items: Array.from({ length: 10 }, (_, i) => ({ unixTime: 1000 + i, value: 2.0 })),
     };
 
-    // 15m: no matching data (insufficient)
     const x15m: BirdeyeHistoryResult = {
       items: [{ unixTime: 1000, value: 1.0 }],
     };
     const y15m: BirdeyeHistoryResult = {
-      items: [{ unixTime: 2000, value: 2.0 }], // different timestamp
+      items: [{ unixTime: 2000, value: 2.0 }],
     };
 
-    const indicators = buildPoolIndicators([x1m, x5m, x15m], [y1m, y5m, y15m]);
+    const indicators = buildPoolIndicators([x1m, x5m, x15m], [y1m, y5m, y15m], defaultConfig);
 
     expect(indicators.timeframes[0].timeframe).toBe("1m");
-    expect(indicators.timeframes[0].sma20).toBeDefined();
-    expect(indicators.timeframes[0].dataQuality).toBe("full");
+    expect(indicators.timeframes[0].values[0].value).toBeDefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
 
     expect(indicators.timeframes[1].timeframe).toBe("5m");
-    expect(indicators.timeframes[1].sma20).toBeUndefined(); // 10 < 20 needed
-    expect(indicators.timeframes[1].dataQuality).toBe("partial");
+    expect(indicators.timeframes[1].values[0].value).toBeUndefined();
+    expect(indicators.timeframes[1].values[0].dataQuality).toBe("partial");
 
     expect(indicators.timeframes[2].timeframe).toBe("15m");
-    expect(indicators.timeframes[2].sma20).toBeUndefined();
-    expect(indicators.timeframes[2].dataQuality).toBe("insufficient");
+    expect(indicators.timeframes[2].values[0].value).toBeUndefined();
+    expect(indicators.timeframes[2].values[0].dataQuality).toBe("insufficient");
   });
 });
