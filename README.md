@@ -1,6 +1,6 @@
 # Tidepool
 
-Tidepool helps Solana users check a token or Meteora DLMM pool before they trade, hold, or research it. Paste a token mint, a Meteora DLMM pool address, or a token address copied from GMGN, run a scan, and read a plain-language risk report.
+Tidepool helps Solana users check a token or Meteora DLMM pool before they trade, hold, or research it. Paste a token mint, a Meteora DLMM pool address, or a token address copied from GMGN, run a scan, and read a plain-language risk report. The homepage also shows a live table of recently created Meteora DLMM pools that you can browse and click to scan.
 
 It is a screening tool, not financial advice. A low score does not make a token safe, and a high score does not prove fraud. Use the report as one input in your own research.
 
@@ -24,6 +24,8 @@ Tidepool includes example scans for USDC, JUP, and BONK.
 ### Meteora DLMM pools
 
 Paste a Meteora DLMM pool address, paste a token mint from GMGN, or enter both token mint addresses in a pair. Tidepool can discover Meteora DLMM pools that contain a token mint and selects the highest-TVL match by default.
+
+The homepage also shows a live table of recently created Meteora DLMM pools with sortable columns for price, TVL, volume, fees, APR, bin step, base fee, market cap, holders, and age. Click any pool to run a full scan.
 
 Pool scans show:
 
@@ -98,5 +100,5 @@ Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RP
 - Runs without a database or user accounts
 - Fetches scan data live when you submit an address
 - Resolves pasted addresses as token mints, Meteora DLMM pools, or pool-discovery candidates
-- Keeps scanner state/fetch orchestration in `src/components/scan/useScanController.ts` and report views in `src/components/report/`
+- Keeps scanner state/fetch orchestration in `src/components/scan/useScanController.ts`, report views in `src/components/report/`, and the homepage New Pairs table in `src/components/pairs/NewPairsTable.tsx`
 - Designed for deployment on Vercel or any host that supports Next.js

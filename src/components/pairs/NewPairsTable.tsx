@@ -135,6 +135,7 @@ function VerificationDot() {
     <span
       className="inline-block size-1.5 rounded-full bg-emerald-400 shrink-0"
       title="Verified"
+      aria-label="Verified"
     />
   );
 }
@@ -162,6 +163,8 @@ function SortHeader({
 }) {
   return (
     <th
+      scope="col"
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : undefined}
       onClick={onClick}
       className={`px-3 py-2 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "text-right" : ""}`}
     >
@@ -236,43 +239,33 @@ export function NewPairsTable({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    try {
+      return localStorage.getItem("tidepool_auto_refresh") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [countdown, setCountdown] = useState(() => {
+    try {
+      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+      if (!savedAt) return 0;
+      const lastFetch = parseInt(savedAt, 10);
+      if (isNaN(lastFetch)) return 0;
+      const elapsed = Date.now() - lastFetch;
+      const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
+      if (elapsed >= 0 && elapsed < intervalMs) {
+        return Math.max(1, Math.ceil((intervalMs - elapsed) / 1000));
+      }
+    } catch {
+      // ignore
+    }
+    return 0;
+  });
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
 
   const lastFetchTimeRef = useRef<number>(0);
-  const cancelledRef = useRef(false);
-  const countdownRef = useRef(0);
-
-  // ─── Restore auto-refresh preference from localStorage ─────────────────────
-  useEffect(() => {
-    try {
-      const savedAuto = localStorage.getItem("tidepool_auto_refresh");
-      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-
-      if (savedAuto === "true") {
-        setTimeout(() => setAutoRefresh(true), 0);
-      }
-
-      if (savedAt) {
-        const lastFetch = parseInt(savedAt, 10);
-        if (!isNaN(lastFetch)) {
-          const elapsed = Date.now() - lastFetch;
-          const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
-          if (elapsed >= 0 && elapsed < intervalMs) {
-            const remaining = Math.max(
-              1,
-              Math.ceil((intervalMs - elapsed) / 1000),
-            );
-            countdownRef.current = remaining;
-          }
-        }
-      }
-    } catch {
-      // ignore — localStorage unavailable or restricted
-    }
-  }, []);
 
   // ─── Persist auto-refresh preference ──────────────────────────────────────
   useEffect(() => {
@@ -301,18 +294,12 @@ export function NewPairsTable({
       return;
     }
 
-    cancelledRef.current = false;
+    const controller = new AbortController();
     lastFetchTimeRef.current = Date.now();
+    setLoading(true);
+    setError(null);
 
-    // Defer loading state to microtask to satisfy linter while keeping UX
-    Promise.resolve().then(() => {
-      if (!cancelledRef.current) {
-        setLoading(true);
-        setError(null);
-      }
-    });
-
-    fetch("/api/pools/new")
+    fetch("/api/pools/new", { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -323,7 +310,6 @@ export function NewPairsTable({
         return res.json() as Promise<NewPairsResponse>;
       })
       .then((data) => {
-        if (cancelledRef.current) return;
         const now = Date.now();
         const oneHour = 3600000;
         const ids = new Set(
@@ -337,41 +323,37 @@ export function NewPairsTable({
         setLoading(false);
       })
       .catch((err) => {
-        if (cancelledRef.current) return;
+        if (err.name === "AbortError") return;
         setError(
           err instanceof Error ? err.message : "Failed to load new pools",
         );
         setLoading(false);
       });
 
-    return () => {
-      cancelledRef.current = true;
-    };
+    return () => controller.abort();
   }, [tick]);
 
   // ─── Countdown timer ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!autoRefresh) {
-      countdownRef.current = 0;
-      const clearId = setTimeout(() => setCountdown(0), 0);
-      return () => clearTimeout(clearId);
+      const id = setTimeout(() => setCountdown(0), 0);
+      return () => clearTimeout(id);
     }
 
-    // Only reset to full interval if not already restored from localStorage
-    if (countdownRef.current === 0) {
-      countdownRef.current = AUTO_REFRESH_INTERVAL;
-    }
-    const initId = setTimeout(() => setCountdown(countdownRef.current), 0);
+    const initId = setTimeout(() => {
+      setCountdown((prev) => (prev > 0 ? prev : AUTO_REFRESH_INTERVAL));
+    }, 0);
 
     const interval = setInterval(() => {
-      countdownRef.current--;
-      if (countdownRef.current <= 0) {
-        if (Date.now() - lastFetchTimeRef.current >= MIN_COOLDOWN_MS) {
-          setTick((t) => t + 1);
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          if (Date.now() - lastFetchTimeRef.current >= MIN_COOLDOWN_MS) {
+            setTick((t) => t + 1);
+          }
+          return AUTO_REFRESH_INTERVAL;
         }
-        countdownRef.current = AUTO_REFRESH_INTERVAL;
-      }
-      setCountdown(countdownRef.current);
+        return prev - 1;
+      });
     }, 1000);
 
     return () => {
@@ -383,6 +365,7 @@ export function NewPairsTable({
   // ─── Page Visibility API ───────────────────────────────────────────────────
   useEffect(() => {
     function onVisibilityChange() {
+      if (!autoRefresh) return;
       if (document.visibilityState !== "visible" || !lastFetchedAt) return;
       const staleMs = 60000;
       if (Date.now() - lastFetchedAt <= staleMs) return;
@@ -393,14 +376,13 @@ export function NewPairsTable({
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () =>
       document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [lastFetchedAt]);
+  }, [lastFetchedAt, autoRefresh]);
 
   // ─── Last updated text (computed in effect, not render) ───────────────────
   useEffect(() => {
     const ts = lastFetchedAt;
     if (!ts) {
-      const id = setTimeout(() => setLastUpdatedText(null), 0);
-      return () => clearTimeout(id);
+      return;
     }
 
     function update() {
@@ -409,12 +391,9 @@ export function NewPairsTable({
       setLastUpdatedText(text);
     }
 
-    const immediate = setTimeout(update, 0);
+    update();
     const id = setInterval(update, 5000);
-    return () => {
-      clearTimeout(immediate);
-      clearInterval(id);
-    };
+    return () => clearInterval(id);
   }, [lastFetchedAt]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
@@ -438,17 +417,7 @@ export function NewPairsTable({
   }
 
   function toggleAutoRefresh() {
-    setAutoRefresh((prev) => {
-      const next = !prev;
-      if (next) {
-        countdownRef.current = AUTO_REFRESH_INTERVAL;
-        setCountdown(AUTO_REFRESH_INTERVAL);
-      } else {
-        countdownRef.current = 0;
-        setCountdown(0);
-      }
-      return next;
-    });
+    setAutoRefresh((prev) => !prev);
   }
 
   // ─── Derived data ─────────────────────────────────────────────────────────
@@ -561,7 +530,7 @@ export function NewPairsTable({
           <table className="w-full min-w-[1400px] text-left">
             <thead className="sticky top-0 bg-[var(--panel-bg)] z-10">
               <tr className="border-b border-[var(--panel-border)]">
-                <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                   Pair
                 </th>
                 {sortableColumns.map((col) => (
@@ -574,10 +543,10 @@ export function NewPairsTable({
                     onClick={() => handleSort(col.key)}
                   />
                 ))}
-                <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
+                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
                   Freeze
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
+                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
                   Verif.
                 </th>
               </tr>
@@ -618,7 +587,7 @@ export function NewPairsTable({
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[10px] text-zinc-500 truncate max-w-[140px]">
-                          {pool.name ??
+                          {pool.name ||
                             `${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
                         </span>
                         <span className="text-[10px] text-zinc-600 font-mono tabular-nums">

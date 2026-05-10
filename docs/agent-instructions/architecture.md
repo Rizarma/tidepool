@@ -11,7 +11,7 @@ Use these guidelines when changing routing, API endpoints, shared library code, 
 - Shared domain logic lives under `src/lib/`; keep reusable validation, provider, risk, and type logic out of route handlers when practical.
 - Shared provider call timing and source status helpers live in `src/lib/provider-status.ts`; prefer reusing them instead of redefining route-local wrappers.
 - Global styles live in `src/app/globals.css`; static assets live in `public/`.
-- Scanner orchestration lives in `src/components/scan/useScanController.ts`; report presentation components live under `src/components/report/`.
+- Scanner orchestration lives in `src/components/scan/useScanController.ts`; report presentation components live under `src/components/report/`. The homepage New Pairs table lives in `src/components/pairs/NewPairsTable.tsx`.
 
 ## Next.js 16
 

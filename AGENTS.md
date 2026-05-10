@@ -22,6 +22,10 @@ Next.js 16 application for tidepool scanning and risk analysis.
 - Token-mint pool discovery uses `GET /api/scan/pools?mint=<mint>` and Meteora `GET /pools?query=<mint>`, then exact-filters token X/Y mint matches and sorts pools by TVL, then 24h volume.
 - Address intelligence lives at `GET /api/resolve-address?address=<address>` and can report `direct_pool_scan`, `pool_discovery`, `token_scan`, or `none`.
 - Keep token scans and pool scans conceptually separate: Token mode checks token risk; Pool mode checks Meteora DLMM pool data.
+- The homepage shows a live **New Pairs table** of recently created Meteora DLMM pools via `GET /api/pools/new`. Clicking a pool row triggers `scanPool(address)` and renders the pool report.
+- `GET /api/pools/new` proxies Meteora's new-pools endpoint and returns `{ pools: DlmmPairInfo[], total, pages }` with `createdAt` populated from `pool.created_at`.
+- The New Pairs table supports periodic auto-refresh (60s interval, 15s cooldown). Toggle state and countdown are persisted in `localStorage` with keys `tidepool_auto_refresh` and `tidepool_last_fetched_at`.
+- The Tidepool logo button calls `clearScan()` which returns to the New Pairs table while preserving the search bar inputs.
 
 ## External Services and APIs
 
@@ -29,6 +33,7 @@ Next.js 16 application for tidepool scanning and risk analysis.
   - `GET /pools?query=<mint>` discovers pools that may contain a token mint.
   - `GET /pools/<address>` fetches one pool by DLMM pool address.
   - `GET /pools/groups/<mintA>-<mintB>` fetches pool groups for a token pair.
+- `GET /pools?sort_by=pool_created_at:desc&filter_by=is_blacklisted=false` fetches recently created pools for the homepage New Pairs table. Response is paginated: `{ total, pages, current_page, page_size, data: [...] }`.
 - **DexScreener API** (`https://api.dexscreener.com/latest/dex/tokens/<mint>`): Used in `src/lib/providers.ts` for token market data such as price, liquidity, volume, and market cap.
 - **RugCheck API** (`https://api.rugcheck.xyz/v1/tokens/<mint>/report`): Used in `src/lib/providers.ts` for token risk signals, holder concentration, and authority warnings.
 - **Jupiter APIs**: Used in `src/lib/providers.ts` for token metadata, price, and strict-list checks.
