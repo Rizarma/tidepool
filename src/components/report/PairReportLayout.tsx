@@ -109,17 +109,19 @@ export function PairReportLayout({
 
         {/* Price */}
         <PanelSection title="Price">
-          <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2 mb-2">
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Y per X</p>
-            <p className="text-sm font-semibold text-zinc-100 mt-0.5">
-              1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
-            </p>
-          </div>
-          <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Inverse</p>
-            <p className="text-sm font-semibold text-zinc-100 mt-0.5">
-              1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
-            </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Y per X</p>
+              <p className="text-sm font-semibold text-zinc-100 mt-0.5">
+                1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
+              </p>
+            </div>
+            <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Inverse</p>
+              <p className="text-sm font-semibold text-zinc-100 mt-0.5">
+                1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
+              </p>
+            </div>
           </div>
         </PanelSection>
 
