@@ -1,5 +1,5 @@
 import type { PairToken, RiskLevel } from "@/lib/api-types";
-import { formatNumber, formatUsd, numberOrDash, shortenAddress, yesNo } from "@/lib/format";
+import { formatCompactUsd, formatNumber, formatUsd, numberOrDash, shortenAddress, yesNo } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
 
 export function DataRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
@@ -50,6 +50,7 @@ export function PanelSection({ title, children, className = "" }: { title: strin
 export function TokenSummaryCompact({ token }: { token?: PairToken }) {
   return (
     <div>
+      {/* — Identity — */}
       <DataRow label="Name" value={token?.name ?? "—"} />
       <DataRow label="Symbol" value={token?.symbol ?? "—"} />
       {token?.mint && (
@@ -63,8 +64,12 @@ export function TokenSummaryCompact({ token }: { token?: PairToken }) {
           </div>
         </div>
       )}
-      <DataRow label="Amount" value={formatNumber(token?.amount)} />
+      {/* — Value — */}
       <DataRow label="Price (USD)" value={formatUsd(token?.priceUsd)} />
+      <DataRow label="Market Cap" value={formatCompactUsd(token?.marketCap)} />
+      {/* — Pool — */}
+      <DataRow label="Reserve" value={formatNumber(token?.amount)} />
+      {/* — Metadata — */}
       <DataRow label="Decimals" value={numberOrDash(token?.decimals)} />
       <DataRow label="Verified" value={yesNo(token?.verified)} bad={token?.verified === false} />
     </div>
