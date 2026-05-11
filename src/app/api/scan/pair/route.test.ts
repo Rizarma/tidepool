@@ -12,10 +12,16 @@ vi.mock("@/lib/providers-dlmm", () => ({
   fetchMeteoraDlmmPairByMints: vi.fn(),
 }));
 
+vi.mock("@/lib/providers", () => ({
+  fetchJupiter: vi.fn(),
+}));
+
 import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
 } from "@/lib/providers-dlmm";
+
+import { fetchJupiter } from "@/lib/providers";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -116,6 +122,7 @@ describe("GET /api/scan/pair", () => {
 
     it("pool param takes precedence over mintA/mintB", async () => {
       vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+      vi.mocked(fetchJupiter).mockResolvedValue({ priceUsd: 1.0 });
 
       const res = await GET(
         makeRequest(`pool=${VALID_POOL}&mintA=${VALID_MINT_A}&mintB=${VALID_MINT_B}`),
@@ -247,6 +254,7 @@ describe("GET /api/scan/pair", () => {
   describe("success response shape", () => {
     it("returns PoolReport shape for pool query", async () => {
       vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+      vi.mocked(fetchJupiter).mockResolvedValue({ priceUsd: 1.0 });
 
       const res = await GET(makeRequest(`pool=${VALID_POOL}`));
       expect(res.status).toBe(200);
@@ -267,11 +275,19 @@ describe("GET /api/scan/pair", () => {
       expect(body.pair.binStep).toBe(10);
       expect(body.pair.tvlUsd).toBe(500000);
 
-      // Sources
-      expect(body.sources).toHaveLength(1);
-      expect(body.sources[0].provider).toBe("meteora_dlmm");
-      expect(body.sources[0].success).toBe(true);
-      expect(typeof body.sources[0].latencyMs).toBe("number");
+      // Token prices enriched from Jupiter
+      expect(body.pair.tokenX.priceUsd).toBe(1.0);
+      expect(body.pair.tokenY.priceUsd).toBe(1.0);
+
+      // Sources: Meteora + Jupiter
+      expect(body.sources).toHaveLength(2);
+      const meteora = body.sources.find((s: { provider: string }) => s.provider === "meteora_dlmm");
+      const jupiter = body.sources.find((s: { provider: string }) => s.provider === "jupiter");
+      expect(meteora).toBeDefined();
+      expect(meteora?.success).toBe(true);
+      expect(typeof meteora?.latencyMs).toBe("number");
+      expect(jupiter).toBeDefined();
+      expect(jupiter?.success).toBe(true);
 
       // fetchedAt is ISO string
       expect(body.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -279,6 +295,7 @@ describe("GET /api/scan/pair", () => {
 
     it("returns PoolReport shape for mintA/mintB query", async () => {
       vi.mocked(fetchMeteoraDlmmPairByMints).mockResolvedValue(makePairInfo());
+      vi.mocked(fetchJupiter).mockResolvedValue({ priceUsd: 1.0 });
 
       const res = await GET(makeRequest(`mintA=${VALID_MINT_A}&mintB=${VALID_MINT_B}`));
       expect(res.status).toBe(200);
@@ -286,11 +303,14 @@ describe("GET /api/scan/pair", () => {
 
       expect(body.kind).toBe("pair");
       expect(body.pair.poolAddress).toBe(VALID_POOL);
-      expect(body.sources[0].success).toBe(true);
+      expect(body.sources).toHaveLength(2);
+      expect(body.sources.some((s: { provider: string; success: boolean }) => s.provider === "meteora_dlmm" && s.success)).toBe(true);
+      expect(body.sources.some((s: { provider: string; success: boolean }) => s.provider === "jupiter" && s.success)).toBe(true);
     });
 
     it("accepts pair= as alias for pool=", async () => {
       vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+      vi.mocked(fetchJupiter).mockResolvedValue({ priceUsd: 1.0 });
 
       const res = await GET(makeRequest(`pair=${VALID_POOL}`));
       expect(res.status).toBe(200);

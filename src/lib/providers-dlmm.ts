@@ -27,7 +27,7 @@ export function parsePairToken(raw: unknown, amountField?: number): PairToken {
     name: toString(raw.name),
     symbol: toString(raw.symbol),
     decimals: toNumber(raw.decimals),
-    priceUsd: toNumber(raw.price_usd) ?? toNumber(raw.price),
+    priceUsd: toNumber(raw.price_usd),
     verified: toBool(raw.verified) ?? toBool(raw.is_verified),
     amount: Number.isFinite(amountField) ? amountField : undefined,
     holders: toNumber(raw.holders),

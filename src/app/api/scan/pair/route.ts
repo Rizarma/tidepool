@@ -11,6 +11,7 @@ import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
 } from "@/lib/providers-dlmm";
+import { fetchJupiter } from "@/lib/providers";
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import type { PoolReport, SourceStatus, DlmmPairInfo } from "@/lib/types";
@@ -94,6 +95,28 @@ async function handlePairScan(request: Request): Promise<Response> {
   }
 
   const pair: DlmmPairInfo = result.value.data;
+
+  // ─── Enrich token prices with Jupiter ────────────────────────────────────
+  const mintX = pair.tokenX.mint;
+  const mintY = pair.tokenY.mint;
+
+  if (mintX && mintY) {
+    const jupiterResult = await timedFetch("jupiter", async () => {
+      const [x, y] = await Promise.all([
+        fetchJupiter(mintX),
+        fetchJupiter(mintY),
+      ]);
+      return { x, y };
+    });
+
+    sources.push(buildSourceStatus("jupiter", jupiterResult));
+
+    if (jupiterResult.status === "fulfilled") {
+      const { x, y } = jupiterResult.value.data;
+      if (x?.priceUsd != null) pair.tokenX.priceUsd = x.priceUsd;
+      if (y?.priceUsd != null) pair.tokenY.priceUsd = y.priceUsd;
+    }
+  }
 
   const report: PoolReport = {
     kind: "pair",
