@@ -32,6 +32,43 @@ export async function GET(request: Request): Promise<Response> {
   }
 }
 
+async function enrichPairWithJupiterPrices(
+  pair: DlmmPairInfo,
+  sources: SourceStatus[],
+): Promise<void> {
+  const mintX = pair.tokenX.mint;
+  const mintY = pair.tokenY.mint;
+
+  if (!mintX || !mintY) return;
+
+  const jupiterResult = await timedFetch("jupiter", async () => {
+    const [xRes, yRes] = await Promise.allSettled([
+      fetchJupiter(mintX),
+      fetchJupiter(mintY),
+    ]);
+
+    const x = xRes.status === "fulfilled" ? xRes.value : undefined;
+    const y = yRes.status === "fulfilled" ? yRes.value : undefined;
+
+    const hasXPrice = x?.priceUsd != null;
+    const hasYPrice = y?.priceUsd != null;
+
+    if (!hasXPrice && !hasYPrice) {
+      throw new Error("No Jupiter price data");
+    }
+
+    return { x, y };
+  });
+
+  sources.push(buildSourceStatus("jupiter", jupiterResult));
+
+  if (jupiterResult.status === "fulfilled") {
+    const { x, y } = jupiterResult.value.data;
+    if (x?.priceUsd != null) pair.tokenX.priceUsd = x.priceUsd;
+    if (y?.priceUsd != null) pair.tokenY.priceUsd = y.priceUsd;
+  }
+}
+
 async function handlePairScan(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
 
@@ -96,27 +133,7 @@ async function handlePairScan(request: Request): Promise<Response> {
 
   const pair: DlmmPairInfo = result.value.data;
 
-  // ─── Enrich token prices with Jupiter ────────────────────────────────────
-  const mintX = pair.tokenX.mint;
-  const mintY = pair.tokenY.mint;
-
-  if (mintX && mintY) {
-    const jupiterResult = await timedFetch("jupiter", async () => {
-      const [x, y] = await Promise.all([
-        fetchJupiter(mintX),
-        fetchJupiter(mintY),
-      ]);
-      return { x, y };
-    });
-
-    sources.push(buildSourceStatus("jupiter", jupiterResult));
-
-    if (jupiterResult.status === "fulfilled") {
-      const { x, y } = jupiterResult.value.data;
-      if (x?.priceUsd != null) pair.tokenX.priceUsd = x.priceUsd;
-      if (y?.priceUsd != null) pair.tokenY.priceUsd = y.priceUsd;
-    }
-  }
+  await enrichPairWithJupiterPrices(pair, sources);
 
   const report: PoolReport = {
     kind: "pair",

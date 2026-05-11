@@ -27,7 +27,9 @@ export function parsePairToken(raw: unknown, amountField?: number): PairToken {
     name: toString(raw.name),
     symbol: toString(raw.symbol),
     decimals: toNumber(raw.decimals),
-    priceUsd: toNumber(raw.price_usd),
+    // Meteora payloads use `price` as the USD price field; `price_usd` is not present.
+    // Keep `price_usd` first so we don't break if Meteora ever adds it.
+    priceUsd: toNumber(raw.price_usd) ?? toNumber(raw.price),
     verified: toBool(raw.verified) ?? toBool(raw.is_verified),
     amount: Number.isFinite(amountField) ? amountField : undefined,
     holders: toNumber(raw.holders),
