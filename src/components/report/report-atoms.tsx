@@ -1,5 +1,6 @@
 import type { PairToken, RiskLevel } from "@/lib/api-types";
-import { formatNumber, formatUsd, numberOrDash, yesNo } from "@/lib/format";
+import { formatNumber, formatUsd, numberOrDash, shortenAddress, yesNo } from "@/lib/format";
+import { CopyButton } from "@/components/CopyButton";
 
 export function DataRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
   return (
@@ -51,8 +52,19 @@ export function TokenSummaryCompact({ token }: { token?: PairToken }) {
     <div>
       <DataRow label="Name" value={token?.name ?? "—"} />
       <DataRow label="Symbol" value={token?.symbol ?? "—"} />
+      {token?.mint && (
+        <div className="flex items-center justify-between gap-2 py-1 border-b border-[var(--panel-border)]">
+          <span className="text-[11px] text-zinc-500">Mint</span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[10px] text-zinc-400" title={token.mint}>
+              {shortenAddress(token.mint)}
+            </span>
+            <CopyButton address={token.mint} />
+          </div>
+        </div>
+      )}
       <DataRow label="Amount" value={formatNumber(token?.amount)} />
-      <DataRow label="Price" value={formatUsd(token?.priceUsd)} />
+      <DataRow label="Price (USD)" value={formatUsd(token?.priceUsd)} />
       <DataRow label="Decimals" value={numberOrDash(token?.decimals)} />
       <DataRow label="Verified" value={yesNo(token?.verified)} bad={token?.verified === false} />
     </div>

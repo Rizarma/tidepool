@@ -140,13 +140,13 @@ export function PairReportLayout({
             <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
               <p className="text-[10px] uppercase tracking-wider text-zinc-500">Y per X</p>
               <p className="text-sm font-semibold text-zinc-100 mt-0.5">
-                1 {symbolX} = {formatTokenPrice(pair?.priceTokenYPerTokenX)} {symbolY}
+                1 {symbolX} = {pair?.priceTokenYPerTokenX ? formatTokenPrice(pair.priceTokenYPerTokenX) : "—"} {symbolY}
               </p>
             </div>
             <div className="rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-2">
               <p className="text-[10px] uppercase tracking-wider text-zinc-500">Inverse</p>
               <p className="text-sm font-semibold text-zinc-100 mt-0.5">
-                1 {symbolY} = {formatTokenPrice(pair?.inversePrice)} {symbolX}
+                1 {symbolY} = {pair?.inversePrice ? formatTokenPrice(pair.inversePrice) : "—"} {symbolX}
               </p>
             </div>
           </div>
