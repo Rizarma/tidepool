@@ -9,6 +9,7 @@ import {
   buildPoolIndicators,
   buildPoolIndicatorsDirect,
 } from "./indicators";
+import { trueRange, atr, supertrend } from "./indicators/math";
 import type { PriceHistoryResult } from "./providers-ohlcv";
 
 describe("sma", () => {
@@ -252,5 +253,224 @@ describe("buildPoolIndicators (legacy Birdeye path)", () => {
     expect(indicators.timeframes).toHaveLength(3);
     expect(indicators.timeframes[0].timeframe).toBe("5m");
     expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
+  });
+});
+
+// ─── Supertrend Math ─────────────────────────────────────────────────────────
+
+describe("trueRange", () => {
+  it("first candle TR = high - low", () => {
+    const tr = trueRange([10], [5], [7]);
+    expect(tr).toEqual([5]);
+  });
+
+  it("subsequent candles include previous close", () => {
+    const highs = [10, 12];
+    const lows = [5, 8];
+    const closes = [7, 10];
+    const tr = trueRange(highs, lows, closes);
+    // TR[0] = 10 - 5 = 5
+    // TR[1] = max(12-8=4, |12-7|=5, |8-7|=1) = 5
+    expect(tr[0]).toBe(5);
+    expect(tr[1]).toBe(5);
+  });
+});
+
+describe("atr", () => {
+  it("returns nulls until period is reached", () => {
+    const highs = [10, 12, 11];
+    const lows = [5, 8, 7];
+    const closes = [7, 10, 9];
+    const values = atr(highs, lows, closes, 3);
+    expect(values[0]).toBeNull();
+    expect(values[1]).toBeNull();
+    // TR = [5, 5, 4]; ATR[2] = (5+5+4)/3 = 4.666...
+    expect(values[2]).toBeCloseTo(14 / 3, 5);
+  });
+});
+
+describe("supertrend", () => {
+  it("returns null for insufficient data", () => {
+    const highs = [10, 12];
+    const lows = [5, 8];
+    const closes = [7, 10];
+    expect(supertrend(highs, lows, closes, 10, 3)).toBeNull();
+  });
+
+  it("returns null for invalid period", () => {
+    const highs = Array.from({ length: 15 }, () => 10);
+    const lows = Array.from({ length: 15 }, () => 9);
+    const closes = Array.from({ length: 15 }, () => 9.5);
+    expect(supertrend(highs, lows, closes, 0, 3)).toBeNull();
+    expect(supertrend(highs, lows, closes, -1, 3)).toBeNull();
+  });
+
+  it("returns null for invalid multiplier", () => {
+    const highs = Array.from({ length: 15 }, () => 10);
+    const lows = Array.from({ length: 15 }, () => 9);
+    const closes = Array.from({ length: 15 }, () => 9.5);
+    expect(supertrend(highs, lows, closes, 10, 0)).toBeNull();
+  });
+
+  it("detects uptrend in rising market", () => {
+    const highs = Array.from({ length: 20 }, (_, i) => 10 + i * 0.5);
+    const lows = Array.from({ length: 20 }, (_, i) => 9 + i * 0.5);
+    const closes = Array.from({ length: 20 }, (_, i) => 9.8 + i * 0.5);
+    const result = supertrend(highs, lows, closes, 10, 3);
+    expect(result).not.toBeNull();
+    expect(result!.trend).toBe("up");
+    expect(result!.value).toBeGreaterThan(0);
+  });
+
+  it("detects downtrend in falling market", () => {
+    const highs = Array.from({ length: 20 }, (_, i) => 20 - i * 0.5);
+    const lows = Array.from({ length: 20 }, (_, i) => 19 - i * 0.5);
+    const closes = Array.from({ length: 20 }, (_, i) => 19.5 - i * 0.5);
+    const result = supertrend(highs, lows, closes, 10, 3);
+    expect(result).not.toBeNull();
+    expect(result!.trend).toBe("down");
+    expect(result!.value).toBeGreaterThan(0);
+  });
+
+  it("handles a market with direction change", () => {
+    // Falling for 15 candles, then rising for 15 — verifies algorithm
+    // does not crash and produces a valid value across a transition.
+    const highs = Array.from({ length: 30 }, (_, i) =>
+      i < 15 ? 20 - i * 0.5 : 12.5 + (i - 14) * 1.2,
+    );
+    const lows = Array.from({ length: 30 }, (_, i) =>
+      i < 15 ? 19 - i * 0.5 : 11.5 + (i - 14) * 1.2,
+    );
+    const closes = Array.from({ length: 30 }, (_, i) =>
+      i < 15 ? 19.5 - i * 0.5 : 12 + (i - 14) * 1.2,
+    );
+    const result = supertrend(highs, lows, closes, 10, 3);
+    expect(result).not.toBeNull();
+    expect(result!.value).toBeGreaterThan(0);
+  });
+
+  it("marks flat market as unreliable (low volatility)", () => {
+    const highs = Array.from({ length: 25 }, () => 10);
+    const lows = Array.from({ length: 25 }, () => 9.99999);
+    const closes = Array.from({ length: 25 }, () => 10);
+    const result = supertrend(highs, lows, closes, 10, 3);
+    expect(result).not.toBeNull();
+    expect(result!.unreliableReason).toBe("low_volatility");
+  });
+
+  it("does not mark volatile market as unreliable", () => {
+    const highs = Array.from({ length: 25 }, (_, i) => 10 + i * 0.5);
+    const lows = Array.from({ length: 25 }, (_, i) => 9 + i * 0.5);
+    const closes = Array.from({ length: 25 }, (_, i) => 9.8 + i * 0.5);
+    const result = supertrend(highs, lows, closes, 10, 3);
+    expect(result).not.toBeNull();
+    expect(result!.unreliableReason).toBeUndefined();
+  });
+});
+
+// ─── Supertrend Integration ──────────────────────────────────────────────────
+
+describe("buildPoolIndicatorsDirect with supertrend", () => {
+  it("builds supertrend with real OHLC data (full quality)", () => {
+    const history: PriceHistoryResult = {
+      items: Array.from({ length: 25 }, (_, i) => ({
+        unixTime: 1000 + i,
+        value: 0.007 + i * 0.0001,
+        high: 0.0075 + i * 0.0001,
+        low: 0.0065 + i * 0.0001,
+      })),
+    };
+
+    const config = {
+      timeframes: ["5m"],
+      indicators: [{ type: "supertrend" as const, period: 10, multiplier: 3 }],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([history], config);
+    expect(indicators.timeframes[0].values).toHaveLength(1);
+    expect(indicators.timeframes[0].values[0].type).toBe("supertrend");
+    expect(indicators.timeframes[0].values[0].trend).toBeDefined();
+    expect(indicators.timeframes[0].values[0].multiplier).toBe(3);
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("full");
+    expect(indicators.timeframes[0].values[0].isApproximate).toBeUndefined();
+  });
+
+  it("marks supertrend as approximate when OHLC is missing", () => {
+    const history: PriceHistoryResult = {
+      items: Array.from({ length: 25 }, (_, i) => ({
+        unixTime: 1000 + i,
+        value: 0.007 + i * 0.0001,
+      })),
+    };
+
+    const config = {
+      timeframes: ["5m"],
+      indicators: [{ type: "supertrend" as const, period: 10, multiplier: 3 }],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([history], config);
+    expect(indicators.timeframes[0].values[0].type).toBe("supertrend");
+    expect(indicators.timeframes[0].values[0].isApproximate).toBe(true);
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("partial");
+  });
+
+  it("marks supertrend as partial when between min and full thresholds", () => {
+    // Supertrend minDataPoints = 11, fullQualityDataPoints = 21.
+    // 15 candles is enough to compute but not enough for reliable quality.
+    const history: PriceHistoryResult = {
+      items: Array.from({ length: 15 }, (_, i) => ({
+        unixTime: 1000 + i,
+        value: 0.007 + i * 0.0001,
+        high: 0.0075 + i * 0.0001,
+        low: 0.0065 + i * 0.0001,
+      })),
+    };
+
+    const config = {
+      timeframes: ["5m"],
+      indicators: [{ type: "supertrend" as const, period: 10, multiplier: 3 }],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([history], config);
+    expect(indicators.timeframes[0].values[0].type).toBe("supertrend");
+    expect(indicators.timeframes[0].values[0].value).toBeDefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("partial");
+  });
+
+  it("does not set isApproximate when data is completely missing", () => {
+    const history: PriceHistoryResult = { items: [] };
+
+    const config = {
+      timeframes: ["5m"],
+      indicators: [{ type: "supertrend" as const, period: 10, multiplier: 3 }],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([history], config);
+    expect(indicators.timeframes[0].values[0].isApproximate).toBeUndefined();
+    expect(indicators.timeframes[0].values[0].dataQuality).toBe("insufficient");
+  });
+
+  it("renders both sma and supertrend in the same timeframe", () => {
+    const history: PriceHistoryResult = {
+      items: Array.from({ length: 25 }, (_, i) => ({
+        unixTime: 1000 + i,
+        value: 0.007 + i * 0.0001,
+        high: 0.0075 + i * 0.0001,
+        low: 0.0065 + i * 0.0001,
+      })),
+    };
+
+    const config = {
+      timeframes: ["5m"],
+      indicators: [
+        { type: "sma" as const, period: 20 },
+        { type: "supertrend" as const, period: 10, multiplier: 3 },
+      ],
+    };
+
+    const indicators = buildPoolIndicatorsDirect([history], config);
+    expect(indicators.timeframes[0].values).toHaveLength(2);
+    expect(indicators.timeframes[0].values[0].type).toBe("sma");
+    expect(indicators.timeframes[0].values[1].type).toBe("supertrend");
   });
 });

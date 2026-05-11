@@ -18,8 +18,12 @@ const METEORA_BASE_URL = "https://dlmm.datapi.meteora.ag";
 export interface PricePoint {
   /** Unix timestamp in seconds */
   unixTime: number;
-  /** Price value at that timestamp (pool price for Meteora, USD for Birdeye tokens) */
+  /** Price value at that timestamp (pool price for Meteora, USD for Birdeye tokens) — typically close */
   value: number;
+  /** Optional OHLC data from providers that supply full candles */
+  open?: number;
+  high?: number;
+  low?: number;
 }
 
 export interface PriceHistoryResult {
@@ -310,7 +314,14 @@ function parseMeteoraOhlcv(raw: unknown): PriceHistoryResult {
     const unixTime = toNumber(prop(item, "timestamp"));
     const value = toNumber(prop(item, "close"));
     if (unixTime !== undefined && value !== undefined) {
-      items.push({ unixTime, value });
+      const open = toNumber(prop(item, "open"));
+      const high = toNumber(prop(item, "high"));
+      const low = toNumber(prop(item, "low"));
+      const point: PricePoint = { unixTime, value };
+      if (open !== undefined) point.open = open;
+      if (high !== undefined) point.high = high;
+      if (low !== undefined) point.low = low;
+      items.push(point);
     }
   }
   items.sort((a, b) => a.unixTime - b.unixTime);

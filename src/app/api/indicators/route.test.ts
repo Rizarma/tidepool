@@ -119,6 +119,35 @@ describe("GET /api/indicators", () => {
       expect(body.error.code).toBe("INVALID_PARAMETER");
     });
 
+    it("returns INVALID_PARAMETER 400 for invalid indicator multiplier", async () => {
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}&indicators=supertrend:10:0`));
+      expect(res.status).toBe(400);
+      const body = await parseJson(res);
+      expect(body.error.code).toBe("INVALID_PARAMETER");
+      expect(body.error.message).toMatch(/multiplier/i);
+    });
+
+    it("returns INVALID_PARAMETER 400 for too many indicator segments", async () => {
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}&indicators=supertrend:10:3:extra`));
+      expect(res.status).toBe(400);
+      const body = await parseJson(res);
+      expect(body.error.code).toBe("INVALID_PARAMETER");
+    });
+
+    it("returns INVALID_PARAMETER 400 for supertrend period below minimum", async () => {
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}&indicators=supertrend:4:3`));
+      expect(res.status).toBe(400);
+      const body = await parseJson(res);
+      expect(body.error.code).toBe("INVALID_PARAMETER");
+      expect(body.error.message).toMatch(/period must be at least 5/i);
+    });
+
     it("returns INVALID_PARAMETER 400 for invalid provider", async () => {
       vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
 
@@ -214,6 +243,28 @@ describe("GET /api/indicators", () => {
       expect(body.sources).toHaveLength(2);
       expect(body.sources[1].provider).toBe("birdeye");
       expect(body.sources[1].success).toBe(true);
+    }, 15_000);
+
+    it("returns indicators with supertrend and multiplier", async () => {
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+      vi.mocked(getProvider).mockReturnValue(mockProvider());
+      vi.mocked(buildPoolIndicatorsDirect).mockReturnValue({
+        timeframes: [
+          {
+            timeframe: "5m",
+            values: [{ type: "supertrend", value: 0.007, period: 10, multiplier: 3, trend: "up", dataQuality: "full" }],
+          },
+        ],
+      });
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}&timeframes=5m&indicators=supertrend:10:3`));
+      expect(res.status).toBe(200);
+      const body = await parseJson(res);
+
+      expect(body.indicators.timeframes).toHaveLength(1);
+      expect(body.indicators.timeframes[0].values[0].type).toBe("supertrend");
+      expect(body.indicators.timeframes[0].values[0].period).toBe(10);
+      expect(body.indicators.timeframes[0].values[0].trend).toBe("up");
     }, 15_000);
   });
 

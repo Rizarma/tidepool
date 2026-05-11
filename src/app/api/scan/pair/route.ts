@@ -11,6 +11,7 @@ import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
 } from "@/lib/providers-dlmm";
+import { fetchJupiter } from "@/lib/providers";
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import type { PoolReport, SourceStatus, DlmmPairInfo } from "@/lib/types";
@@ -28,6 +29,43 @@ export async function GET(request: Request): Promise<Response> {
       "Unable to complete pair scan right now.",
       500,
     );
+  }
+}
+
+async function enrichPairWithJupiterPrices(
+  pair: DlmmPairInfo,
+  sources: SourceStatus[],
+): Promise<void> {
+  const mintX = pair.tokenX.mint;
+  const mintY = pair.tokenY.mint;
+
+  if (!mintX || !mintY) return;
+
+  const jupiterResult = await timedFetch("jupiter", async () => {
+    const [xRes, yRes] = await Promise.allSettled([
+      fetchJupiter(mintX),
+      fetchJupiter(mintY),
+    ]);
+
+    const x = xRes.status === "fulfilled" ? xRes.value : undefined;
+    const y = yRes.status === "fulfilled" ? yRes.value : undefined;
+
+    const hasXPrice = x?.priceUsd != null;
+    const hasYPrice = y?.priceUsd != null;
+
+    if (!hasXPrice && !hasYPrice) {
+      throw new Error("No Jupiter price data");
+    }
+
+    return { x, y };
+  });
+
+  sources.push(buildSourceStatus("jupiter", jupiterResult));
+
+  if (jupiterResult.status === "fulfilled") {
+    const { x, y } = jupiterResult.value.data;
+    if (x?.priceUsd != null) pair.tokenX.priceUsd = x.priceUsd;
+    if (y?.priceUsd != null) pair.tokenY.priceUsd = y.priceUsd;
   }
 }
 
@@ -94,6 +132,8 @@ async function handlePairScan(request: Request): Promise<Response> {
   }
 
   const pair: DlmmPairInfo = result.value.data;
+
+  await enrichPairWithJupiterPrices(pair, sources);
 
   const report: PoolReport = {
     kind: "pair",

@@ -65,6 +65,16 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleMultiplierChange = (type: string, val: number) => {
+    if (!isNaN(val) && val > 0) {
+      setDraftIndicators((prev) =>
+        prev.map((ind) =>
+          ind.type === type ? { ...ind, multiplier: val } : ind,
+        ),
+      );
+    }
+  };
+
   const handleApply = () => {
     updateConfig({
       timeframes: draftTimeframes,
@@ -164,20 +174,39 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
                 {ind.enabled && (
-                  <div>
-                    <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-                      Period
-                    </p>
-                    <input
-                      type="number"
-                      value={ind.period}
-                      onChange={(e) =>
-                        handlePeriodChange(ind.type, parseInt(e.target.value, 10))
-                      }
-                      min={1}
-                      max={200}
-                      className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm text-zinc-100"
-                    />
+                  <div className="space-y-2">
+                    <div>
+                      <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+                        Period
+                      </p>
+                      <input
+                        type="number"
+                        value={ind.period}
+                        onChange={(e) =>
+                          handlePeriodChange(ind.type, parseInt(e.target.value, 10))
+                        }
+                        min={def.minPeriod ?? 1}
+                        max={200}
+                        className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm text-zinc-100"
+                      />
+                    </div>
+                    {def.defaultMultiplier !== undefined && (
+                      <div>
+                        <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+                          Multiplier
+                        </p>
+                        <input
+                          type="number"
+                          value={ind.multiplier ?? def.defaultMultiplier}
+                          onChange={(e) =>
+                            handleMultiplierChange(ind.type, parseInt(e.target.value, 10))
+                          }
+                          min={1}
+                          max={20}
+                          className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm text-zinc-100"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

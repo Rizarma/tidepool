@@ -10,7 +10,7 @@ import { isValidSolanaAddress } from "@/lib/validation";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
 import { getProvider, type OhlcvProvider } from "@/lib/providers-ohlcv";
 import { buildPoolIndicatorsDirect } from "@/lib/indicators";
-import { isValidIndicatorType } from "@/lib/indicators/registry";
+import { isValidIndicatorType, getIndicator } from "@/lib/indicators/registry";
 import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import type { IndicatorType, PoolIndicators, SourceStatus } from "@/lib/types";
@@ -37,9 +37,11 @@ function responseCacheKey(
   pool: string,
   provider: string,
   timeframes: string[],
-  indicators: Array<{ type: string; period: number }>,
+  indicators: Array<{ type: string; period: number; multiplier?: number }>,
 ): string {
-  const ind = indicators.map((i) => `${i.type}:${i.period}`).join(",");
+  const ind = indicators
+    .map((i) => (i.multiplier !== undefined ? `${i.type}:${i.period}:${i.multiplier}` : `${i.type}:${i.period}`))
+    .join(",");
   return `${pool}:${provider}:${timeframes.join(",")}:${ind}`;
 }
 
@@ -129,15 +131,24 @@ async function handleIndicators(request: Request): Promise<Response> {
   }
 
   // Parse indicators
-  const indicators: Array<{ type: IndicatorType; period: number }> = [];
+  // Format: type:period or type:period:multiplier (e.g. supertrend:10:3)
+  const indicators: Array<{ type: IndicatorType; period: number; multiplier?: number }> = [];
   for (const part of indicatorsParam.split(",")) {
     const trimmed = part.trim();
     if (!trimmed) continue;
-    const [type, periodStr] = trimmed.split(":");
+    const segments = trimmed.split(":");
+    if (segments.length < 2 || segments.length > 3) {
+      return apiErrorResponse(
+        "INVALID_PARAMETER",
+        `Invalid indicator format: ${trimmed} (expected type:period or type:period:multiplier)`,
+        400,
+      );
+    }
+    const [type, periodStr, multiplierStr] = segments;
     if (!type || !periodStr) {
       return apiErrorResponse(
         "INVALID_PARAMETER",
-        `Invalid indicator format: ${trimmed} (expected type:period)`,
+        `Invalid indicator format: ${trimmed}`,
         400,
       );
     }
@@ -156,7 +167,27 @@ async function handleIndicators(request: Request): Promise<Response> {
         400,
       );
     }
-    indicators.push({ type, period });
+    const def = getIndicator(type);
+    if (def.minPeriod !== undefined && period < def.minPeriod) {
+      return apiErrorResponse(
+        "INVALID_PARAMETER",
+        `${type} period must be at least ${def.minPeriod}`,
+        400,
+      );
+    }
+    const entry: { type: IndicatorType; period: number; multiplier?: number } = { type, period };
+    if (multiplierStr !== undefined) {
+      const multiplier = parseInt(multiplierStr, 10);
+      if (isNaN(multiplier) || multiplier <= 0) {
+        return apiErrorResponse(
+          "INVALID_PARAMETER",
+          `Invalid indicator multiplier: ${multiplierStr}`,
+          400,
+        );
+      }
+      entry.multiplier = multiplier;
+    }
+    indicators.push(entry);
   }
 
   // Check API-level cache before doing any work
@@ -266,12 +297,18 @@ async function fetchIndicators(
   provider: OhlcvProvider,
   poolAddress: string,
   timeframes: Timeframe[],
-  indicators: Array<{ type: IndicatorType; period: number }>,
+  indicators: Array<{ type: IndicatorType; period: number; multiplier?: number }>,
 ): Promise<PoolIndicators> {
-  // Fetch only enough history for the longest indicator period + alignment buffer.
-  // The lower-level cache key includes periods, so this stays correct.
-  const maxPeriod = Math.max(...indicators.map((ind) => ind.period));
-  const periodsNeeded = maxPeriod + 5;
+  // Fetch enough history for the longest indicator period + buffer.
+  // Supertrend needs extra warmup because ATR + recursive band calc
+  // stabilizes more slowly than SMA. Use period * 2 + 5 when supertrend
+  // is present, otherwise period + 5.
+  const periodsNeeded = Math.max(
+    ...indicators.map((ind) => {
+      if (ind.type === "supertrend") return ind.period * 2 + 5;
+      return ind.period + 5;
+    }),
+  );
 
   const histories = [];
   for (let i = 0; i < timeframes.length; i++) {
