@@ -91,7 +91,9 @@ export function buildPoolIndicatorsDirect(
       continue;
     }
 
-    const closes: number[] = history.items.map((p) => p.value);
+    const closes: number[] = history.items
+      .map((p) => p.value)
+      .filter((v) => Number.isFinite(v));
 
     // Detect real OHLC from Meteora vs close-only from Birdeye
     const hasRealOhlc = history.items.some(
@@ -103,8 +105,12 @@ export function buildPoolIndicatorsDirect(
     let isApproximate = false;
 
     if (hasRealOhlc) {
-      highs = history.items.map((p) => p.high ?? p.value);
-      lows = history.items.map((p) => p.low ?? p.value);
+      highs = history.items
+        .map((p) => p.high ?? p.value)
+        .filter((v) => Number.isFinite(v));
+      lows = history.items
+        .map((p) => p.low ?? p.value)
+        .filter((v) => Number.isFinite(v));
     } else {
       // Approximate from adjacent closes for Birdeye fallback
       highs = closes.map((c, idx) =>

@@ -184,6 +184,7 @@ async function fetchBirdeyeTokenHistory(
     throw new Error("BIRDEYE_API_KEY is not configured");
   }
 
+  const birdeyeTf = toBirdeyeTimeframe(timeframe);
   const now = Math.floor(Date.now() / 1000);
   const from = now - lookbackSeconds(timeframe, periods);
 
@@ -198,7 +199,7 @@ async function fetchBirdeyeTokenHistory(
   const url =
     `${BIRDEYE_BASE_URL}/defi/history_price?` +
     `address=${encodeURIComponent(mint)}` +
-    `&type=${encodeURIComponent(timeframe)}` +
+    `&type=${encodeURIComponent(birdeyeTf)}` +
     `&time_from=${from}` +
     `&time_to=${now}`;
 
@@ -461,10 +462,9 @@ const birdeyeProvider: OhlcvProvider = {
       pair = await fetchMeteoraDlmmPool(poolAddress);
       setCachedPool(poolAddress, pair);
     }
-    const birdeyeTf = toBirdeyeTimeframe(timeframe);
     const [xHistory, yHistory] = await Promise.all([
-      fetchBirdeyeTokenHistory(pair.tokenX.mint, birdeyeTf, periods),
-      fetchBirdeyeTokenHistory(pair.tokenY.mint, birdeyeTf, periods),
+      fetchBirdeyeTokenHistory(pair.tokenX.mint, timeframe, periods),
+      fetchBirdeyeTokenHistory(pair.tokenY.mint, timeframe, periods),
     ]);
     // Compute pool ratios: tokenX_USD / tokenY_USD = tokenY per tokenX
     const yMap = new Map<number, number>();
