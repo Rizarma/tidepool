@@ -36,6 +36,8 @@ export function PairReportLayout({
   const name = pair?.name ?? `${symbolX} / ${symbolY}`;
   const SOL_MINT = "So11111111111111111111111111111111111111112";
   const gmgnMint = tokenX?.mint === SOL_MINT ? tokenY?.mint : tokenX?.mint;
+  const jupiterMint = gmgnMint;
+  const jupiterUrl = jupiterMint ? `https://jup.ag/tokens/${jupiterMint}` : null;
 
   return (
     <div className="h-full lg:grid lg:grid-cols-[260px_1fr] xl:grid-cols-[280px_1fr_300px] xl:grid-rows-[1fr]">
@@ -110,6 +112,16 @@ export function PairReportLayout({
               >
                 DexScreener
               </a>
+              {jupiterUrl && (
+                <a
+                  href={jupiterUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-[10px] text-zinc-500 hover:text-[var(--accent)] transition"
+                >
+                  Jupiter
+                </a>
+              )}
             </div>
           </PanelSection>
         )}
