@@ -21,11 +21,12 @@ export function cacheableJson(
   maxAgeSeconds: number,
   staleWhileRevalidateSeconds: number,
 ): Response {
-  return Response.json(data, {
-    headers: {
-      "Cache-Control": `public, s-maxage=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`,
-    },
-  });
+  const headers = new Headers({ "Content-Type": "application/json" });
+  headers.set(
+    "Cache-Control",
+    `public, max-age=${maxAgeSeconds}, s-maxage=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`,
+  );
+  return new Response(JSON.stringify(data), { headers, status: 200 });
 }
 
 /**
@@ -38,7 +39,7 @@ export function addCacheHeaders(
 ): Response {
   response.headers.set(
     "Cache-Control",
-    `public, s-maxage=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`,
+    `public, max-age=${maxAgeSeconds}, s-maxage=${maxAgeSeconds}, stale-while-revalidate=${staleWhileRevalidateSeconds}`,
   );
   return response;
 }
