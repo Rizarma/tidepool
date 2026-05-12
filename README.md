@@ -109,6 +109,18 @@ Tidepool uses public data sources by default. You can set `SOLANA_RPC_URL` (serv
 
 For production deployments expecting significant traffic, set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to enable shared caching across all serverless instances. You can also set `SOLANA_RPC_URLS` (comma-separated) to rotate across multiple RPC endpoints for resilience.
 
+## Shareable URLs
+
+Every scan gets its own web address. Copy the URL from your browser's address bar and share it with anyone — they'll see the same report, freshly fetched from live data.
+
+| URL | What it shows |
+|-----|--------------|
+| `tidepool.rizarma.com/pool/<address>` | A pool scan or token-mint fallback |
+| `tidepool.rizarma.com/token/<mint>` | A token risk scan |
+| `tidepool.rizarma.com/discover/<mint>?pool=` | Pool discovery with a selected pool |
+
+Refreshing the page keeps your scan. The browser back and forward buttons work between scans. Your last-used addresses are automatically saved in the command bar.
+
 ## Project Notes
 
 - Built with Next.js and React
@@ -117,7 +129,10 @@ For production deployments expecting significant traffic, set `UPSTASH_REDIS_RES
 - Runs without a database or user accounts
 - Fetches scan data live when you submit an address
 - Resolves pasted addresses as token mints, Meteora DLMM pools, or pool-discovery candidates
-- Keeps scanner state/fetch orchestration in `src/components/scan/useScanController.ts`, report views in `src/components/report/`, and the homepage New Pairs table in `src/components/pairs/NewPairsTable.tsx`
+- Uses Next.js App Router with segmented routes (`/pool/<address>`, `/token/<mint>`, `/discover/<mint>`) for shareable URLs and browser history
+- Persistent `AppShell` wraps every page: the command bar, indicator provider, and bottom bar survive route transitions
+- Report views are Client Components (`*RouteView.tsx`) that fetch from API routes; page shells are Server Components (`page.tsx`) that export metadata
+- Homepage New Pairs table lives in `src/components/pairs/NewPairsTable.tsx`
 - Designed for deployment on Vercel or any host that supports Next.js
 
 ## Deployment
