@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { HomePageView } from "@/components/home/HomePageView";
 
@@ -6,5 +7,9 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <HomePageView />;
+  return (
+    <Suspense fallback={null}>
+      <HomePageView />
+    </Suspense>
+  );
 }

@@ -17,18 +17,34 @@ export function RouteScanForm() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Derive mode from route
+  // Derive mode from route (local state allows override on report routes)
   const isHome = pathname === "/";
-  const routeMode: ScanMode = pathname.startsWith("/token") ? "token" : "pair";
-  const homeMode: ScanMode = searchParams.get("mode") === "token" ? "token" : "pair";
-  const mode = isHome ? homeMode : routeMode;
+  const [mode, setMode] = useState<ScanMode>(() => {
+    if (typeof window === "undefined") return "pair";
+    if (pathname === "/") return searchParams.get("mode") === "token" ? "token" : "pair";
+    if (pathname.startsWith("/token")) return "token";
+    return "pair";
+  });
 
   // Local input state — restored lazily from localStorage on first render
-  const [mint, setMint] = useState(() => localStorage.getItem(LS_MINT) ?? "");
-  const [poolAddress, setPoolAddress] = useState(() => localStorage.getItem(LS_POOL) ?? "");
-  const [mintA, setMintA] = useState(() => localStorage.getItem(LS_MINTA) ?? "");
-  const [mintB, setMintB] = useState(() => localStorage.getItem(LS_MINTB) ?? "");
+  const [mint, setMint] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_MINT) ?? "";
+  });
+  const [poolAddress, setPoolAddress] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_POOL) ?? "";
+  });
+  const [mintA, setMintA] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_MINTA) ?? "";
+  });
+  const [mintB, setMintB] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_MINTB) ?? "";
+  });
   const [pairInputMode, setPairInputMode] = useState<PairInputMode>(() => {
+    if (typeof window === "undefined") return "pool";
     const saved = localStorage.getItem(LS_PAIR_MODE);
     return saved === "mints" ? "mints" : "pool";
   });
@@ -67,7 +83,7 @@ export function RouteScanForm() {
         router.replace("/");
       }
     }
-    // On report routes, mode toggle only affects local state; no navigation
+    setMode(newMode);
   }, [isHome, router]);
 
   const handleSubmit = useCallback((e: FormEvent<HTMLFormElement>) => {
