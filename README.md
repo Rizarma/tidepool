@@ -117,3 +117,148 @@ For production deployments expecting significant traffic, set `UPSTASH_REDIS_RES
 - Resolves pasted addresses as token mints, Meteora DLMM pools, or pool-discovery candidates
 - Keeps scanner state/fetch orchestration in `src/components/scan/useScanController.ts`, report views in `src/components/report/`, and the homepage New Pairs table in `src/components/pairs/NewPairsTable.tsx`
 - Designed for deployment on Vercel or any host that supports Next.js
+
+## Deployment
+
+Tidepool is designed for a **hybrid Vercel + Cloudflare** architecture. Vercel hosts the Next.js application as the origin; Cloudflare sits in front as the global CDN, DDoS protector, and edge cache.
+
+### Why This Architecture
+
+| Layer | What It Does |
+|-------|-------------|
+| **Cloudflare DNS + SSL** | DNS resolution, SSL termination, HTTP/3 |
+| **Cloudflare DDoS + WAF** | Absorbs attacks, blocks malicious bots, IP-based rate limiting |
+| **Cloudflare Edge Cache** | Caches API responses at 300+ global POPs |
+| **Vercel Origin** | Runs Next.js app, serverless functions, provider fetches |
+| **Upstash Redis** | Shared cache across all Vercel instances |
+
+A cached API request never reaches Vercel — it serves directly from the Cloudflare edge location closest to the user.
+
+### Prerequisites
+
+- A domain added to Cloudflare (e.g. `rizarma.com`)
+- A Vercel account and project
+- Upstash Redis database (free tier works)
+
+### Step 1: Add the Subdomain in Cloudflare DNS
+
+In the Cloudflare Dashboard → `rizarma.com` → DNS → Records:
+
+```
+Type    Name        Target                      Proxy Status
+CNAME   tidepool    cname.vercel-dns.com.       Proxied  ← orange cloud
+```
+
+**Important:** The orange cloud (Proxied) must be enabled. This is what activates Cloudflare's edge caching, DDoS protection, and SSL.
+
+### Step 2: Add the Custom Domain in Vercel
+
+In the Vercel Dashboard → Your Project → Settings → Domains:
+
+1. Add `tidepool.rizarma.com`
+2. Vercel will detect the CNAME and verify ownership automatically
+3. Wait for the "Valid Configuration" checkmark
+
+### Step 3: Configure Cloudflare SSL
+
+Cloudflare Dashboard → SSL/TLS → Overview:
+
+- **Encryption mode:** Full (strict)
+- **Always Use HTTPS:** On
+- **Automatic HTTPS Rewrites:** On
+
+This encrypts traffic between users → Cloudflare → Vercel end-to-end.
+
+### Step 4: Configure Cloudflare Caching
+
+Cloudflare Dashboard → Caching → Configuration:
+
+- **Caching Level:** Standard
+- **Browser Cache TTL:** Respect Existing Headers
+- **Edge Cache TTL:** Respect Origin
+- **Query String Sort:** On (ensures `?mint=A&b=1` and `?b=1&mint=A` share a cache key)
+
+Cloudflare Dashboard → Rules → Page Rules (free tier: 3 rules):
+
+```
+URL: *tidepool.rizarma.com/api/*
+Settings:
+  - Cache Level: Cache Everything
+  - Edge Cache TTL: 15 seconds  ← matches your s-maxage headers
+```
+
+Without this rule, Cloudflare does not cache API responses by default.
+
+### Step 5: Enable Rate Limiting (Recommended)
+
+Cloudflare Dashboard → Security → Rate Limiting Rules:
+
+```
+Rule name: API Rate Limit
+URL: *tidepool.rizarma.com/api/*
+Threshold: 30 requests per minute per IP
+Action: Challenge (CAPTCHA)
+Duration: 1 minute
+```
+
+This protects your origin from a single IP hammering your API. Free tier: 10,000 rate-limited requests/month.
+
+### Step 6: Set Environment Variables in Vercel
+
+Vercel Dashboard → Your Project → Settings → Environment Variables:
+
+| Variable | Value | Environment |
+|----------|-------|-------------|
+| `NEXT_PUBLIC_SITE_URL` | `https://tidepool.rizarma.com` | Production |
+| `BIRDEYE_API_KEY` | Your Birdeye key | Production |
+| `SOLANA_RPC_URL` | Your primary RPC | Production |
+| `SOLANA_RPC_URLS` | `https://rpc.helius.xyz/...` | Production |
+| `UPSTASH_REDIS_REST_URL` | `https://...upstash.io` | Production |
+| `UPSTASH_REDIS_REST_TOKEN` | Your token | Production |
+
+**Do not set `UPSTASH_REDIS_REST_URL` in preview/development** unless you want those environments sharing production cache.
+
+### Step 7: Deploy
+
+```bash
+# Push your branch to GitHub (or connect your repo to Vercel)
+git push origin feat/rate-limit-protection
+
+# Then merge to main when ready
+```
+
+Vercel auto-deploys on every push to the connected branch.
+
+### Step 8: Verify
+
+Run these checks after deployment:
+
+```bash
+# 1. DNS resolves correctly
+dig tidepool.rizarma.com
+# Expected: CNAME pointing to cname.vercel-dns.com, proxied by Cloudflare
+
+# 2. SSL is valid
+curl -I https://tidepool.rizarma.com
+# Expected: HTTP/2, certificate valid, cloudflare headers present
+
+# 3. API caching works
+curl -I "https://tidepool.rizarma.com/api/scan?mint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+# Expected: cache-control: public, s-maxage=15, stale-while-revalidate=60
+# Expected: cf-cache-status: HIT or DYNAMIC (first request is MISS)
+
+# 4. Rate limiting is active
+for i in {1..35}; do curl -s -o /dev/null -w "%{http_code}\n" "https://tidepool.rizarma.com/api/scan?mint=USDC"; done
+# Expected: first 30 return 200, then 403 or challenge page
+```
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `DNS_PROBE_FINISHED_NXDOMAIN` | DNS not propagated | Wait 5-15 minutes; verify CNAME in Cloudflare |
+| `525 SSL Handshake Failed` | SSL mode mismatch | Set Cloudflare SSL to "Full (strict)" |
+| `Cache-Control` headers missing | Route returns error | Check Vercel function logs |
+| `cf-cache-status: BYPASS` | Page Rule not matching | Verify Page Rule URL pattern `*tidepool.rizarma.com/api/*` |
+| Redis cache not working | Wrong env vars | Verify `UPSTASH_REDIS_REST_URL` and `_TOKEN` in Vercel dashboard |
+| Indicators timeout | Birdeye key missing | Add `BIRDEYE_API_KEY` to env vars |
