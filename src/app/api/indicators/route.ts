@@ -159,8 +159,8 @@ async function handleIndicators(request: Request): Promise<Response> {
         400,
       );
     }
-    const period = parseInt(periodStr, 10);
-    if (isNaN(period) || period <= 0) {
+    const period = Number(periodStr);
+    if (!Number.isInteger(period) || period <= 0) {
       return apiErrorResponse(
         "INVALID_PARAMETER",
         `Invalid indicator period: ${periodStr}`,
@@ -177,8 +177,8 @@ async function handleIndicators(request: Request): Promise<Response> {
     }
     const entry: { type: IndicatorType; period: number; multiplier?: number } = { type, period };
     if (multiplierStr !== undefined) {
-      const multiplier = parseInt(multiplierStr, 10);
-      if (isNaN(multiplier) || multiplier <= 0) {
+      const multiplier = Number(multiplierStr);
+      if (!Number.isInteger(multiplier) || multiplier <= 0) {
         return apiErrorResponse(
           "INVALID_PARAMETER",
           `Invalid indicator multiplier: ${multiplierStr}`,

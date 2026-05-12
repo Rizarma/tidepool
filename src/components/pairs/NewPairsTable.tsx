@@ -577,6 +577,17 @@ export function NewPairsTable({
                         >
                           DexS
                         </a>
+                        <a
+                          href={`https://jup.ag/tokens/${getPrimaryToken(pool).mint}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
+                          title="View on Jupiter"
+                          aria-label="View on Jupiter"
+                        >
+                          Jupiter
+                        </a>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
