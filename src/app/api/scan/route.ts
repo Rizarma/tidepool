@@ -15,6 +15,7 @@ import {
 import { computeRisk } from "@/lib/risk";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { timedFetchThrowing, buildSourceStatusFromSettled } from "@/lib/provider-status";
+import { cacheableJson } from "@/lib/api-cache";
 import type {
   TokenReport,
   TokenIdentity,
@@ -140,7 +141,7 @@ async function handleScan(request: Request): Promise<Response> {
     fetchedAt: new Date().toISOString(),
   };
 
-  return Response.json(report);
+  return cacheableJson(report, 15, 60);
 }
 
 

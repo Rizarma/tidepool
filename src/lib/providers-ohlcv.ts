@@ -8,6 +8,8 @@
 
 import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
+import { cache } from "@/lib/cache";
+import { rateLimiters } from "@/lib/rate-limit";
 import type { DlmmPairInfo } from "@/lib/types";
 
 const BIRDEYE_BASE_URL = "https://public-api.birdeye.so";
@@ -67,32 +69,8 @@ function toBirdeyeTimeframe(tf: string): string {
   return BIRDEYE_TIMEFRAME_MAP[tf] ?? tf;
 }
 
-const birdeyeCache = new Map<string, { data: PriceHistoryResult; expiry: number }>();
-
 function birdeyeCacheKey(mint: string, timeframe: string, periods: number): string {
-  return `${mint}:${timeframe}:${periods}`;
-}
-
-function getBirdeyeCached(key: string): PriceHistoryResult | undefined {
-  const entry = birdeyeCache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiry) {
-    birdeyeCache.delete(key);
-    return undefined;
-  }
-  return entry.data;
-}
-
-function setBirdeyeCached(key: string, data: PriceHistoryResult, timeframe: string): void {
-  const ttl = BIRDEYE_CACHE_TTL_MS[timeframe] ?? 60_000;
-  birdeyeCache.set(key, { data, expiry: Date.now() + ttl });
-}
-
-function purgeBirdeyeCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of birdeyeCache) {
-    if (now > entry.expiry) birdeyeCache.delete(key);
-  }
+  return `birdeye:${mint}:${timeframe}:${periods}`;
 }
 
 function getBirdeyeApiKey(): string | undefined {
@@ -188,13 +166,11 @@ async function fetchBirdeyeTokenHistory(
   const now = Math.floor(Date.now() / 1000);
   const from = now - lookbackSeconds(timeframe, periods);
 
-  const key = birdeyeCacheKey(mint, timeframe, periods);
-  const cached = getBirdeyeCached(key);
-  if (cached) return cached;
+  await rateLimiters.birdeye.acquire();
 
-  if (birdeyeCache.size > 0 && birdeyeCache.size % 100 === 0) {
-    purgeBirdeyeCache();
-  }
+  const key = birdeyeCacheKey(mint, timeframe, periods);
+  const cached = await cache.get<PriceHistoryResult>(key);
+  if (cached) return cached;
 
   const url =
     `${BIRDEYE_BASE_URL}/defi/history_price?` +
@@ -230,7 +206,7 @@ async function fetchBirdeyeTokenHistory(
       }
 
       const result = parseBirdeyeHistory(json);
-      setBirdeyeCached(key, result, timeframe);
+      await cache.set(key, result, BIRDEYE_CACHE_TTL_MS[timeframe] ?? 60_000);
       return result;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -268,32 +244,8 @@ const METEORA_CACHE_TTL_MS: Record<string, number> = {
   "24h": 7_200_000,
 };
 
-const meteoraCache = new Map<string, { data: PriceHistoryResult; expiry: number }>();
-
 function meteoraCacheKey(pool: string, timeframe: string, periods: number): string {
-  return `${pool}:${timeframe}:${periods}`;
-}
-
-function getMeteoraCached(key: string): PriceHistoryResult | undefined {
-  const entry = meteoraCache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiry) {
-    meteoraCache.delete(key);
-    return undefined;
-  }
-  return entry.data;
-}
-
-function setMeteoraCached(key: string, data: PriceHistoryResult, timeframe: string): void {
-  const ttl = METEORA_CACHE_TTL_MS[timeframe] ?? 60_000;
-  meteoraCache.set(key, { data, expiry: Date.now() + ttl });
-}
-
-function purgeMeteoraCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of meteoraCache) {
-    if (now > entry.expiry) meteoraCache.delete(key);
-  }
+  return `meteora:ohlcv:${pool}:${timeframe}:${periods}`;
 }
 
 function extractMeteoraError(raw: unknown): string | undefined {
@@ -338,13 +290,11 @@ async function fetchMeteoraOhlcv(
   const now = Math.floor(Date.now() / 1000);
   const from = now - lookbackSeconds(timeframe, periods);
 
-  const key = meteoraCacheKey(poolAddress, timeframe, periods);
-  const cached = getMeteoraCached(key);
-  if (cached) return cached;
+  await rateLimiters.meteoraDlmm.acquire();
 
-  if (meteoraCache.size > 0 && meteoraCache.size % 100 === 0) {
-    purgeMeteoraCache();
-  }
+  const key = meteoraCacheKey(poolAddress, timeframe, periods);
+  const cached = await cache.get<PriceHistoryResult>(key);
+  if (cached) return cached;
 
   const url =
     `${METEORA_BASE_URL}/pools/${encodeURIComponent(poolAddress)}/ohlcv?` +
@@ -376,7 +326,7 @@ async function fetchMeteoraOhlcv(
       }
 
       const result = parseMeteoraOhlcv(json);
-      setMeteoraCached(key, result, timeframe);
+      await cache.set(key, result, METEORA_CACHE_TTL_MS[timeframe] ?? 60_000);
       return result;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -423,32 +373,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── Birdeye Pool Lookup Cache ─────────────────────────────────────────────
-// Avoids refetching the same pool multiple times when the route requests
-// multiple timeframes in a single indicator fetch cycle.
-
-interface PoolCacheEntry {
-  pair: DlmmPairInfo;
-  expiry: number;
-}
-
-const poolCache = new Map<string, PoolCacheEntry>();
-const POOL_CACHE_TTL_MS = 30_000;
-
-function getCachedPool(address: string): DlmmPairInfo | undefined {
-  const entry = poolCache.get(address);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiry) {
-    poolCache.delete(address);
-    return undefined;
-  }
-  return entry.pair;
-}
-
-function setCachedPool(address: string, pair: DlmmPairInfo): void {
-  poolCache.set(address, { pair, expiry: Date.now() + POOL_CACHE_TTL_MS });
-}
-
 // ─── Provider Implementations ───────────────────────────────────────────────
 
 const birdeyeProvider: OhlcvProvider = {
@@ -457,11 +381,7 @@ const birdeyeProvider: OhlcvProvider = {
     if (!apiKey) {
       throw new Error("BIRDEYE_API_KEY is not configured");
     }
-    let pair = getCachedPool(poolAddress);
-    if (!pair) {
-      pair = await fetchMeteoraDlmmPool(poolAddress);
-      setCachedPool(poolAddress, pair);
-    }
+    const pair = await fetchMeteoraDlmmPool(poolAddress);
     const [xHistory, yHistory] = await Promise.all([
       fetchBirdeyeTokenHistory(pair.tokenX.mint, timeframe, periods),
       fetchBirdeyeTokenHistory(pair.tokenY.mint, timeframe, periods),

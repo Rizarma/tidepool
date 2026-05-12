@@ -14,6 +14,7 @@ import {
 import { fetchJupiter } from "@/lib/providers";
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
+import { cacheableJson } from "@/lib/api-cache";
 import type { PoolReport, SourceStatus, DlmmPairInfo } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -142,7 +143,7 @@ async function handlePairScan(request: Request): Promise<Response> {
     fetchedAt: new Date().toISOString(),
   };
 
-  return Response.json(report);
+  return cacheableJson(report, 10, 30);
 }
 
 

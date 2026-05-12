@@ -10,6 +10,7 @@ import { fetchMeteoraDlmmPool, fetchMeteoraDlmmPoolsByMint } from "@/lib/provide
 import { fetchSolanaRpc } from "@/lib/providers";
 import { isValidSolanaAddress } from "@/lib/validation";
 import { timedFetch, buildSourceStatusClassified } from "@/lib/provider-status";
+import { cacheableJson } from "@/lib/api-cache";
 import type { SettledResult } from "@/lib/provider-status";
 import type {
   AddressResolution,
@@ -102,7 +103,7 @@ async function handleResolveAddress(request: Request): Promise<Response> {
     fetchedAt: new Date().toISOString(),
   };
 
-  return Response.json(resolution);
+  return cacheableJson(resolution, 15, 60);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

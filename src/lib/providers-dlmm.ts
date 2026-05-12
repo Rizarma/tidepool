@@ -13,6 +13,8 @@ import {
   toStringArray,
   fetchJson,
 } from "@/lib/provider-parsing";
+import { cacheFirst } from "@/lib/fetch-guard";
+import { rateLimiters } from "@/lib/rate-limit";
 
 const BASE_URL = "https://dlmm.datapi.meteora.ag";
 
@@ -135,6 +137,7 @@ export interface PoolDiscoveryResult {
 export async function fetchMeteoraDlmmPoolsByMint(
   mint: string,
 ): Promise<PoolDiscoveryResult> {
+  return cacheFirst(`meteora:pools:${mint}`, async () => {
   const params = new URLSearchParams({
     query: mint,
     page: "1",
@@ -209,6 +212,7 @@ export async function fetchMeteoraDlmmPoolsByMint(
   });
 
   return { totalFound, pools };
+  }, { ttlMs: 30_000, rateLimiter: rateLimiters.meteoraDlmm });
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -219,6 +223,7 @@ export async function fetchMeteoraDlmmPoolsByMint(
 export async function fetchMeteoraDlmmPool(
   poolAddress: string,
 ): Promise<DlmmPairInfo> {
+  return cacheFirst(`meteora:pool:${poolAddress}`, async () => {
   const url = `${BASE_URL}/pools/${poolAddress}`;
   const data = await fetchJson(url);
 
@@ -229,6 +234,7 @@ export async function fetchMeteoraDlmmPool(
   // The single-pool endpoint returns a flat object (or possibly wrapped)
   const raw = isObject(prop(data, "pool")) ? prop(data, "pool") : data;
   return normalizePair(raw);
+  }, { ttlMs: 15_000, rateLimiter: rateLimiters.meteoraDlmm });
 }
 
 /**
@@ -238,6 +244,7 @@ export async function fetchMeteoraDlmmNewPools(
   pageSize = 20,
   page = 1,
 ): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
+  return cacheFirst(`meteora:new:${page}:${pageSize}`, async () => {
   const params = new URLSearchParams({
     page: String(page),
     page_size: String(pageSize),
@@ -267,6 +274,7 @@ export async function fetchMeteoraDlmmNewPools(
   }
 
   return { pools, total, pages };
+  }, { ttlMs: 15_000, rateLimiter: rateLimiters.meteoraDlmm });
 }
 
 /**
@@ -278,6 +286,7 @@ export async function fetchMeteoraDlmmPairByMints(
   mintB: string,
 ): Promise<DlmmPairInfo> {
   const [sortedA, sortedB] = [mintA, mintB].sort();
+  return cacheFirst(`meteora:pair:${sortedA}:${sortedB}`, async () => {
   const url = `${BASE_URL}/pools/groups/${sortedA}-${sortedB}?page=1&page_size=5&sort_by=tvl:desc&filter_by=is_blacklisted=false`;
   const data = await fetchJson(url);
 
@@ -316,4 +325,5 @@ export async function fetchMeteoraDlmmPairByMints(
   }
 
   return normalizePair(chosen);
+  }, { ttlMs: 30_000, rateLimiter: rateLimiters.meteoraDlmm });
 }
