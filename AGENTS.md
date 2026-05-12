@@ -46,14 +46,83 @@ Next.js 16 application for tidepool scanning and risk analysis.
   - Token metadata: `https://tokens.jup.ag/token/<mint>`
   - Price: `https://api.jup.ag/price/v2?ids=<mint>`
 - **Solana RPC**: Used in `src/lib/providers.ts` for on-chain mint account data.
-  - Env override: `SOLANA_RPC_URL` or `NEXT_PUBLIC_SOLANA_RPC_URL`
+  - RPC rotation: `getNextRpcUrl()` round-robins across `SOLANA_RPC_URL` → `NEXT_PUBLIC_SOLANA_RPC_URL` → `SOLANA_RPC_URLS` (comma-separated list) → public fallback.
   - Default fallback: `https://api.mainnet-beta.solana.com`
 - **Solana program IDs**: Defined in `src/lib/solana-programs.ts` for SPL Token and Token-2022 account checks.
   - SPL Token: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`
   - Token-2022: `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`
-- **Birdeye API** (`https://public-api.birdeye.so`): Used in `src/lib/providers-ohlcv.ts` for token price history (OHLCV) at 1m/5m/15m/1h/4h/1d timeframes. Endpoint: `GET /defi/history_price?address=<mint>&type=<timeframe>&time_from=<unix>&time_to=<unix>`. Requires `BIRDEYE_API_KEY` header and `x-chain: solana`. Implements retry with exponential backoff on 429 rate limits. Gracefully degrades (omits indicators) when the key is missing.
+- **Birdeye API** (`https://public-api.birdeye.so`): Used in `src/lib/providers-ohlcv.ts` for token price history (OHLCV) at 1m/5m/15m/1h/4h/1d timeframes. Endpoint: `GET /defi/history_price?address=<mint>&type=<timeframe>&time_from=<unix>&time_to=<unix>`. Requires `BIRDEYE_API_KEY` header and `x-chain: solana`. Implements retry with exponential backoff on 429 rate limits. Uses the shared cache (`src/lib/cache.ts`) instead of local Maps. Gracefully degrades (omits indicators) when the key is missing.
 
 The app does not use Solana or Meteora SDK packages. It calls these services with native `fetch` and a small JSON-RPC helper.
+
+## Provider Infrastructure & Caching
+
+All 3rd-party fetches now pass through a shared caching, deduplication, and rate-limiting layer. When working on provider code, route code, or tests, keep these patterns in mind.
+
+### Infrastructure Files
+
+| File | Purpose |
+|------|---------|
+| `src/lib/cache.ts` | Unified cache interface. `cache.get<T>(key)` / `cache.set(key, value, ttlMs)`. Auto-detects Upstash Redis when `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are set; otherwise falls back to `MemoryCache` (in-memory Map with TTL). Cache errors are silently swallowed — the app never crashes if Redis is unavailable. |
+| `src/lib/dedup.ts` | In-flight request deduplication. `dedup(key, factory, ttlMs)` ensures identical concurrent requests share one promise. Default window is 5s. `clearDedup()` is exported for test use. |
+| `src/lib/rate-limit.ts` | Token bucket rate limiters per provider. `rateLimiters.dexscreener`, `.rugcheck`, `.jupiter`, `.solanaRpc`, `.meteoraDlmm`, `.birdeye`. Call `await rateLimiter.acquire()` before the fetch. |
+| `src/lib/fetch-guard.ts` | `cacheFirst(key, factory, options)` — the standard pattern for wrapping a provider fetch. It does: cache hit → dedup → rate limit → execute → cache set. Use this for all new provider fetchers. |
+| `src/lib/api-cache.ts` | HTTP `Cache-Control` helpers. `cacheableJson(data, maxAge, staleWhileRevalidate)` returns a `Response` with `public, s-maxage=N, stale-while-revalidate=M`. All API route success responses should use this instead of `Response.json()`. |
+
+### Wrapping a New Provider Fetch
+
+The standard pattern is:
+
+```typescript
+import { cacheFirst } from "@/lib/fetch-guard";
+import { rateLimiters } from "@/lib/rate-limit";
+
+export async function fetchMyProvider(mint: string): Promise<MyData> {
+  return cacheFirst(
+    `myprovider:${mint}`,
+    async () => {
+      await rateLimiters.myprovider.acquire();
+      const res = await fetch(...);
+      return parseResult(res);
+    },
+    { ttlMs: 30_000 }
+  );
+}
+```
+
+### Cache Key Naming Convention
+
+Use provider-prefixed keys to avoid collisions:
+
+- DexScreener: `dexscreener:${mint}`
+- RugCheck: `rugcheck:${mint}`
+- Jupiter: `jupiter:${mint}`
+- Solana RPC: `solana:rpc:${mint}`
+- Meteora pool: `meteora:pool:${address}`
+- Meteora pools by mint: `meteora:pools:${mint}`
+- Meteora new pools: `meteora:new:${page}:${pageSize}`
+- Meteora pair by mints: `meteora:pair:${sortedA}:${sortedB}`
+- Birdeye OHLCV: `birdeye:${mint}:${timeframe}:${periods}`
+- Meteora OHLCV: `meteora:ohlcv:${pool}:${timeframe}:${periods}`
+
+### API Route Cache Headers
+
+All success responses in API routes use `cacheableJson` from `@/lib/api-cache` with these TTLs:
+
+- `/api/scan`: 15s max-age, 60s stale-while-revalidate
+- `/api/scan/pair`: 10s max-age, 30s stale-while-revalidate
+- `/api/scan/pools`: 15s max-age, 60s stale-while-revalidate
+- `/api/pools/new`: 10s max-age, 30s stale-while-revalidate
+- `/api/resolve-address`: 15s max-age, 60s stale-while-revalidate
+- `/api/indicators`: 20s max-age, 60s stale-while-revalidate
+
+Error responses continue to use `Response.json()` or `apiErrorResponse()` without cache headers.
+
+### Testing
+
+`vitest.setup.ts` clears both `cache` and `dedup` before each test. When adding new tests that exercise cached providers, you do not need to manually clear cache state — the setup file handles it.
+
+If a test file previously called `clearIndicatorResponseCache()`, that function is now a no-op (the local response cache was removed in favor of provider-level caching). The test setup file ensures a clean state for all tests.
 
 ## Detailed Instructions
 

@@ -66,6 +66,17 @@ Tidepool collects live data from public services:
 
 If a source is slow or unavailable, Tidepool still shows what it can and lists the source status in the report.
 
+## Scaling & Rate Limiting
+
+Tidepool implements a 4-layer defense to protect against API rate limits when scaling to many concurrent users:
+
+1. **Provider-level caching** — Every 3rd-party API response is cached with a TTL tuned to the data type (token prices 15s, pool data 15s, risk scores 60s). This means 1,000 users scanning the same token share one set of API calls rather than firing 4,000 requests.
+2. **Request deduplication** — Identical concurrent requests within a 5-second window share one underlying promise. This prevents "thundering herd" problems.
+3. **Token bucket rate limiting** — Each provider has a dedicated rate limiter that smooths outgoing request bursts proactively, preventing 429 errors before they happen.
+4. **CDN edge caching** — Success responses carry `Cache-Control` headers. Vercel's Edge Network serves cached responses directly for 10–20 seconds, absorbing repeated views and refreshes without hitting your server.
+
+By default, caching uses an in-memory Map (per-instance). For multi-instance deployments, set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to share cache globally across all serverless functions.
+
 ## Running Tidepool Locally
 
 This section is for people who want to run the app on their own computer.
@@ -93,6 +104,8 @@ This section is for people who want to run the app on their own computer.
    ```
 
 Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RPC_URL` or `SOLANA_RPC_URL` if you want to use your own Solana RPC endpoint. You can also set `BIRDEYE_API_KEY` if you want SMA indicators on pool scans. Without it, pool scans still work but indicators are omitted.
+
+For production deployments expecting significant traffic, set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to enable shared caching across all serverless instances. You can also set `SOLANA_RPC_URLS` (comma-separated) to rotate across multiple RPC endpoints for resilience.
 
 ## Project Notes
 
