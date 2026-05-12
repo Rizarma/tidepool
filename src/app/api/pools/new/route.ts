@@ -7,6 +7,7 @@
 import { fetchMeteoraDlmmNewPools } from "@/lib/providers-dlmm";
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
+import { cacheableJson } from "@/lib/api-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,13 +29,13 @@ export async function GET(): Promise<Response> {
 
     const { pools, total, pages } = result.value.data;
 
-    return Response.json({
+    return cacheableJson({
       pools,
       total,
       pages,
       source,
       fetchedAt: new Date().toISOString(),
-    });
+    }, 10, 30);
   } catch (err) {
     console.error("Unhandled new pools error", err);
     return apiErrorResponse(

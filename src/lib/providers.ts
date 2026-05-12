@@ -13,6 +13,8 @@ import {
   rpcCall,
 } from "@/lib/provider-parsing";
 import { isTokenProgram } from "@/lib/solana-programs";
+import { cacheFirst } from "@/lib/fetch-guard";
+import { rateLimiters } from "@/lib/rate-limit";
 
 // ─── DexScreener ─────────────────────────────────────────────────────────────
 
@@ -30,6 +32,7 @@ export interface DexScreenerResult {
 }
 
 export async function fetchDexScreener(mint: string): Promise<DexScreenerResult> {
+  return cacheFirst(`dexscreener:${mint}`, async () => {
   const data = await fetchJson(
     `https://api.dexscreener.com/latest/dex/tokens/${mint}`,
   );
@@ -78,6 +81,7 @@ export async function fetchDexScreener(mint: string): Promise<DexScreenerResult>
     symbol: toString(prop(baseToken, "symbol")) ?? undefined,
     imageUrl: toString(prop(pair, "info", "imageUrl")) ?? undefined,
   };
+  }, { ttlMs: 30_000, rateLimiter: rateLimiters.dexscreener });
 }
 
 // ─── RugCheck ────────────────────────────────────────────────────────────────
@@ -91,6 +95,7 @@ export interface RugCheckResult {
 }
 
 export async function fetchRugCheck(mint: string): Promise<RugCheckResult> {
+  return cacheFirst(`rugcheck:${mint}`, async () => {
   const data = await fetchJson(
     `https://api.rugcheck.xyz/v1/tokens/${mint}/report`,
   );
@@ -130,6 +135,7 @@ export async function fetchRugCheck(mint: string): Promise<RugCheckResult> {
     warnings: risks,
     dangers,
   };
+  }, { ttlMs: 60_000, rateLimiter: rateLimiters.rugcheck });
 }
 
 // ─── Jupiter ─────────────────────────────────────────────────────────────────
@@ -144,6 +150,7 @@ export interface JupiterResult {
 }
 
 export async function fetchJupiter(mint: string): Promise<JupiterResult> {
+  return cacheFirst(`jupiter:${mint}`, async () => {
   // Fetch token info from Jupiter strict list API and price in parallel
   const [tokenInfoRes, priceRes] = await Promise.allSettled([
     fetchJson(`https://tokens.jup.ag/token/${mint}`),
@@ -172,6 +179,7 @@ export async function fetchJupiter(mint: string): Promise<JupiterResult> {
   }
 
   return result;
+  }, { ttlMs: 15_000, rateLimiter: rateLimiters.jupiter });
 }
 
 // ─── Solana RPC ──────────────────────────────────────────────────────────────
@@ -244,11 +252,38 @@ function encodeBase58(bytes: Uint8Array): string {
   return str || "1";
 }
 
+// ─── RPC URL Rotation ────────────────────────────────────────────────────────
+
+function getRpcUrls(): string[] {
+  const urls: string[] = [];
+
+  // Primary env vars (backward compatible)
+  const primary = process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+  if (primary) urls.push(primary);
+
+  // Fallback list (comma-separated)
+  const fallbackList = process.env.SOLANA_RPC_URLS;
+  if (fallbackList) {
+    urls.push(...fallbackList.split(",").map((u) => u.trim()).filter(Boolean));
+  }
+
+  // Default public RPC
+  urls.push("https://api.mainnet-beta.solana.com");
+
+  return urls;
+}
+
+let rpcIndex = 0;
+function getNextRpcUrl(): string {
+  const urls = getRpcUrls();
+  const url = urls[rpcIndex % urls.length];
+  rpcIndex++;
+  return url;
+}
+
 export async function fetchSolanaRpc(mint: string): Promise<SolanaRpcResult> {
-  const rpcUrl =
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ||
-    process.env.SOLANA_RPC_URL ||
-    "https://api.mainnet-beta.solana.com";
+  return cacheFirst(`solana:rpc:${mint}`, async () => {
+  const rpcUrl = getNextRpcUrl();
 
   // getAccountInfo with base64 encoding
   const raw = await rpcCall("getAccountInfo", [mint, { encoding: "base64" }], rpcUrl);
@@ -283,4 +318,5 @@ export async function fetchSolanaRpc(mint: string): Promise<SolanaRpcResult> {
   if (!parsed) throw new Error("Failed to parse mint layout");
 
   return { ...parsed, tokenProgram };
+  }, { ttlMs: 60_000, rateLimiter: rateLimiters.solanaRpc });
 }

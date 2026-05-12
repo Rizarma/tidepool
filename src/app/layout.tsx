@@ -13,8 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: process.env.NEXT_PUBLIC_SITE_URL
+    ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
+    : undefined,
   title: "Tidepool | Solana Token Scanner",
   description: "Advanced risk and security screening for Solana tokens",
+  openGraph: {
+    title: "Tidepool | Solana Token Scanner",
+    description: "Advanced risk and security screening for Solana tokens",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

@@ -8,6 +8,8 @@
 
 import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
+import { cacheFirst } from "@/lib/fetch-guard";
+import { rateLimiters } from "@/lib/rate-limit";
 import type { DlmmPairInfo } from "@/lib/types";
 
 const BIRDEYE_BASE_URL = "https://public-api.birdeye.so";
@@ -67,32 +69,8 @@ function toBirdeyeTimeframe(tf: string): string {
   return BIRDEYE_TIMEFRAME_MAP[tf] ?? tf;
 }
 
-const birdeyeCache = new Map<string, { data: PriceHistoryResult; expiry: number }>();
-
 function birdeyeCacheKey(mint: string, timeframe: string, periods: number): string {
-  return `${mint}:${timeframe}:${periods}`;
-}
-
-function getBirdeyeCached(key: string): PriceHistoryResult | undefined {
-  const entry = birdeyeCache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiry) {
-    birdeyeCache.delete(key);
-    return undefined;
-  }
-  return entry.data;
-}
-
-function setBirdeyeCached(key: string, data: PriceHistoryResult, timeframe: string): void {
-  const ttl = BIRDEYE_CACHE_TTL_MS[timeframe] ?? 60_000;
-  birdeyeCache.set(key, { data, expiry: Date.now() + ttl });
-}
-
-function purgeBirdeyeCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of birdeyeCache) {
-    if (now > entry.expiry) birdeyeCache.delete(key);
-  }
+  return `birdeye:${mint}:${timeframe}:${periods}`;
 }
 
 function getBirdeyeApiKey(): string | undefined {
@@ -184,76 +162,73 @@ async function fetchBirdeyeTokenHistory(
     throw new Error("BIRDEYE_API_KEY is not configured");
   }
 
-  const birdeyeTf = toBirdeyeTimeframe(timeframe);
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - lookbackSeconds(timeframe, periods);
+  return cacheFirst(
+    birdeyeCacheKey(mint, timeframe, periods),
+    async () => {
+      const birdeyeTf = toBirdeyeTimeframe(timeframe);
+      const now = Math.floor(Date.now() / 1000);
+      const from = now - lookbackSeconds(timeframe, periods);
 
-  const key = birdeyeCacheKey(mint, timeframe, periods);
-  const cached = getBirdeyeCached(key);
-  if (cached) return cached;
+      const url =
+        `${BIRDEYE_BASE_URL}/defi/history_price?` +
+        `address=${encodeURIComponent(mint)}` +
+        `&type=${encodeURIComponent(birdeyeTf)}` +
+        `&time_from=${from}` +
+        `&time_to=${now}`;
 
-  if (birdeyeCache.size > 0 && birdeyeCache.size % 100 === 0) {
-    purgeBirdeyeCache();
-  }
+      let lastError: Error | undefined;
 
-  const url =
-    `${BIRDEYE_BASE_URL}/defi/history_price?` +
-    `address=${encodeURIComponent(mint)}` +
-    `&type=${encodeURIComponent(birdeyeTf)}` +
-    `&time_from=${from}` +
-    `&time_to=${now}`;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000);
 
-  let lastError: Error | undefined;
+        try {
+          const res = await fetch(url, {
+            headers: { "X-API-KEY": apiKey, "x-chain": "solana" },
+            signal: controller.signal,
+          });
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
+          const text = await res.text();
+          let json: unknown;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            const preview = text.slice(0, 300).replace(/\s+/g, " ");
+            throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          }
 
-    try {
-      const res = await fetch(url, {
-        headers: { "X-API-KEY": apiKey, "x-chain": "solana" },
-        signal: controller.signal,
-      });
+          if (!res.ok || prop(json, "success") === false) {
+            const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
+            throw new Error(errMsg);
+          }
 
-      const text = await res.text();
-      let json: unknown;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        const preview = text.slice(0, 300).replace(/\s+/g, " ");
-        throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          const result = parseBirdeyeHistory(json);
+          return result;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          const msg = lastError.message;
+          const isRateLimited =
+            msg.includes("429") ||
+            msg.toLowerCase().includes("too many requests") ||
+            msg.toLowerCase().includes("rate limit");
+          if (isRateLimited && attempt < retries) {
+            const waitMs = 2000 * Math.pow(2, attempt);
+            console.log(
+              `[Birdeye] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
+            );
+            await delay(waitMs);
+            continue;
+          }
+          throw lastError;
+        } finally {
+          clearTimeout(timer);
+        }
       }
 
-      if (!res.ok || prop(json, "success") === false) {
-        const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
-        throw new Error(errMsg);
-      }
-
-      const result = parseBirdeyeHistory(json);
-      setBirdeyeCached(key, result, timeframe);
-      return result;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      const msg = lastError.message;
-      const isRateLimited =
-        msg.includes("429") ||
-        msg.toLowerCase().includes("too many requests") ||
-        msg.toLowerCase().includes("rate limit");
-      if (isRateLimited && attempt < retries) {
-        const waitMs = 2000 * Math.pow(2, attempt);
-        console.log(
-          `[Birdeye] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
-        );
-        await delay(waitMs);
-        continue;
-      }
-      throw lastError;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  throw lastError ?? new Error("Max retries exceeded");
+      throw lastError ?? new Error("Max retries exceeded");
+    },
+    { ttlMs: BIRDEYE_CACHE_TTL_MS[timeframe] ?? 60_000, rateLimiter: rateLimiters.birdeye }
+  );
 }
 
 // ─── Meteora Provider ───────────────────────────────────────────────────────
@@ -268,32 +243,8 @@ const METEORA_CACHE_TTL_MS: Record<string, number> = {
   "24h": 7_200_000,
 };
 
-const meteoraCache = new Map<string, { data: PriceHistoryResult; expiry: number }>();
-
 function meteoraCacheKey(pool: string, timeframe: string, periods: number): string {
-  return `${pool}:${timeframe}:${periods}`;
-}
-
-function getMeteoraCached(key: string): PriceHistoryResult | undefined {
-  const entry = meteoraCache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiry) {
-    meteoraCache.delete(key);
-    return undefined;
-  }
-  return entry.data;
-}
-
-function setMeteoraCached(key: string, data: PriceHistoryResult, timeframe: string): void {
-  const ttl = METEORA_CACHE_TTL_MS[timeframe] ?? 60_000;
-  meteoraCache.set(key, { data, expiry: Date.now() + ttl });
-}
-
-function purgeMeteoraCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of meteoraCache) {
-    if (now > entry.expiry) meteoraCache.delete(key);
-  }
+  return `meteora:ohlcv:${pool}:${timeframe}:${periods}`;
 }
 
 function extractMeteoraError(raw: unknown): string | undefined {
@@ -335,71 +286,68 @@ async function fetchMeteoraOhlcv(
   periods: number,
   retries = 3,
 ): Promise<PriceHistoryResult> {
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - lookbackSeconds(timeframe, periods);
+  return cacheFirst(
+    meteoraCacheKey(poolAddress, timeframe, periods),
+    async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const from = now - lookbackSeconds(timeframe, periods);
 
-  const key = meteoraCacheKey(poolAddress, timeframe, periods);
-  const cached = getMeteoraCached(key);
-  if (cached) return cached;
+      const url =
+        `${METEORA_BASE_URL}/pools/${encodeURIComponent(poolAddress)}/ohlcv?` +
+        `timeframe=${encodeURIComponent(timeframe)}` +
+        `&start_time=${from}` +
+        `&end_time=${now}`;
 
-  if (meteoraCache.size > 0 && meteoraCache.size % 100 === 0) {
-    purgeMeteoraCache();
-  }
+      let lastError: Error | undefined;
 
-  const url =
-    `${METEORA_BASE_URL}/pools/${encodeURIComponent(poolAddress)}/ohlcv?` +
-    `timeframe=${encodeURIComponent(timeframe)}` +
-    `&start_time=${from}` +
-    `&end_time=${now}`;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000);
 
-  let lastError: Error | undefined;
+        try {
+          const res = await fetch(url, { signal: controller.signal });
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
+          const text = await res.text();
+          let json: unknown;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            const preview = text.slice(0, 300).replace(/\s+/g, " ");
+            throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          }
 
-    try {
-      const res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) {
+            const errMsg = extractMeteoraError(json) ?? `HTTP ${res.status}`;
+            throw new Error(errMsg);
+          }
 
-      const text = await res.text();
-      let json: unknown;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        const preview = text.slice(0, 300).replace(/\s+/g, " ");
-        throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          const result = parseMeteoraOhlcv(json);
+          return result;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          const msg = lastError.message;
+          const isRateLimited =
+            msg.includes("429") ||
+            msg.toLowerCase().includes("too many requests") ||
+            msg.toLowerCase().includes("rate limit");
+          if (isRateLimited && attempt < retries) {
+            const waitMs = 2000 * Math.pow(2, attempt);
+            console.log(
+              `[Meteora] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
+            );
+            await delay(waitMs);
+            continue;
+          }
+          throw lastError;
+        } finally {
+          clearTimeout(timer);
+        }
       }
 
-      if (!res.ok) {
-        const errMsg = extractMeteoraError(json) ?? `HTTP ${res.status}`;
-        throw new Error(errMsg);
-      }
-
-      const result = parseMeteoraOhlcv(json);
-      setMeteoraCached(key, result, timeframe);
-      return result;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      const msg = lastError.message;
-      const isRateLimited =
-        msg.includes("429") ||
-        msg.toLowerCase().includes("too many requests") ||
-        msg.toLowerCase().includes("rate limit");
-      if (isRateLimited && attempt < retries) {
-        const waitMs = 2000 * Math.pow(2, attempt);
-        console.log(
-          `[Meteora] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
-        );
-        await delay(waitMs);
-        continue;
-      }
-      throw lastError;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  throw lastError ?? new Error("Max retries exceeded");
+      throw lastError ?? new Error("Max retries exceeded");
+    },
+    { ttlMs: METEORA_CACHE_TTL_MS[timeframe] ?? 60_000, rateLimiter: rateLimiters.meteoraDlmm }
+  );
 }
 
 // ─── Shared Helpers ─────────────────────────────────────────────────────────
@@ -423,32 +371,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── Birdeye Pool Lookup Cache ─────────────────────────────────────────────
-// Avoids refetching the same pool multiple times when the route requests
-// multiple timeframes in a single indicator fetch cycle.
-
-interface PoolCacheEntry {
-  pair: DlmmPairInfo;
-  expiry: number;
-}
-
-const poolCache = new Map<string, PoolCacheEntry>();
-const POOL_CACHE_TTL_MS = 30_000;
-
-function getCachedPool(address: string): DlmmPairInfo | undefined {
-  const entry = poolCache.get(address);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiry) {
-    poolCache.delete(address);
-    return undefined;
-  }
-  return entry.pair;
-}
-
-function setCachedPool(address: string, pair: DlmmPairInfo): void {
-  poolCache.set(address, { pair, expiry: Date.now() + POOL_CACHE_TTL_MS });
-}
-
 // ─── Provider Implementations ───────────────────────────────────────────────
 
 const birdeyeProvider: OhlcvProvider = {
@@ -457,11 +379,7 @@ const birdeyeProvider: OhlcvProvider = {
     if (!apiKey) {
       throw new Error("BIRDEYE_API_KEY is not configured");
     }
-    let pair = getCachedPool(poolAddress);
-    if (!pair) {
-      pair = await fetchMeteoraDlmmPool(poolAddress);
-      setCachedPool(poolAddress, pair);
-    }
+    const pair = await fetchMeteoraDlmmPool(poolAddress);
     const [xHistory, yHistory] = await Promise.all([
       fetchBirdeyeTokenHistory(pair.tokenX.mint, timeframe, periods),
       fetchBirdeyeTokenHistory(pair.tokenY.mint, timeframe, periods),

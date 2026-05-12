@@ -13,6 +13,7 @@ import { buildPoolIndicatorsDirect } from "@/lib/indicators";
 import { isValidIndicatorType, getIndicator } from "@/lib/indicators/registry";
 import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
+import { cacheableJson } from "@/lib/api-cache";
 import type { IndicatorType, PoolIndicators, SourceStatus } from "@/lib/types";
 import type { OhlcvProviderName } from "@/lib/indicator-config";
 
@@ -24,52 +25,9 @@ type Timeframe = (typeof VALID_TIMEFRAMES)[number];
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// ─── API-level response cache ───────────────────────────────────────────────
-
-interface ResponseCacheEntry {
-  body: string;
-  expiry: number;
-}
-
-const responseCache = new Map<string, ResponseCacheEntry>();
-
-function responseCacheKey(
-  pool: string,
-  provider: string,
-  timeframes: string[],
-  indicators: Array<{ type: string; period: number; multiplier?: number }>,
-): string {
-  const ind = indicators
-    .map((i) => (i.multiplier !== undefined ? `${i.type}:${i.period}:${i.multiplier}` : `${i.type}:${i.period}`))
-    .join(",");
-  return `${pool}:${provider}:${timeframes.join(",")}:${ind}`;
-}
-
-function getCachedResponse(key: string): string | undefined {
-  // Purge stale entries occasionally to prevent unbounded growth
-  if (responseCache.size > 200) {
-    const now = Date.now();
-    for (const [k, entry] of responseCache) {
-      if (now > entry.expiry) responseCache.delete(k);
-    }
-  }
-
-  const entry = responseCache.get(key);
-  if (!entry) return undefined;
-  if (Date.now() > entry.expiry) {
-    responseCache.delete(key);
-    return undefined;
-  }
-  return entry.body;
-}
-
-function setCachedResponse(key: string, body: string, ttlMs: number): void {
-  responseCache.set(key, { body, expiry: Date.now() + ttlMs });
-}
-
-/** Clear the API response cache. Primarily useful in tests. */
+/** Clear the API response cache. No-op now that caching lives at the provider layer. */
 export function clearIndicatorResponseCache(): void {
-  responseCache.clear();
+  // No-op: provider-level caching and HTTP cache headers replaced the local response cache.
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -190,15 +148,6 @@ async function handleIndicators(request: Request): Promise<Response> {
     indicators.push(entry);
   }
 
-  // Check API-level cache before doing any work
-  const cacheKey = responseCacheKey(pool, providerName, timeframes, indicators);
-  const cachedBody = getCachedResponse(cacheKey);
-  if (cachedBody) {
-    return new Response(cachedBody, {
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
   // Fetch pool data to get token mints (needed for all paths)
   const poolResult = await timedFetch("meteora_dlmm", () =>
     fetchMeteoraDlmmPool(pool),
@@ -220,14 +169,10 @@ async function handleIndicators(request: Request): Promise<Response> {
 
   // If no indicators are enabled, return empty response immediately
   if (indicators.length === 0) {
-    const body = JSON.stringify({
+    return cacheableJson({
       indicators: { timeframes: [] } satisfies PoolIndicators,
       sources,
-    });
-    setCachedResponse(cacheKey, body, 20_000);
-    return new Response(body, {
-      headers: { "Content-Type": "application/json" },
-    });
+    }, 20, 60);
   }
 
   const provider = getProvider(providerName);
@@ -240,14 +185,10 @@ async function handleIndicators(request: Request): Promise<Response> {
       latencyMs: 0,
       error: sanitizeSourceError("BIRDEYE_API_KEY is not configured"),
     });
-    const body = JSON.stringify({
+    return cacheableJson({
       indicators: { timeframes: [] } satisfies PoolIndicators,
       sources,
-    });
-    setCachedResponse(cacheKey, body, 20_000);
-    return new Response(body, {
-      headers: { "Content-Type": "application/json" },
-    });
+    }, 20, 60);
   }
 
   const start = Date.now();
@@ -268,14 +209,7 @@ async function handleIndicators(request: Request): Promise<Response> {
       latencyMs,
     });
 
-    const body = JSON.stringify({ indicators: indicatorData, sources });
-    // Cache for 20s — short enough to stay fresh, long enough to absorb
-    // repeat views, refreshes, and rapid navigation.
-    setCachedResponse(cacheKey, body, 20_000);
-
-    return new Response(body, {
-      headers: { "Content-Type": "application/json" },
-    });
+    return cacheableJson({ indicators: indicatorData, sources }, 20, 60);
   } catch (err) {
     const latencyMs = Date.now() - start;
     const rawError = err instanceof Error ? err.message : String(err);
