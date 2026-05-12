@@ -8,7 +8,7 @@
 
 import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
-import { cache } from "@/lib/cache";
+import { cacheFirst } from "@/lib/fetch-guard";
 import { rateLimiters } from "@/lib/rate-limit";
 import type { DlmmPairInfo } from "@/lib/types";
 
@@ -162,74 +162,73 @@ async function fetchBirdeyeTokenHistory(
     throw new Error("BIRDEYE_API_KEY is not configured");
   }
 
-  const birdeyeTf = toBirdeyeTimeframe(timeframe);
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - lookbackSeconds(timeframe, periods);
+  return cacheFirst(
+    birdeyeCacheKey(mint, timeframe, periods),
+    async () => {
+      const birdeyeTf = toBirdeyeTimeframe(timeframe);
+      const now = Math.floor(Date.now() / 1000);
+      const from = now - lookbackSeconds(timeframe, periods);
 
-  await rateLimiters.birdeye.acquire();
+      const url =
+        `${BIRDEYE_BASE_URL}/defi/history_price?` +
+        `address=${encodeURIComponent(mint)}` +
+        `&type=${encodeURIComponent(birdeyeTf)}` +
+        `&time_from=${from}` +
+        `&time_to=${now}`;
 
-  const key = birdeyeCacheKey(mint, timeframe, periods);
-  const cached = await cache.get<PriceHistoryResult>(key);
-  if (cached) return cached;
+      let lastError: Error | undefined;
 
-  const url =
-    `${BIRDEYE_BASE_URL}/defi/history_price?` +
-    `address=${encodeURIComponent(mint)}` +
-    `&type=${encodeURIComponent(birdeyeTf)}` +
-    `&time_from=${from}` +
-    `&time_to=${now}`;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000);
 
-  let lastError: Error | undefined;
+        try {
+          const res = await fetch(url, {
+            headers: { "X-API-KEY": apiKey, "x-chain": "solana" },
+            signal: controller.signal,
+          });
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
+          const text = await res.text();
+          let json: unknown;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            const preview = text.slice(0, 300).replace(/\s+/g, " ");
+            throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          }
 
-    try {
-      const res = await fetch(url, {
-        headers: { "X-API-KEY": apiKey, "x-chain": "solana" },
-        signal: controller.signal,
-      });
+          if (!res.ok || prop(json, "success") === false) {
+            const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
+            throw new Error(errMsg);
+          }
 
-      const text = await res.text();
-      let json: unknown;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        const preview = text.slice(0, 300).replace(/\s+/g, " ");
-        throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          const result = parseBirdeyeHistory(json);
+          return result;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          const msg = lastError.message;
+          const isRateLimited =
+            msg.includes("429") ||
+            msg.toLowerCase().includes("too many requests") ||
+            msg.toLowerCase().includes("rate limit");
+          if (isRateLimited && attempt < retries) {
+            const waitMs = 2000 * Math.pow(2, attempt);
+            console.log(
+              `[Birdeye] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
+            );
+            await delay(waitMs);
+            continue;
+          }
+          throw lastError;
+        } finally {
+          clearTimeout(timer);
+        }
       }
 
-      if (!res.ok || prop(json, "success") === false) {
-        const errMsg = extractBirdeyeError(json) ?? `HTTP ${res.status}`;
-        throw new Error(errMsg);
-      }
-
-      const result = parseBirdeyeHistory(json);
-      await cache.set(key, result, BIRDEYE_CACHE_TTL_MS[timeframe] ?? 60_000);
-      return result;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      const msg = lastError.message;
-      const isRateLimited =
-        msg.includes("429") ||
-        msg.toLowerCase().includes("too many requests") ||
-        msg.toLowerCase().includes("rate limit");
-      if (isRateLimited && attempt < retries) {
-        const waitMs = 2000 * Math.pow(2, attempt);
-        console.log(
-          `[Birdeye] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
-        );
-        await delay(waitMs);
-        continue;
-      }
-      throw lastError;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  throw lastError ?? new Error("Max retries exceeded");
+      throw lastError ?? new Error("Max retries exceeded");
+    },
+    { ttlMs: BIRDEYE_CACHE_TTL_MS[timeframe] ?? 60_000, rateLimiter: rateLimiters.birdeye }
+  );
 }
 
 // ─── Meteora Provider ───────────────────────────────────────────────────────
@@ -287,69 +286,68 @@ async function fetchMeteoraOhlcv(
   periods: number,
   retries = 3,
 ): Promise<PriceHistoryResult> {
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - lookbackSeconds(timeframe, periods);
+  return cacheFirst(
+    meteoraCacheKey(poolAddress, timeframe, periods),
+    async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const from = now - lookbackSeconds(timeframe, periods);
 
-  await rateLimiters.meteoraDlmm.acquire();
+      const url =
+        `${METEORA_BASE_URL}/pools/${encodeURIComponent(poolAddress)}/ohlcv?` +
+        `timeframe=${encodeURIComponent(timeframe)}` +
+        `&start_time=${from}` +
+        `&end_time=${now}`;
 
-  const key = meteoraCacheKey(poolAddress, timeframe, periods);
-  const cached = await cache.get<PriceHistoryResult>(key);
-  if (cached) return cached;
+      let lastError: Error | undefined;
 
-  const url =
-    `${METEORA_BASE_URL}/pools/${encodeURIComponent(poolAddress)}/ohlcv?` +
-    `timeframe=${encodeURIComponent(timeframe)}` +
-    `&start_time=${from}` +
-    `&end_time=${now}`;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000);
 
-  let lastError: Error | undefined;
+        try {
+          const res = await fetch(url, { signal: controller.signal });
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
+          const text = await res.text();
+          let json: unknown;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            const preview = text.slice(0, 300).replace(/\s+/g, " ");
+            throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          }
 
-    try {
-      const res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) {
+            const errMsg = extractMeteoraError(json) ?? `HTTP ${res.status}`;
+            throw new Error(errMsg);
+          }
 
-      const text = await res.text();
-      let json: unknown;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        const preview = text.slice(0, 300).replace(/\s+/g, " ");
-        throw new Error(`Invalid JSON (status: ${res.status}, preview: ${preview})`);
+          const result = parseMeteoraOhlcv(json);
+          return result;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          const msg = lastError.message;
+          const isRateLimited =
+            msg.includes("429") ||
+            msg.toLowerCase().includes("too many requests") ||
+            msg.toLowerCase().includes("rate limit");
+          if (isRateLimited && attempt < retries) {
+            const waitMs = 2000 * Math.pow(2, attempt);
+            console.log(
+              `[Meteora] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
+            );
+            await delay(waitMs);
+            continue;
+          }
+          throw lastError;
+        } finally {
+          clearTimeout(timer);
+        }
       }
 
-      if (!res.ok) {
-        const errMsg = extractMeteoraError(json) ?? `HTTP ${res.status}`;
-        throw new Error(errMsg);
-      }
-
-      const result = parseMeteoraOhlcv(json);
-      await cache.set(key, result, METEORA_CACHE_TTL_MS[timeframe] ?? 60_000);
-      return result;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      const msg = lastError.message;
-      const isRateLimited =
-        msg.includes("429") ||
-        msg.toLowerCase().includes("too many requests") ||
-        msg.toLowerCase().includes("rate limit");
-      if (isRateLimited && attempt < retries) {
-        const waitMs = 2000 * Math.pow(2, attempt);
-        console.log(
-          `[Meteora] Rate limited on ${timeframe}, retrying in ${waitMs}ms (attempt ${attempt + 1}/${retries})`,
-        );
-        await delay(waitMs);
-        continue;
-      }
-      throw lastError;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  throw lastError ?? new Error("Max retries exceeded");
+      throw lastError ?? new Error("Max retries exceeded");
+    },
+    { ttlMs: METEORA_CACHE_TTL_MS[timeframe] ?? 60_000, rateLimiter: rateLimiters.meteoraDlmm }
+  );
 }
 
 // ─── Shared Helpers ─────────────────────────────────────────────────────────
