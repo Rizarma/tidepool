@@ -3,11 +3,19 @@
  *
  * Prevents burst requests that trigger 3rd-party rate limits.
  * Each provider gets its own bucket with conservative defaults.
+ *
+ * Acquisitions are serialized through a private queue so that concurrent
+ * requests cannot all calculate the same wait time and proceed together.
+ * Each waiter computes its delay based on the state left by the previous
+ * waiter, ensuring requests are spaced by 1000/refillRate ms regardless of
+ * concurrency.
  */
 
 export class TokenBucket {
   private tokens: number;
   private lastRefill: number;
+  private queue: Array<{ count: number; resolve: () => void }> = [];
+  private processing = false;
 
   constructor(
     private capacity: number,
@@ -19,28 +27,65 @@ export class TokenBucket {
 
   /**
    * Acquire the requested number of tokens, waiting if necessary.
+   *
+   * Requests are queued and processed one at a time to prevent the
+   * thundering-herd race condition where multiple waiters all wake up
+   * together and consume tokens in a burst.
    */
   async acquire(count = 1): Promise<void> {
-    const now = Date.now();
-    const elapsedSeconds = (now - this.lastRefill) / 1000;
-    this.tokens = Math.min(
-      this.capacity,
-      this.tokens + elapsedSeconds * this.refillRatePerSecond,
-    );
-    this.lastRefill = now;
+    return new Promise((resolve) => {
+      this.queue.push({ count, resolve });
+      if (!this.processing) {
+        this.processing = true;
+        this.processQueue();
+      }
+    });
+  }
 
-    if (this.tokens >= count) {
-      this.tokens -= count;
-      return;
+  private async processQueue(): Promise<void> {
+    while (this.queue.length > 0) {
+      const { count, resolve } = this.queue.shift()!;
+
+      // Refill tokens based on actual elapsed time since last check
+      const now = Date.now();
+      const elapsedSeconds = Math.max(0, (now - this.lastRefill) / 1000);
+      this.tokens = Math.min(
+        this.capacity,
+        this.tokens + elapsedSeconds * this.refillRatePerSecond,
+      );
+      this.lastRefill = now;
+
+      // Fast path: enough tokens are available right now
+      if (this.tokens >= count) {
+        this.tokens -= count;
+        resolve();
+        continue;
+      }
+
+      // Slow path: we need to wait for tokens to refill.
+      // Calculate the exact wait time, round up to ensure we never
+      // proceed before the bucket has actually refilled enough.
+      const deficit = count - this.tokens;
+      const waitMs = Math.ceil((deficit / this.refillRatePerSecond) * 1000);
+
+      await new Promise((r) => setTimeout(r, waitMs));
+
+      // After waiting, recalculate tokens based on the actual elapsed
+      // time (setTimeout may fire a few ms early or late).
+      const afterWait = Date.now();
+      const actualElapsed = Math.max(0, (afterWait - this.lastRefill) / 1000);
+      this.tokens = Math.min(
+        this.capacity,
+        this.tokens + actualElapsed * this.refillRatePerSecond,
+      );
+      this.lastRefill = afterWait;
+
+      // Consume the tokens we waited for. Clamp to 0 in the extremely
+      // rare case setTimeout fired so early we fell slightly short.
+      this.tokens = Math.max(0, this.tokens - count);
+      resolve();
     }
-
-    const deficit = count - this.tokens;
-    const waitMs = (deficit / this.refillRatePerSecond) * 1000;
-    this.tokens = 0;
-
-    if (waitMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-    }
+    this.processing = false;
   }
 }
 
