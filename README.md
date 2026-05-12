@@ -103,7 +103,9 @@ This section is for people who want to run the app on their own computer.
    pnpm build
    ```
 
-Tidepool uses public data sources by default. You can set `NEXT_PUBLIC_SOLANA_RPC_URL` or `SOLANA_RPC_URL` if you want to use your own Solana RPC endpoint. You can also set `BIRDEYE_API_KEY` if you want SMA indicators on pool scans. Without it, pool scans still work but indicators are omitted.
+Tidepool uses public data sources by default. You can set `SOLANA_RPC_URL` (server-side only) if you want to use your own Solana RPC endpoint. You can also set `BIRDEYE_API_KEY` if you want SMA indicators on pool scans. Without it, pool scans still work but indicators are omitted.
+
+> ⚠️ **Security note:** `NEXT_PUBLIC_SOLANA_RPC_URL` is exposed to the client-side JavaScript bundle. Never put private RPC URLs with API keys (e.g. Helius, QuickNode, Alchemy) into a `NEXT_PUBLIC_*` variable — anyone can read them in the browser dev tools. Use `SOLANA_RPC_URL` or `SOLANA_RPC_URLS` for private endpoints.
 
 For production deployments expecting significant traffic, set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to enable shared caching across all serverless instances. You can also set `SOLANA_RPC_URLS` (comma-separated) to rotate across multiple RPC endpoints for resilience.
 
@@ -217,6 +219,8 @@ Vercel Dashboard → Your Project → Settings → Environment Variables:
 | `UPSTASH_REDIS_REST_TOKEN` | Your token | Production |
 
 **Do not set `UPSTASH_REDIS_REST_URL` in preview/development** unless you want those environments sharing production cache.
+
+> ⚠️ **Security note:** `NEXT_PUBLIC_SOLANA_RPC_URL` is exposed to the client bundle. Only use it for truly public endpoints. Private RPCs with API keys must go in `SOLANA_RPC_URL` or `SOLANA_RPC_URLS`.
 
 ### Step 7: Deploy
 
