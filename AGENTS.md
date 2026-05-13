@@ -22,16 +22,40 @@ Next.js 16 application for tidepool scanning and risk analysis.
 - Token-mint pool discovery uses `GET /api/scan/pools?mint=<mint>` and Meteora `GET /pools?query=<mint>`, then exact-filters token X/Y mint matches and sorts pools by TVL, then 24h volume.
 - Address intelligence lives at `GET /api/resolve-address?address=<address>` and can report `direct_pool_scan`, `pool_discovery`, `token_scan`, or `none`.
 - Keep token scans and pool scans conceptually separate: Token mode checks token risk; Pool mode checks Meteora DLMM pool data.
-- The homepage shows a live **New Pairs table** of recently created Meteora DLMM pools via `GET /api/pools/new`. Clicking a pool row triggers `scanPool(address)` and renders the pool report.
+- The homepage shows a live **New Pairs table** of recently created Meteora DLMM pools via `GET /api/pools/new`. Clicking a pool row navigates to `/pool/<address>` via `router.push()`.
 - `GET /api/pools/new` proxies Meteora's new-pools endpoint and returns `{ pools: DlmmPairInfo[], total, pages }` with `createdAt` populated from `pool.created_at`.
 - The New Pairs table supports periodic auto-refresh (60s interval, 15s cooldown). Toggle state and countdown are persisted in `localStorage` with keys `tidepool_auto_refresh` and `tidepool_last_fetched_at`.
-- The Tidepool logo button calls `clearScan()` which returns to the New Pairs table while preserving the search bar inputs.
+- The Tidepool logo button navigates to `/` via `router.push('/')`, returning to the New Pairs table. Command bar inputs are persisted in `localStorage` via lazy `useState` initializers in `RouteScanForm.tsx`.
 - Pool reports include configurable technical indicators (SMA) fetched from a separate endpoint `GET /api/indicators?pool=<address>&timeframes=1m,5m,15m&indicators=sma:20`. This is separate from the pool scan so indicator latency does not block pool data.
 - The indicators subsystem lives in `src/components/indicators/` (UI: `IndicatorsPanel`, `IndicatorBottomBar`, `IndicatorSettings`, `IndicatorConfigContext`), `src/lib/indicators/` (math + registry), `src/lib/providers-ohlcv.ts` (Birdeye fetcher), and `src/lib/indicator-config.ts` (config types + localStorage helpers).
 - Adding a new indicator type requires a single entry in `src/lib/indicators/registry.ts` — no other files need changes.
 - Pool price ratios for indicators are computed as `tokenX_USD / tokenY_USD` at matching timestamps from Birdeye price histories.
 - Indicator config is persisted in `localStorage` under key `tidepool_indicator_config`.
 - `IndicatorSettings.tsx` uses local draft state — changes only apply on the "Apply" button click. Do not change this to immediate apply.
+
+### App Router Routes
+
+The app uses Next.js 16 App Router with segmented routes. The root `layout.tsx` renders `AppShell` (a `"use client"` component) which wraps every page with the persistent command bar, indicator provider, and bottom bar.
+
+**Route structure:**
+- `/` — Homepage: `page.tsx` (Server Component) renders `HomePageView` (Client Component, wrapped in `<Suspense>`). `/?mode=token` shows token `EmptyState`.
+- `/pool/[address]` — Pool scan: `page.tsx` exports metadata, renders `PoolRouteView` (Client Component with `key={address}` for remounts). Fetches `/api/scan/pair?pool=<address>`. On `ApiFetchError.code === "NO_DATA_FOUND"` (status 404), falls back to `fetchPoolDiscovery(address)` and `router.replace('/discover/...')`.
+- `/token/[mint]` — Token scan: `page.tsx` exports metadata, renders `TokenRouteView`. Fetches `/api/scan?mint=<mint>`.
+- `/discover/[mint]?pool=` — Pool discovery: `page.tsx` exports metadata, renders `DiscoveryRouteView`. Fetches `/api/scan/pools?mint=<mint>`. Pool selection persists via `?pool=` query param and is validated with `useMemo`.
+
+**Server/Client split pattern:**
+- `page.tsx` files are Server Components. They await `params: Promise<{...}>` (Next.js 16 style), build safe metadata, and render the Client view. **No `"use client"` in `page.tsx`.**
+- `*RouteView.tsx` files are Client Components (`"use client"`). They manage fetch state (`loading`, `error`, `report`) in `useEffect` with only async `setState` inside Promise callbacks (no synchronous `setState` in effect bodies, per the `react-hooks/set-state-in-effect` lint rule). They render their own `LoadingState` and error UIs. Route-level `loading.tsx`/`error.tsx` are shell/module fallbacks only.
+
+**Key files:**
+- `src/app/AppShell.tsx` — Persistent shell with `IndicatorConfigProvider`, `RouteScanForm`, `IndicatorBottomBar`
+- `src/components/scan/RouteScanForm.tsx` — Route-aware command bar. Derives mode from `pathname`/`searchParams`. Uses lazy `useState` initializers for `localStorage` restore (no sync `setState` in effects). On `/`, mode toggle updates URL (`/?mode=token` or `/`). On report routes, mode toggle only affects local state via `setMode()`.
+- `src/lib/report-fetchers.ts` — `ApiFetchError` extends Error with `{ code?: ApiErrorCode; status: number; body?: unknown }`. Typed helpers: `fetchPoolReport`, `fetchTokenReport`, `fetchPoolDiscovery`, `fetchPoolByMints`.
+
+**Deleted SPA files (do not reference or re-create):**
+- `src/components/scan/ScanClient.tsx`
+- `src/components/scan/useScanController.ts`
+- `src/components/scan/ScanForm.tsx`
 
 ## External Services and APIs
 

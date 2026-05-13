@@ -1,59 +1,156 @@
 "use client";
 
-import type { FormEvent, RefObject } from "react";
-import type { PairInputMode, ScanMode, ScanReport } from "@/lib/api-types";
+import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import type { ScanMode, PairInputMode } from "@/lib/api-types";
 import { SCAN_EXAMPLES } from "./examples";
 
-export interface ScanFormProps {
-  mode: ScanMode;
-  setMode: (mode: ScanMode) => void;
-  pairInputMode: PairInputMode;
-  setPairInputMode: (mode: PairInputMode) => void;
-  mint: string;
-  setMint: (value: string) => void;
-  poolAddress: string;
-  setPoolAddress: (value: string) => void;
-  mintA: string;
-  setMintA: (value: string) => void;
-  mintB: string;
-  setMintB: (value: string) => void;
-  loading: boolean;
-  report: ScanReport | null;
-  error: string | null;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  scanToken: (mint: string) => Promise<void>;
-  onGoHome: () => void;
-  poolInputRef: RefObject<HTMLInputElement | null>;
-}
+// localStorage keys for input persistence
+const LS_MINT = "tidepool_last_mint";
+const LS_POOL = "tidepool_last_pool";
+const LS_MINTA = "tidepool_last_minta";
+const LS_MINTB = "tidepool_last_mintb";
+const LS_PAIR_MODE = "tidepool_last_pair_mode";
 
-export function ScanForm({
-  mode,
-  setMode,
-  pairInputMode,
-  setPairInputMode,
-  mint,
-  setMint,
-  poolAddress,
-  setPoolAddress,
-  mintA,
-  setMintA,
-  mintB,
-  setMintB,
-  loading,
-  report,
-  error,
-  onSubmit,
-  scanToken,
-  onGoHome,
-  poolInputRef,
-}: ScanFormProps) {
+export function RouteScanForm() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Derive mode from route (local state allows override on report routes)
+  const isHome = pathname === "/";
+  const [mode, setMode] = useState<ScanMode>(() => {
+    if (typeof window === "undefined") return "pair";
+    if (pathname === "/") return searchParams.get("mode") === "token" ? "token" : "pair";
+    if (pathname.startsWith("/token")) return "token";
+    return "pair";
+  });
+
+  // Local input state — restored lazily from localStorage on first render
+  const [mint, setMint] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_MINT) ?? "";
+  });
+  const [poolAddress, setPoolAddress] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_POOL) ?? "";
+  });
+  const [mintA, setMintA] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_MINTA) ?? "";
+  });
+  const [mintB, setMintB] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(LS_MINTB) ?? "";
+  });
+  const [pairInputMode, setPairInputMode] = useState<PairInputMode>(() => {
+    if (typeof window === "undefined") return "pool";
+    const saved = localStorage.getItem(LS_PAIR_MODE);
+    return saved === "mints" ? "mints" : "pool";
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const poolInputRef = useRef<HTMLInputElement>(null);
+
+  // Persist to localStorage
+  useEffect(() => { localStorage.setItem(LS_MINT, mint); }, [mint]);
+  useEffect(() => { localStorage.setItem(LS_POOL, poolAddress); }, [poolAddress]);
+  useEffect(() => { localStorage.setItem(LS_MINTA, mintA); }, [mintA]);
+  useEffect(() => { localStorage.setItem(LS_MINTB, mintB); }, [mintB]);
+  useEffect(() => { localStorage.setItem(LS_PAIR_MODE, pairInputMode); }, [pairInputMode]);
+
+  // Keyboard shortcut: `/` focuses pool input
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "/" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault();
+        poolInputRef.current?.focus();
+        if (isHome && mode === "token") {
+          router.replace("/");
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isHome, mode, router]);
+
+  const handleModeToggle = useCallback((newMode: ScanMode) => {
+    if (isHome) {
+      if (newMode === "token") {
+        router.replace("/?mode=token");
+      } else {
+        router.replace("/");
+      }
+    }
+    setMode(newMode);
+  }, [isHome, router]);
+
+  const handleSubmit = useCallback((e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+
+    if (mode === "token") {
+      const trimmed = mint.trim();
+      if (!trimmed) {
+        setError("Enter a token mint address");
+        return;
+      }
+      router.push(`/token/${encodeURIComponent(trimmed)}`);
+      return;
+    }
+
+    // pair mode
+    if (pairInputMode === "pool") {
+      const trimmed = poolAddress.trim();
+      if (!trimmed) {
+        setError("Enter a pool or token address");
+        return;
+      }
+      router.push(`/pool/${encodeURIComponent(trimmed)}`);
+      return;
+    }
+
+    // mints mode — fetch first, then navigate
+    const a = mintA.trim();
+    const b = mintB.trim();
+    if (!a || !b) {
+      setError("Enter both mint addresses");
+      return;
+    }
+
+    setLoading(true);
+    import("@/lib/report-fetchers").then(({ fetchPoolByMints }) => {
+      fetchPoolByMints(a, b)
+        .then((report) => {
+          if (report.kind === "pair" && report.pair?.poolAddress) {
+            router.push(`/pool/${encodeURIComponent(report.pair.poolAddress)}`);
+          } else {
+            setError("Could not find a pool for these mints");
+          }
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : "Failed to find pool");
+        })
+        .finally(() => setLoading(false));
+    });
+  }, [mode, mint, poolAddress, mintA, mintB, pairInputMode, router]);
+
+  const handleExampleClick = useCallback((exampleMint: string) => {
+    router.push(`/token/${encodeURIComponent(exampleMint)}`);
+  }, [router]);
+
+  const handleGoHome = useCallback(() => {
+    router.push("/");
+  }, [router]);
+
   return (
     <header className="shrink-0 border-b border-[var(--panel-border)] bg-[var(--panel-bg)]">
       <div className="flex items-center gap-3 px-3 py-2 xl:px-4">
         {/* Brand */}
         <button
           type="button"
-          onClick={onGoHome}
+          onClick={handleGoHome}
           className="flex items-center gap-2 shrink-0 cursor-pointer group"
           aria-label="Go to homepage"
         >
@@ -71,7 +168,7 @@ export function ScanForm({
         <div className="flex items-center rounded border border-[var(--panel-border)] bg-[var(--background)] p-0.5" role="group" aria-label="Scan mode">
           <button
             type="button"
-            onClick={() => setMode("pair")}
+            onClick={() => handleModeToggle("pair")}
             aria-pressed={mode === "pair"}
             className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
               mode === "pair"
@@ -83,7 +180,7 @@ export function ScanForm({
           </button>
           <button
             type="button"
-            onClick={() => setMode("token")}
+            onClick={() => handleModeToggle("token")}
             aria-pressed={mode === "token"}
             className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
               mode === "token"
@@ -95,8 +192,8 @@ export function ScanForm({
           </button>
         </div>
 
-        {/* Scan form inline */}
-        <form onSubmit={onSubmit} className="flex flex-1 items-center justify-center gap-2 min-w-0" aria-label="Scan address form">
+        {/* Scan form */}
+        <form onSubmit={handleSubmit} className="flex flex-1 items-center justify-center gap-2 min-w-0" aria-label="Scan address form">
           {mode === "token" ? (
             <AddressInput
               id="mint"
@@ -166,7 +263,7 @@ export function ScanForm({
                 <button
                   key={ex.mint}
                   type="button"
-                  onClick={() => void scanToken(ex.mint)}
+                  onClick={() => handleExampleClick(ex.mint)}
                   className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-300"
                 >
                   {ex.label}
@@ -179,9 +276,9 @@ export function ScanForm({
         {/* Status indicator */}
         <div className="h-5 w-px bg-[var(--panel-border)] shrink-0 hidden sm:block" />
         <div className="hidden sm:flex items-center gap-1.5 shrink-0" role="status" aria-live="polite">
-          <span className={`inline-block size-1.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : report ? "bg-emerald-400" : "bg-zinc-600"}`} />
+          <span className={`inline-block size-1.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-zinc-600"}`} />
           <span className="text-[10px] text-zinc-500">
-            {loading ? "Scanning" : report ? "Ready" : "Idle"}
+            {loading ? "Scanning" : "Idle"}
           </span>
         </div>
       </div>
@@ -205,7 +302,7 @@ function AddressInput({
   "aria-label": ariaLabel,
 }: {
   id: string;
-  inputRef?: RefObject<HTMLInputElement | null>;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -214,7 +311,6 @@ function AddressInput({
   async function pasteFromClipboard() {
     try {
       const clipboardText = await navigator.clipboard?.readText();
-
       if (clipboardText) {
         onChange(clipboardText.trim());
         inputRef?.current?.focus();
