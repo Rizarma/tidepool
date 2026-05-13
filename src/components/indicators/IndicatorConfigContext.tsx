@@ -39,8 +39,11 @@ export function IndicatorConfigProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    setConfig(loadConfig());
-    setIsReady(true);
+    const id = setTimeout(() => {
+      setConfig(loadConfig());
+      setIsReady(true);
+    }, 0);
+    return () => clearTimeout(id);
   }, []);
 
   const updateConfig = useCallback((partial: Partial<IndicatorConfig>) => {

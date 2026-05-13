@@ -10,7 +10,7 @@ import { isObject, prop, toNumber, toString } from "@/lib/provider-parsing";
 import { fetchMeteoraDlmmPool } from "@/lib/providers-dlmm";
 import { cacheFirst } from "@/lib/fetch-guard";
 import { rateLimiters } from "@/lib/rate-limit";
-import type { DlmmPairInfo } from "@/lib/types";
+
 
 const BIRDEYE_BASE_URL = "https://public-api.birdeye.so";
 const METEORA_BASE_URL = "https://dlmm.datapi.meteora.ag";

@@ -209,20 +209,22 @@ export function NewPairsTable({
 
     const controller = new AbortController();
     lastFetchTimeRef.current = Date.now();
-    setLoading(true);
-    setError(null);
 
-    fetch(`/api/pools/new?page=${page}&pageSize=${pageSize}`, { signal: controller.signal })
-      .then(async (res) => {
+    (async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await fetch(`/api/pools/new?page=${page}&pageSize=${pageSize}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(
             data.error?.message || `Failed to load pools (${res.status})`,
           );
         }
-        return res.json() as Promise<NewPairsResponse>;
-      })
-      .then((data) => {
+        const data = (await res.json()) as NewPairsResponse;
         const now = Date.now();
         const oneHour = 3600000;
         const ids = new Set(
@@ -235,15 +237,17 @@ export function NewPairsTable({
         setTotal(data.total);
         setNewPoolIds(ids);
         setLastFetchedAt(now);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
         setError(
           err instanceof Error ? err.message : "Failed to load new pools",
         );
-        setLoading(false);
-      });
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    })();
 
     return () => controller.abort();
   }, [tick, page, pageSize]);
@@ -298,22 +302,23 @@ export function NewPairsTable({
       document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [lastFetchedAt, autoRefresh]);
 
-  // ─── Last updated text (computed in effect, not render) ───────────────────
+  // ─── Last updated text ──────────────────────────────────────────────────────
   useEffect(() => {
-    const ts = lastFetchedAt;
-    if (!ts) {
-      return;
-    }
+    const compute = () => {
+      if (!lastFetchedAt) {
+        setLastUpdatedText(null);
+        return;
+      }
+      const diff = Date.now() - lastFetchedAt;
+      setLastUpdatedText(diff < 60000 ? "Just now" : `${formatAge(lastFetchedAt)} ago`);
+    };
 
-    function update() {
-      const diff = Date.now() - ts!;
-      const text = diff < 60000 ? "Just now" : `${formatAge(ts!)} ago`;
-      setLastUpdatedText(text);
-    }
-
-    update();
-    const id = setInterval(update, 5000);
-    return () => clearInterval(id);
+    const initId = setTimeout(compute, 0);
+    const intervalId = setInterval(compute, 5000);
+    return () => {
+      clearTimeout(initId);
+      clearInterval(intervalId);
+    };
   }, [lastFetchedAt]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────

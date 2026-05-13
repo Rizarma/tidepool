@@ -146,6 +146,10 @@ export function TablePagination({
             <span className="inline-block w-3 h-3 rounded-full border-2 border-zinc-600 border-t-zinc-300 animate-spin" />
             Loading...
           </span>
+        ) : total === 0 ? (
+          <span className="text-[11px] text-zinc-500 tabular-nums">
+            0 of 0
+          </span>
         ) : (
           <span className="text-[11px] text-zinc-500 tabular-nums">
             {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
