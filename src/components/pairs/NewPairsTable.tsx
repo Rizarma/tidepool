@@ -53,7 +53,7 @@ const sortableColumns: {
   { key: "createdAt", label: "Age", align: "right" },
 ];
 
-const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Verif.
+const TOTAL_COLUMNS = 1 + sortableColumns.length + 1; // Pair + sortable + Freeze.
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -71,14 +71,6 @@ function FreezeStatus({ token }: { token: PairToken }) {
     return <span className="text-red-400" aria-label="Freeze authority enabled">On</span>;
   }
   return <span className="text-zinc-500" aria-label="Freeze authority unknown">–</span>;
-}
-
-function VerifiedStatus({ token }: { token: PairToken }) {
-  return token.verified ? (
-    <span className="inline-flex items-center justify-center size-4 rounded bg-emerald-500/10 text-emerald-400 text-[9px]" aria-label="Verified">✓</span>
-  ) : (
-    <span className="text-zinc-600" aria-label="Not verified">–</span>
-  );
 }
 
 function VerificationDot() {
@@ -476,9 +468,6 @@ export function NewPairsTable({
                 <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
                   Freeze
                 </th>
-                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
-                  Verif.
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -622,9 +611,6 @@ export function NewPairsTable({
                     </td>
                     <td className="px-3 py-2 text-center text-xs">
                       <FreezeStatus token={getPrimaryToken(pool)} />
-                    </td>
-                    <td className="px-3 py-2 text-center text-xs">
-                      <VerifiedStatus token={getPrimaryToken(pool)} />
                     </td>
                   </tr>
                 ))

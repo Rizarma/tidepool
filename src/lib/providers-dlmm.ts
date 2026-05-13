@@ -249,7 +249,7 @@ export async function fetchMeteoraDlmmNewPools(
     page: String(page),
     page_size: String(pageSize),
     sort_by: "pool_created_at:desc",
-    filter_by: "is_blacklisted=false",
+    filter_by: "is_blacklisted=false && volume_30m>=1 && token_y=So11111111111111111111111111111111111111112",
   });
   const url = `${BASE_URL}/pools?${params.toString()}`;
   const data = await fetchJson(url);
