@@ -58,6 +58,8 @@ const sortableColumns: {
 const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Launchpad.
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
+const GMGN_REFERRAL = "yr2NU5dr";
+const LPAGENT_REFERRAL = "URq8gm4";
 
 function getPrimaryToken(pair: DlmmPairInfo): PairToken {
   if (pair.tokenX.mint === SOL_MINT) return pair.tokenY;
@@ -599,7 +601,7 @@ export function NewPairsTable({
                           Met
                         </a>
                         <a
-                          href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}`}
+                          href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}?ref=${GMGN_REFERRAL}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -641,6 +643,17 @@ export function NewPairsTable({
                           aria-label="View on Jupiter"
                         >
                           Jupiter
+                        </a>
+                        <a
+                          href={`https://app.lpagent.io/pools/${encodeURIComponent(pool.poolAddress)}?referral=${LPAGENT_REFERRAL}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
+                          title="View on LPAgent"
+                          aria-label="View on LPAgent"
+                        >
+                          LPAgent
                         </a>
                       </div>
                     </td>
