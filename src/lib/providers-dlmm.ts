@@ -355,7 +355,7 @@ export async function fetchMeteoraDlmmGroupPools(
 ): Promise<DlmmPairInfo[]> {
   const [sortedA, sortedB] = [mintA, mintB].sort();
   return cacheFirst(`meteora:group:${sortedA}:${sortedB}`, async () => {
-    const url = `${BASE_URL}/pools/groups/${sortedA}-${sortedB}?page=1&page_size=50&sort_by=tvl:desc&filter_by=is_blacklisted=false`;
+    const url = `${BASE_URL}/pools/groups/${sortedA}-${sortedB}?page=1&page_size=200&sort_by=tvl:desc&filter_by=is_blacklisted=false`;
     const data = await fetchJson(url);
 
     // Handle both { data: [...] } and array responses
