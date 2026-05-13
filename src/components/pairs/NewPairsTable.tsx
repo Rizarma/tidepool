@@ -158,8 +158,11 @@ export function NewPairsTable({
   const [countdown, setCountdown] = useState(0);
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const lastFetchTimeRef = useRef<number>(0);
+  const lastPageRef = useRef(1);
 
   // ─── Restore + persist auto-refresh preference ────────────────────────────
   useEffect(() => {
@@ -211,8 +214,11 @@ export function NewPairsTable({
 
   // ─── Fetch effect ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // Cooldown guard: skip if too soon (except initial mount tick === 0)
-    if (Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS && tick > 0) {
+    const pageChanged = page !== lastPageRef.current;
+    lastPageRef.current = page;
+
+    // Cooldown guard: skip if too soon (except initial mount or page change)
+    if (!pageChanged && Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS && tick > 0) {
       return;
     }
 
@@ -221,7 +227,7 @@ export function NewPairsTable({
     setLoading(true);
     setError(null);
 
-    fetch("/api/pools/new", { signal: controller.signal })
+    fetch(`/api/pools/new?page=${page}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -240,6 +246,7 @@ export function NewPairsTable({
             .map((p) => p.poolAddress),
         );
         setPools(data.pools);
+        setTotalPages(data.pages);
         setNewPoolIds(ids);
         setLastFetchedAt(now);
         setLoading(false);
@@ -253,7 +260,7 @@ export function NewPairsTable({
       });
 
     return () => controller.abort();
-  }, [tick]);
+  }, [tick, page]);
 
   // ─── Countdown timer ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -643,6 +650,27 @@ export function NewPairsTable({
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Pagination */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-2 border-t border-[var(--panel-border)]">
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page <= 1 || loading}
+          className="text-xs px-2.5 py-1 rounded bg-[var(--panel-bg)] border border-[var(--panel-border)] text-zinc-300 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+        >
+          Previous
+        </button>
+        <span className="text-xs text-zinc-500 tabular-nums">
+          Page {page} of {totalPages}
+        </span>
+        <button
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={page >= totalPages || loading}
+          className="text-xs px-2.5 py-1 rounded bg-[var(--panel-bg)] border border-[var(--panel-border)] text-zinc-300 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+        >
+          Next
+        </button>
       </div>
     </div>
   );

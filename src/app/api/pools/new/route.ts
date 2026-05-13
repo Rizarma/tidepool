@@ -12,9 +12,12 @@ import { cacheableJson } from "@/lib/api-cache";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   try {
-    const result = await timedFetch("meteora_dlmm", () => fetchMeteoraDlmmNewPools(20));
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get("page");
+    const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
+    const result = await timedFetch("meteora_dlmm", () => fetchMeteoraDlmmNewPools(20, page));
 
     const source = buildSourceStatus("meteora_dlmm", result);
 
