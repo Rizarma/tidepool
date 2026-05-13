@@ -68,22 +68,22 @@ export function PairReportLayout({
           }
         />
 
-        {/* 2. Pool Price */}
-        <PoolPriceBlock
-          priceTokenYPerTokenX={pair?.priceTokenYPerTokenX}
-          inversePrice={pair?.inversePrice}
-          symbolX={symbolX}
-          symbolY={symbolY}
-        />
+        {/* 2. Pool Price & External Links (sticky) */}
+        <div className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-sm border-b border-white/[0.03] py-3 space-y-2">
+          <PoolPriceBlock
+            priceTokenYPerTokenX={pair?.priceTokenYPerTokenX}
+            inversePrice={pair?.inversePrice}
+            symbolX={symbolX}
+            symbolY={symbolY}
+          />
+          <ExternalLinks
+            pair={pair}
+            gmgnMint={gmgnMint}
+            jupiterUrl={jupiterUrl}
+          />
+        </div>
 
-        {/* 3. External Links */}
-        <ExternalLinks
-          pair={pair}
-          gmgnMint={gmgnMint}
-          jupiterUrl={jupiterUrl}
-        />
-
-        {/* 4. Comparison Zone */}
+        {/* 3. Comparison Zone */}
         {normalizedPools.length > 0 && (
           <ComparisonZone
             pools={normalizedPools}
@@ -93,7 +93,7 @@ export function PairReportLayout({
           />
         )}
 
-        {/* 5. Indicators */}
+        {/* 4. Indicators */}
         {pair?.poolAddress && (
           <TerminalSection title="Indicators">
             <IndicatorsPanel
@@ -104,13 +104,13 @@ export function PairReportLayout({
           </TerminalSection>
         )}
 
-        {/* 6. Token Cards */}
+        {/* 5. Token Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
 
-        {/* 7. Ranked Pools Table */}
+        {/* 6. Ranked Pools Table */}
         {normalizedPools.length > 0 && (
           <RankedPoolsTable
             pools={normalizedPools}
@@ -120,7 +120,7 @@ export function PairReportLayout({
           />
         )}
 
-        {/* 8. Compact Footer */}
+        {/* 7. Compact Footer */}
         <CompactFooter
           pair={pair}
           tags={pair?.tags}
