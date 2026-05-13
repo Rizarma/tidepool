@@ -16,8 +16,10 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const { searchParams } = new URL(request.url);
     const pageParam = searchParams.get("page");
+    const pageSizeParam = searchParams.get("pageSize");
     const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
-    const result = await timedFetch("meteora_dlmm", () => fetchMeteoraDlmmNewPools(20, page));
+    const pageSize = pageSizeParam ? Math.max(1, Math.min(1000, parseInt(pageSizeParam, 10) || 20)) : 20;
+    const result = await timedFetch("meteora_dlmm", () => fetchMeteoraDlmmNewPools(pageSize, page));
 
     const source = buildSourceStatus("meteora_dlmm", result);
 

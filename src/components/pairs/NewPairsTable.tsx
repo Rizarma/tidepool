@@ -11,6 +11,7 @@ import {
   shortenAddress,
 } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
+import { TablePagination } from "./TablePagination";
 
 interface NewPairsResponse {
   pools: DlmmPairInfo[];
@@ -160,9 +161,12 @@ export function NewPairsTable({
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
 
   const lastFetchTimeRef = useRef<number>(0);
   const lastPageRef = useRef(1);
+  const tableBodyRef = useRef<HTMLDivElement>(null);
 
   // ─── Restore + persist auto-refresh preference ────────────────────────────
   useEffect(() => {
@@ -227,7 +231,7 @@ export function NewPairsTable({
     setLoading(true);
     setError(null);
 
-    fetch(`/api/pools/new?page=${page}`, { signal: controller.signal })
+    fetch(`/api/pools/new?page=${page}&pageSize=${pageSize}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -247,6 +251,7 @@ export function NewPairsTable({
         );
         setPools(data.pools);
         setTotalPages(data.pages);
+        setTotal(data.total);
         setNewPoolIds(ids);
         setLastFetchedAt(now);
         setLoading(false);
@@ -260,7 +265,12 @@ export function NewPairsTable({
       });
 
     return () => controller.abort();
-  }, [tick, page]);
+  }, [tick, page, pageSize]);
+
+  // ─── Scroll to top on page change ─────────────────────────────────────────
+  useEffect(() => {
+    tableBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
 
   // ─── Countdown timer ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -448,7 +458,7 @@ export function NewPairsTable({
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto panel-scroll">
+      <div ref={tableBodyRef} className="flex-1 overflow-auto panel-scroll">
         {error ? (
           <div className="h-full grid place-items-center p-6">
             <div className="text-center max-w-sm">
@@ -653,25 +663,18 @@ export function NewPairsTable({
       </div>
 
       {/* Pagination */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-2 border-t border-[var(--panel-border)]">
-        <button
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page <= 1 || loading}
-          className="text-xs px-2.5 py-1 rounded bg-[var(--panel-bg)] border border-[var(--panel-border)] text-zinc-300 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
-        >
-          Previous
-        </button>
-        <span className="text-xs text-zinc-500 tabular-nums">
-          Page {page} of {totalPages}
-        </span>
-        <button
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page >= totalPages || loading}
-          className="text-xs px-2.5 py-1 rounded bg-[var(--panel-bg)] border border-[var(--panel-border)] text-zinc-300 hover:text-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
-        >
-          Next
-        </button>
-      </div>
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        pageSize={pageSize}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
     </div>
   );
 }
