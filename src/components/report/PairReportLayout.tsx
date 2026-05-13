@@ -9,6 +9,7 @@ import { ComparisonZone } from "@/components/report/ComparisonZone";
 import { PoolPriceBlock } from "@/components/report/PoolPriceBlock";
 import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanel";
 import { TerminalSection } from "@/components/report/report-atoms";
+import { ExternalLinks } from "@/components/report/ExternalLinks";
 import { TokenCard } from "@/components/report/TokenCard";
 import { RankedPoolsTable } from "@/components/report/RelatedPoolsPanel";
 import { CompactFooter } from "@/components/report/CompactFooter";
@@ -75,7 +76,14 @@ export function PairReportLayout({
           symbolY={symbolY}
         />
 
-        {/* 3. Comparison Zone */}
+        {/* 3. External Links */}
+        <ExternalLinks
+          pair={pair}
+          gmgnMint={gmgnMint}
+          jupiterUrl={jupiterUrl}
+        />
+
+        {/* 4. Comparison Zone */}
         {normalizedPools.length > 0 && (
           <ComparisonZone
             pools={normalizedPools}
@@ -85,7 +93,7 @@ export function PairReportLayout({
           />
         )}
 
-        {/* 4. Indicators */}
+        {/* 5. Indicators */}
         {pair?.poolAddress && (
           <TerminalSection title="Indicators">
             <IndicatorsPanel
@@ -96,13 +104,13 @@ export function PairReportLayout({
           </TerminalSection>
         )}
 
-        {/* 5. Token Cards */}
+        {/* 6. Token Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
 
-        {/* 6. Ranked Pools Table */}
+        {/* 7. Ranked Pools Table */}
         {normalizedPools.length > 0 && (
           <RankedPoolsTable
             pools={normalizedPools}
@@ -112,14 +120,12 @@ export function PairReportLayout({
           />
         )}
 
-        {/* 7. Compact Footer */}
+        {/* 8. Compact Footer */}
         <CompactFooter
           pair={pair}
           tags={pair?.tags}
           sources={report.sources}
           fetchedAt={report.fetchedAt}
-          gmgnMint={gmgnMint}
-          jupiterUrl={jupiterUrl}
         />
       </main>
     </div>
