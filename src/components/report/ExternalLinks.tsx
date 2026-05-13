@@ -2,6 +2,9 @@
 
 import type { PoolReport } from "@/lib/api-types";
 
+const GMGN_REFERRAL = "yr2NU5dr";
+const LPAGENT_REFERRAL = "URq8gm4";
+
 export function ExternalLinks({
   pair,
   gmgnMint,
@@ -32,7 +35,7 @@ export function ExternalLinks({
   if (gmgnMint) {
     links.push({
       label: "GMGN",
-      href: `https://gmgn.ai/sol/token/${gmgnMint}`,
+      href: `https://gmgn.ai/sol/token/${gmgnMint}?ref=${GMGN_REFERRAL}`,
     });
   }
 
@@ -40,6 +43,13 @@ export function ExternalLinks({
     links.push({
       label: "Jupiter",
       href: jupiterUrl,
+    });
+  }
+
+  if (poolAddress) {
+    links.push({
+      label: "LPAgent",
+      href: `https://app.lpagent.io/pools/${encodeURIComponent(poolAddress)}?referral=${LPAGENT_REFERRAL}`,
     });
   }
 
