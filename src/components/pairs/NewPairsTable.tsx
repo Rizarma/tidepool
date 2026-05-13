@@ -366,6 +366,13 @@ export function NewPairsTable({
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       });
     }
+    if (sortKey === "priceTokenYPerTokenX") {
+      return [...pools].sort((a, b) => {
+        const aVal = getPrimaryToken(a).priceUsd ?? 0;
+        const bVal = getPrimaryToken(b).priceUsd ?? 0;
+        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+      });
+    }
     return [...pools].sort((a, b) => {
       const aVal = (a[sortKey] as number | undefined) ?? 0;
       const bVal = (b[sortKey] as number | undefined) ?? 0;
@@ -580,7 +587,7 @@ export function NewPairsTable({
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatTokenPrice(pool.priceTokenYPerTokenX)}
+                      {formatTokenPrice(getPrimaryToken(pool).priceUsd)}
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {formatCompactUsd(pool.tvlUsd)}
