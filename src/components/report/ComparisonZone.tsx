@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { PoolReport } from "@/lib/api-types";
 import { formatCompactUsd, pctValue, shortenAddress, feePct } from "@/lib/format";
 import { TerminalSection } from "./report-atoms";
@@ -7,6 +8,7 @@ import { TerminalSection } from "./report-atoms";
 type PoolItem = NonNullable<NonNullable<PoolReport["relatedPools"]>[number]>;
 
 const SENSIBLE_APR_CAP = 1000; // 1000% APR cap for visual bars
+const COLLAPSE_THRESHOLD = 6;
 
 /** LP-friendly pool label: "Step 20 · 0.25%" instead of raw address */
 function poolConfigLabel(pool: PoolItem): string {
@@ -117,12 +119,39 @@ export function ComparisonZone({
   pairName: string;
 }) {
   const normalizedPools = normalizePools(pools, currentPair);
+  const [expanded, setExpanded] = useState(false);
 
   if (normalizedPools.length === 0) return null;
 
+  const shouldCollapse = normalizedPools.length > COLLAPSE_THRESHOLD;
+  const isShowing = !shouldCollapse || expanded;
+
   return (
     <TerminalSection title={`${pairName} Pool Comparison`}>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {shouldCollapse && (
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <p className="text-sm text-zinc-400">
+            {normalizedPools.length} pools available · Comparing by TVL, Volume, APR
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+          >
+            {expanded ? (
+              <>
+                <span>▾</span> Collapse
+              </>
+            ) : (
+              <>
+                <span>▸</span> Expand comparison
+              </>
+            )}
+          </button>
+        </div>
+      )}
+      {isShowing && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <ComparisonGroup
           title="TVL"
           pools={normalizedPools}
@@ -146,6 +175,7 @@ export function ComparisonZone({
           fixedCap={SENSIBLE_APR_CAP}
         />
       </div>
+      )}
     </TerminalSection>
   );
 }
