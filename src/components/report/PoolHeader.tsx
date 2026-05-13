@@ -48,6 +48,12 @@ export function PoolHeader({
         {/* Address */}
         {poolAddress && (
           <div className="flex items-center gap-1.5">
+            {pair?.launchpad && (
+              <>
+                <span className="text-xs text-zinc-400">{pair.launchpad}</span>
+                <span className="text-zinc-600 shrink-0">·</span>
+              </>
+            )}
             <span
               className="font-mono text-xs text-zinc-500"
               title={poolAddress}
