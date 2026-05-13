@@ -303,24 +303,44 @@ export async function fetchMeteoraDlmmNewPools(
   const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
   const solMint = "So11111111111111111111111111111111111111112";
 
-  const [yResult, xResult] = await Promise.all([
-    fetchMeteoraNewPoolsOrientation(`${baseFilter} && token_y=${solMint}`, pageSize, page),
-    fetchMeteoraNewPoolsOrientation(`${baseFilter} && token_x=${solMint}`, pageSize, page),
+  // Fetch pages 1..N from both orientations to construct a correct combined page N.
+  // A pool on orientation A page 1 may be newer than orientation B page 2,
+  // so we must merge all pages up to N before slicing.
+  const pageNumbers = Array.from({ length: page }, (_, i) => i + 1);
+
+  const [yResults, xResults] = await Promise.all([
+    Promise.all(
+      pageNumbers.map((p) =>
+        fetchMeteoraNewPoolsOrientation(`${baseFilter} && token_y=${solMint}`, pageSize, p),
+      ),
+    ),
+    Promise.all(
+      pageNumbers.map((p) =>
+        fetchMeteoraNewPoolsOrientation(`${baseFilter} && token_x=${solMint}`, pageSize, p),
+      ),
+    ),
   ]);
 
-  // Merge and deduplicate by poolAddress
+  // Merge all pages, deduplicate by poolAddress
   const seen = new Map<string, DlmmPairInfo>();
-  for (const pool of [...yResult.pools, ...xResult.pools]) {
-    if (!seen.has(pool.poolAddress)) {
-      seen.set(pool.poolAddress, pool);
+  for (const result of [...yResults.flat(), ...xResults.flat()]) {
+    for (const pool of result.pools) {
+      if (!seen.has(pool.poolAddress)) {
+        seen.set(pool.poolAddress, pool);
+      }
     }
   }
-  const pools = Array.from(seen.values()).sort((a, b) => {
+
+  const allPools = Array.from(seen.values()).sort((a, b) => {
     return (b.createdAt ?? 0) - (a.createdAt ?? 0);
   });
 
-  const total = yResult.total + xResult.total;
-  const pages = Math.max(yResult.pages, xResult.pages);
+  // Estimate total as sum of both orientation totals (disjoint sets)
+  const total = yResults[yResults.length - 1].total + xResults[xResults.length - 1].total;
+  const pages = Math.ceil(total / pageSize);
+
+  const start = (page - 1) * pageSize;
+  const pools = allPools.slice(start, start + pageSize);
 
   return { pools, total, pages };
 }

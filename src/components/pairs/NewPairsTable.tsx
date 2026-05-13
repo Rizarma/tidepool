@@ -264,6 +264,15 @@ export function NewPairsTable({
     return () => controller.abort();
   }, [tick, page, pageSize]);
 
+  // ─── Page clamp effect ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) {
+      const params = new URLSearchParams(searchParams);
+      params.set("page", String(totalPages));
+      router.replace(`?${params.toString()}`);
+    }
+  }, [totalPages, page, searchParams, router]);
+
   // ─── Scroll to top on page change ─────────────────────────────────────────
   useEffect(() => {
     tableBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
