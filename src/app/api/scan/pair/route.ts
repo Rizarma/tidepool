@@ -147,9 +147,7 @@ async function handlePairScan(request: Request): Promise<Response> {
     ]);
 
     if (groupResult.status === "fulfilled") {
-      relatedPools = groupResult.value.data.filter(
-        (p) => p.poolAddress !== pair.poolAddress,
-      );
+      relatedPools = groupResult.value.data;
     }
     // On rejection: silently degrade to []
   } else {

@@ -406,7 +406,7 @@ describe("GET /api/scan/pair", () => {
       expect(jupiter?.success).toBe(true);
     });
 
-    it("includes relatedPools excluding current pool when group fetch succeeds", async () => {
+    it("includes relatedPools with all group pools including current pool", async () => {
       const ADDR_A = "22222222222222222222222222222222";
       const ADDR_B = "33333333333333333333333333333333";
       const currentPool = makePairInfo({ poolAddress: VALID_POOL });
@@ -424,12 +424,16 @@ describe("GET /api/scan/pair", () => {
       expect(res.status).toBe(200);
       const body = await parseJson(res);
 
-      expect(body.relatedPools).toHaveLength(2);
-      expect(body.relatedPools[0].poolAddress).toBe(ADDR_A);
-      expect(body.relatedPools[1].poolAddress).toBe(ADDR_B);
+      expect(body.relatedPools).toHaveLength(3);
       expect(
         body.relatedPools.some((p: DlmmPairInfo) => p.poolAddress === VALID_POOL),
-      ).toBe(false);
+      ).toBe(true);
+      expect(
+        body.relatedPools.some((p: DlmmPairInfo) => p.poolAddress === ADDR_A),
+      ).toBe(true);
+      expect(
+        body.relatedPools.some((p: DlmmPairInfo) => p.poolAddress === ADDR_B),
+      ).toBe(true);
 
       // Group fetch was called with sorted mints
       expect(vi.mocked(fetchMeteoraDlmmGroupPools)).toHaveBeenCalledWith(

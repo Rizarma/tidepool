@@ -149,10 +149,7 @@ export function PairReportLayout({
 
         {/* Related Pools */}
         {(() => {
-          const relatedPools =
-            report.relatedPools?.filter(
-              (p) => p.poolAddress !== pair?.poolAddress,
-            ) ?? [];
+          const relatedPools = report.relatedPools ?? [];
           if (relatedPools.length === 0) return null;
           return (
             <RelatedPoolsPanel
