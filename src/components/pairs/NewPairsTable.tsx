@@ -53,7 +53,7 @@ const sortableColumns: {
   { key: "createdAt", label: "Age", align: "right" },
 ];
 
-const TOTAL_COLUMNS = 1 + sortableColumns.length + 1; // Pair + sortable + Freeze.
+const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Launchpad.
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -475,6 +475,9 @@ export function NewPairsTable({
                 <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
                   Freeze
                 </th>
+                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
+                  LP
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -609,6 +612,14 @@ export function NewPairsTable({
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {formatCompactUsd(getPrimaryToken(pool).marketCap)}
+                      {getPrimaryToken(pool).marketCapFallback && (
+                        <span
+                          className="inline-flex items-center justify-center size-3.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold leading-none ml-1 align-middle"
+                          title="Market cap computed from price × total supply (Meteora returned 0)"
+                        >
+                          !
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {formatCompactNumber(getPrimaryToken(pool).holders)}
@@ -618,6 +629,13 @@ export function NewPairsTable({
                     </td>
                     <td className="px-3 py-2 text-center text-xs">
                       <FreezeStatus token={getPrimaryToken(pool)} />
+                    </td>
+                    <td className="px-3 py-2 text-center text-xs">
+                      {pool.launchpad ? (
+                        <span className="text-[10px] text-zinc-400">{pool.launchpad}</span>
+                      ) : (
+                        <span className="text-zinc-600">–</span>
+                      )}
                     </td>
                   </tr>
                 ))

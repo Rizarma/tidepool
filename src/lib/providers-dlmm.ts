@@ -24,7 +24,7 @@ export function parsePairToken(raw: unknown, amountField?: number): PairToken {
   if (!isObject(raw)) {
     return { mint: "" };
   }
-  return {
+  const result: PairToken = {
     mint: toString(raw.mint) ?? toString(raw.address) ?? "",
     name: toString(raw.name),
     symbol: toString(raw.symbol),
@@ -36,8 +36,20 @@ export function parsePairToken(raw: unknown, amountField?: number): PairToken {
     amount: Number.isFinite(amountField) ? amountField : undefined,
     holders: toNumber(raw.holders),
     freezeAuthorityDisabled: toBool(raw.freeze_authority_disabled),
+    totalSupply: toNumber(raw.total_supply),
     marketCap: toNumber(raw.market_cap),
   };
+
+  // Fallback: compute market cap from price × total_supply when Meteora returns 0/falsy
+  const price = result.priceUsd;
+  const supply = result.totalSupply;
+  const rawMarketCap = result.marketCap;
+  if (!rawMarketCap && price && supply) {
+    result.marketCap = price * supply;
+    result.marketCapFallback = true;
+  }
+
+  return result;
 }
 
 export function normalizePair(raw: unknown): DlmmPairInfo {
@@ -114,6 +126,7 @@ export function normalizePair(raw: unknown): DlmmPairInfo {
     apy: toNumber(raw.apy),
     isBlacklisted: toBool(raw.is_blacklisted),
     tags: toStringArray(raw.tags),
+    launchpad: toString(raw.launchpad),
     createdAt:
       toNumber(raw.created_at) ??
       toNumber(raw.createdAt) ??
@@ -249,7 +262,7 @@ export async function fetchMeteoraDlmmNewPools(
     page: String(page),
     page_size: String(pageSize),
     sort_by: "pool_created_at:desc",
-    filter_by: "is_blacklisted=false && volume_30m>=1 && token_y=So11111111111111111111111111111111111111112",
+    filter_by: "is_blacklisted=false && volume_30m>=1 && tvl>=100 && token_y=So11111111111111111111111111111111111111112",
   });
   const url = `${BASE_URL}/pools?${params.toString()}`;
   const data = await fetchJson(url);
