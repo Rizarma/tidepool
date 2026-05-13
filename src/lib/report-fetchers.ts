@@ -1,5 +1,6 @@
 import type { ApiErrorCode } from "@/lib/api-errors";
 import type { PoolReport, TokenReport, PoolDiscoveryReport } from "@/lib/api-types";
+import type { AddressResolution } from "@/lib/types";
 
 export class ApiFetchError extends Error {
   code?: ApiErrorCode;
@@ -65,4 +66,8 @@ export function fetchPoolByMints(mintA: string, mintB: string): Promise<PoolRepo
   return apiFetch<PoolReport>(
     `/api/scan/pair?mintA=${encodeURIComponent(mintA)}&mintB=${encodeURIComponent(mintB)}`,
   );
+}
+
+export function fetchAddressResolution(address: string): Promise<AddressResolution> {
+  return apiFetch<AddressResolution>(`/api/resolve-address?address=${encodeURIComponent(address)}`);
 }

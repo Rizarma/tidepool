@@ -155,9 +155,20 @@ export function NewPairsTable({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("tidepool_auto_refresh") === "true";
+  });
   const [countdown, setCountdown] = useState(0);
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+    if (savedAt) {
+      const lastFetch = parseInt(savedAt, 10);
+      if (!isNaN(lastFetch)) return lastFetch;
+    }
+    return null;
+  });
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -168,16 +179,6 @@ export function NewPairsTable({
   const lastPageRef = useRef(1);
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
-  // ─── Restore + persist auto-refresh preference ────────────────────────────
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("tidepool_auto_refresh");
-      if (saved === "true") setAutoRefresh(true);
-    } catch {
-      // ignore
-    }
-  }, []);
-
   useEffect(() => {
     try {
       localStorage.setItem("tidepool_auto_refresh", String(autoRefresh));
@@ -185,26 +186,6 @@ export function NewPairsTable({
       // ignore
     }
   }, [autoRefresh]);
-
-  // ─── Restore + persist last fetch timestamp ─────────────────────────────────
-  useEffect(() => {
-    try {
-      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-      if (savedAt) {
-        const lastFetch = parseInt(savedAt, 10);
-        if (!isNaN(lastFetch)) {
-          setLastFetchedAt(lastFetch);
-          const elapsed = Date.now() - lastFetch;
-          const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
-          if (elapsed >= 0 && elapsed < intervalMs) {
-            setCountdown(Math.max(1, Math.ceil((intervalMs - elapsed) / 1000)));
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   useEffect(() => {
     if (lastFetchedAt) {

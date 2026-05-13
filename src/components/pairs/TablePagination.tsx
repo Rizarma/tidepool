@@ -27,11 +27,6 @@ export function TablePagination({
   const [inputValue, setInputValue] = useState(String(page));
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync input when page changes externally
-  useEffect(() => {
-    if (!editing) setInputValue(String(page));
-  }, [page, editing]);
-
   // Auto-focus and select input when entering edit mode
   useEffect(() => {
     if (editing) inputRef.current?.select();
@@ -123,7 +118,10 @@ export function TablePagination({
             />
           ) : (
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => {
+                setInputValue(String(page));
+                setEditing(true);
+              }}
               className="text-xs tabular-nums text-zinc-300 hover:text-zinc-100 underline underline-offset-2 decoration-zinc-600 hover:decoration-zinc-400 transition"
               title="Click to jump to page"
             >

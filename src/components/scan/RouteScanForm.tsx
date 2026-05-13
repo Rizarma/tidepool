@@ -1,148 +1,101 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import type { ScanMode, PairInputMode } from "@/lib/api-types";
-import { SCAN_EXAMPLES } from "./examples";
+import { useRouter } from "next/navigation";
+import { fetchAddressResolution } from "@/lib/report-fetchers";
 
-// localStorage keys for input persistence
-const LS_MINT = "tidepool_last_mint";
-const LS_POOL = "tidepool_last_pool";
-const LS_MINTA = "tidepool_last_minta";
-const LS_MINTB = "tidepool_last_mintb";
-const LS_PAIR_MODE = "tidepool_last_pair_mode";
+const LS_ADDRESS = "tidepool_last_address";
 
 export function RouteScanForm() {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  // Derive mode from route (local state allows override on report routes)
-  const isHome = pathname === "/";
-  const [mode, setMode] = useState<ScanMode>(() => {
-    if (typeof window === "undefined") return "pair";
-    if (pathname === "/") return searchParams.get("mode") === "token" ? "token" : "pair";
-    if (pathname.startsWith("/token")) return "token";
-    return "pair";
-  });
-
-  // Local input state — restored lazily from localStorage on first render
-  const [mint, setMint] = useState(() => {
+  // Single universal address input — restored lazily from localStorage
+  const [address, setAddress] = useState(() => {
     if (typeof window === "undefined") return "";
-    return localStorage.getItem(LS_MINT) ?? "";
-  });
-  const [poolAddress, setPoolAddress] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(LS_POOL) ?? "";
-  });
-  const [mintA, setMintA] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(LS_MINTA) ?? "";
-  });
-  const [mintB, setMintB] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(LS_MINTB) ?? "";
-  });
-  const [pairInputMode, setPairInputMode] = useState<PairInputMode>(() => {
-    if (typeof window === "undefined") return "pool";
-    const saved = localStorage.getItem(LS_PAIR_MODE);
-    return saved === "mints" ? "mints" : "pool";
+    return localStorage.getItem(LS_ADDRESS) ?? "";
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const poolInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Persist to localStorage
-  useEffect(() => { localStorage.setItem(LS_MINT, mint); }, [mint]);
-  useEffect(() => { localStorage.setItem(LS_POOL, poolAddress); }, [poolAddress]);
-  useEffect(() => { localStorage.setItem(LS_MINTA, mintA); }, [mintA]);
-  useEffect(() => { localStorage.setItem(LS_MINTB, mintB); }, [mintB]);
-  useEffect(() => { localStorage.setItem(LS_PAIR_MODE, pairInputMode); }, [pairInputMode]);
+  useEffect(() => {
+    localStorage.setItem(LS_ADDRESS, address);
+  }, [address]);
 
-  // Keyboard shortcut: `/` focuses pool input
+  // Keyboard shortcut: `/` focuses input
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "/" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) {
         e.preventDefault();
-        poolInputRef.current?.focus();
-        if (isHome && mode === "token") {
-          router.replace("/");
-        }
+        inputRef.current?.focus();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isHome, mode, router]);
+  }, []);
 
-  const handleModeToggle = useCallback((newMode: ScanMode) => {
-    if (isHome) {
-      if (newMode === "token") {
-        router.replace("/?mode=token");
-      } else {
-        router.replace("/");
-      }
-    }
-    setMode(newMode);
-  }, [isHome, router]);
+  const handleSubmit = useCallback(
+    async (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      setError(null);
 
-  const handleSubmit = useCallback((e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-
-    if (mode === "token") {
-      const trimmed = mint.trim();
-      if (!trimmed) {
-        setError("Enter a token mint address");
-        return;
-      }
-      router.push(`/token/${encodeURIComponent(trimmed)}`);
-      return;
-    }
-
-    // pair mode
-    if (pairInputMode === "pool") {
-      const trimmed = poolAddress.trim();
+      const trimmed = address.trim();
       if (!trimmed) {
         setError("Enter a pool or token address");
         return;
       }
-      router.push(`/pool/${encodeURIComponent(trimmed)}`);
-      return;
-    }
 
-    // mints mode — fetch first, then navigate
-    const a = mintA.trim();
-    const b = mintB.trim();
-    if (!a || !b) {
-      setError("Enter both mint addresses");
-      return;
-    }
+      setLoading(true);
+      try {
+        const resolution = await fetchAddressResolution(trimmed);
 
-    setLoading(true);
-    import("@/lib/report-fetchers").then(({ fetchPoolByMints }) => {
-      fetchPoolByMints(a, b)
-        .then((report) => {
-          if (report.kind === "pair" && report.pair?.poolAddress) {
-            router.push(`/pool/${encodeURIComponent(report.pair.poolAddress)}`);
-          } else {
-            setError("Could not find a pool for these mints");
-          }
-        })
-        .catch((err) => {
-          setError(err instanceof Error ? err.message : "Failed to find pool");
-        })
-        .finally(() => setLoading(false));
-    });
-  }, [mode, mint, poolAddress, mintA, mintB, pairInputMode, router]);
-
-  const handleExampleClick = useCallback((exampleMint: string) => {
-    router.push(`/token/${encodeURIComponent(exampleMint)}`);
-  }, [router]);
+        switch (resolution.primarySuggestion) {
+          case "direct_pool_scan":
+            router.push(`/pool/${encodeURIComponent(trimmed)}`);
+            break;
+          case "pool_discovery":
+            router.push(
+              `/discover/${encodeURIComponent(trimmed)}${
+                resolution.primaryPoolAddress
+                  ? `?pool=${encodeURIComponent(resolution.primaryPoolAddress)}`
+                  : ""
+              }`,
+            );
+            break;
+          case "token_scan":
+            router.push(`/token/${encodeURIComponent(trimmed)}`);
+            break;
+          default:
+            setError("Could not resolve this address as a pool or token");
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unable to resolve address";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [address, router],
+  );
 
   const handleGoHome = useCallback(() => {
     router.push("/");
   }, [router]);
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard?.readText();
+      if (text) {
+        setAddress(text.trim());
+        inputRef.current?.focus();
+      }
+    } catch {
+      // Silently ignore — clipboard permission may be denied
+    }
+  }, []);
 
   return (
     <header className="shrink-0 border-b border-[var(--panel-border)] bg-[var(--panel-bg)]">
@@ -164,75 +117,33 @@ export function RouteScanForm() {
 
         <div className="h-5 w-px bg-[var(--panel-border)] shrink-0" />
 
-        {/* Mode toggle */}
-        <div className="flex items-center rounded border border-[var(--panel-border)] bg-[var(--background)] p-0.5" role="group" aria-label="Scan mode">
-          <button
-            type="button"
-            onClick={() => handleModeToggle("pair")}
-            aria-pressed={mode === "pair"}
-            className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
-              mode === "pair"
-                ? "bg-[var(--accent)] text-[var(--background)]"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            Pool
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeToggle("token")}
-            aria-pressed={mode === "token"}
-            className={`rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition ${
-              mode === "token"
-                ? "bg-[var(--accent)] text-[var(--background)]"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            Token
-          </button>
-        </div>
-
-        {/* Scan form */}
-        <form onSubmit={handleSubmit} className="flex flex-1 items-center justify-center gap-2 min-w-0" aria-label="Scan address form">
-          {mode === "token" ? (
-            <AddressInput
-              id="mint"
-              aria-label="Token mint address"
-              value={mint}
-              onChange={setMint}
-              placeholder="Token mint address…"
-            />
-          ) : pairInputMode === "pool" ? (
-            <AddressInput
-              inputRef={poolInputRef}
-              id="pool"
-              aria-label="Meteora DLMM pool or token address"
-              value={poolAddress}
-              onChange={setPoolAddress}
+        {/* Universal scan form */}
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-1 items-center justify-center gap-2 min-w-0"
+          aria-label="Scan address form"
+        >
+          <div className="relative flex flex-1 min-w-0 max-w-2xl items-center">
+            <input
+              ref={inputRef}
+              id="address"
+              aria-label="Pool or token address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
               placeholder="Pool or token address…"
+              className="w-full min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] py-1.5 pl-3 pr-9 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+              spellCheck={false}
             />
-          ) : (
-            <div className="flex flex-1 max-w-2xl gap-1.5 min-w-0">
-              <input
-                id="mint-a"
-                aria-label="Token mint A address"
-                value={mintA}
-                onChange={(event) => setMintA(event.target.value)}
-                placeholder="Mint A…"
-                className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
-                spellCheck={false}
-              />
-              <input
-                id="mint-b"
-                aria-label="Token mint B address"
-                value={mintB}
-                onChange={(event) => setMintB(event.target.value)}
-                placeholder="Mint B…"
-                className="flex-1 min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] px-3 py-1.5 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
-                spellCheck={false}
-              />
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={() => void handlePaste()}
+              aria-label="Paste from clipboard"
+              title="Paste from clipboard"
+              className="absolute right-1 grid size-6 place-items-center rounded text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+            >
+              <ClipboardIcon />
+            </button>
+          </div>
 
           <button
             type="submit"
@@ -243,105 +154,32 @@ export function RouteScanForm() {
           </button>
         </form>
 
-        {/* Pool sub-mode toggle */}
-        {mode === "pair" && (
-          <>
-            <div className="h-5 w-px bg-[var(--panel-border)] shrink-0" />
-            <div className="flex items-center gap-1 shrink-0" role="group" aria-label="Pool input mode">
-              <ModeChip active={pairInputMode === "pool"} onClick={() => setPairInputMode("pool")}>Pool</ModeChip>
-              <ModeChip active={pairInputMode === "mints"} onClick={() => setPairInputMode("mints")}>Mints</ModeChip>
-            </div>
-          </>
-        )}
-
-        {/* Examples */}
-        {mode === "token" && (
-          <>
-            <div className="h-5 w-px bg-[var(--panel-border)] shrink-0 hidden xl:block" />
-            <div className="hidden xl:flex items-center gap-1 shrink-0">
-              {SCAN_EXAMPLES.map((ex) => (
-                <button
-                  key={ex.mint}
-                  type="button"
-                  onClick={() => handleExampleClick(ex.mint)}
-                  className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-300"
-                >
-                  {ex.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
         {/* Status indicator */}
         <div className="h-5 w-px bg-[var(--panel-border)] shrink-0 hidden sm:block" />
-        <div className="hidden sm:flex items-center gap-1.5 shrink-0" role="status" aria-live="polite">
-          <span className={`inline-block size-1.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-zinc-600"}`} />
+        <div
+          className="hidden sm:flex items-center gap-1.5 shrink-0"
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            className={`inline-block size-1.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-zinc-600"}`}
+          />
           <span className="text-[10px] text-zinc-500">
-            {loading ? "Scanning" : "Idle"}
+            {loading ? "Resolving" : "Idle"}
           </span>
         </div>
       </div>
 
       {/* Error bar */}
       {error && (
-        <div role="alert" className="border-t border-red-500/20 bg-red-500/5 px-4 py-1.5 text-xs text-red-300">
+        <div
+          role="alert"
+          className="border-t border-red-500/20 bg-red-500/5 px-4 py-1.5 text-xs text-red-300"
+        >
           {error}
         </div>
       )}
     </header>
-  );
-}
-
-function AddressInput({
-  id,
-  inputRef,
-  value,
-  onChange,
-  placeholder,
-  "aria-label": ariaLabel,
-}: {
-  id: string;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  "aria-label": string;
-}) {
-  async function pasteFromClipboard() {
-    try {
-      const clipboardText = await navigator.clipboard?.readText();
-      if (clipboardText) {
-        onChange(clipboardText.trim());
-        inputRef?.current?.focus();
-      }
-    } catch {
-      // Silently ignore — clipboard permission may be denied
-    }
-  }
-
-  return (
-    <div className="relative flex flex-1 min-w-0 max-w-2xl items-center">
-      <input
-        ref={inputRef}
-        id={id}
-        aria-label={ariaLabel}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="w-full min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] py-1.5 pl-3 pr-9 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
-        spellCheck={false}
-      />
-      <button
-        type="button"
-        onClick={() => void pasteFromClipboard()}
-        aria-label={`Paste ${ariaLabel.toLowerCase()} from clipboard`}
-        title="Paste from clipboard"
-        className="absolute right-1 grid size-6 place-items-center rounded text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
-      >
-        <ClipboardIcon />
-      </button>
-    </div>
   );
 }
 
@@ -359,22 +197,5 @@ function ClipboardIcon() {
         strokeWidth="1.5"
       />
     </svg>
-  );
-}
-
-function ModeChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`rounded px-2 py-0.5 text-[10px] font-semibold transition ${
-        active
-          ? "bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30"
-          : "text-zinc-500 hover:text-zinc-300 border border-transparent"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
