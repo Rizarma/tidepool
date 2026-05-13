@@ -196,17 +196,16 @@ export function IndicatorsPanel({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-[10px] uppercase tracking-wider text-zinc-500">
-          Indicators
-        </p>
-        {loading && (
-          <span className="text-[10px] text-zinc-500 animate-pulse">Loading…</span>
-        )}
-        {error && !loading && (
-          <span className="text-[10px] text-red-400">{error}</span>
-        )}
-      </div>
+      {(loading || error) && (
+        <div className="flex justify-end mb-2">
+          {loading && (
+            <span className="text-[10px] text-zinc-500 animate-pulse">Loading…</span>
+          )}
+          {error && !loading && (
+            <span className="text-[10px] text-red-400">{error}</span>
+          )}
+        </div>
+      )}
 
       {data?.timeframes && data.timeframes.length > 0 ? (
         <div>
