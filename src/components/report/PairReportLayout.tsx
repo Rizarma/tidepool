@@ -6,7 +6,9 @@ import type { PoolDiscoveryReport, PoolReport } from "@/lib/api-types";
 import { DiscoveryPanel } from "@/components/report/DiscoveryPanel";
 import { PoolHeader } from "@/components/report/PoolHeader";
 import { ComparisonZone } from "@/components/report/ComparisonZone";
-import { PriceIndicatorBlock } from "@/components/report/PriceIndicatorBlock";
+import { PoolPriceBlock } from "@/components/report/PoolPriceBlock";
+import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanel";
+import { TerminalSection } from "@/components/report/report-atoms";
 import { TokenCard } from "@/components/report/TokenCard";
 import { RankedPoolsTable } from "@/components/report/RelatedPoolsPanel";
 import { CompactFooter } from "@/components/report/CompactFooter";
@@ -65,7 +67,15 @@ export function PairReportLayout({
           }
         />
 
-        {/* 2. Comparison Zone */}
+        {/* 2. Pool Price */}
+        <PoolPriceBlock
+          priceTokenYPerTokenX={pair?.priceTokenYPerTokenX}
+          inversePrice={pair?.inversePrice}
+          symbolX={symbolX}
+          symbolY={symbolY}
+        />
+
+        {/* 3. Comparison Zone */}
         {normalizedPools.length > 0 && (
           <ComparisonZone
             pools={normalizedPools}
@@ -75,22 +85,24 @@ export function PairReportLayout({
           />
         )}
 
-        {/* 3. Price & Indicators */}
-        <PriceIndicatorBlock
-          poolAddress={pair?.poolAddress}
-          priceTokenYPerTokenX={pair?.priceTokenYPerTokenX}
-          inversePrice={pair?.inversePrice}
-          symbolX={symbolX}
-          symbolY={symbolY}
-        />
+        {/* 4. Indicators */}
+        {pair?.poolAddress && (
+          <TerminalSection title="Indicators">
+            <IndicatorsPanel
+              poolAddress={pair.poolAddress}
+              currentPrice={pair?.priceTokenYPerTokenX}
+              symbolY={symbolY}
+            />
+          </TerminalSection>
+        )}
 
-        {/* 4. Token Cards */}
+        {/* 5. Token Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
 
-        {/* 5. Ranked Pools Table */}
+        {/* 6. Ranked Pools Table */}
         {normalizedPools.length > 0 && (
           <RankedPoolsTable
             pools={normalizedPools}
@@ -100,7 +112,7 @@ export function PairReportLayout({
           />
         )}
 
-        {/* 6. Compact Footer */}
+        {/* 7. Compact Footer */}
         <CompactFooter
           pair={pair}
           tags={pair?.tags}

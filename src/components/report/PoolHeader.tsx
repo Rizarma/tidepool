@@ -29,22 +29,24 @@ export function PoolHeader({
           Meteora DLMM
         </span>
 
-        <h1 className="text-xl font-bold text-zinc-100">{name}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="min-w-0 text-xl font-bold text-zinc-100">{name}</h1>
 
-        {/* Status */}
-        <div
-          className={`inline-flex w-fit items-center gap-1.5 rounded px-2 py-1 text-xs font-semibold ${
-            pair?.isBlacklisted
-              ? "bg-red-500/10 text-red-300"
-              : "bg-emerald-500/10 text-emerald-300"
-          }`}
-        >
-          <span
-            className={`size-1.5 rounded-full ${
-              pair?.isBlacklisted ? "bg-red-400" : "bg-emerald-400"
+          {/* Status */}
+          <div
+            className={`shrink-0 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-semibold ${
+              pair?.isBlacklisted
+                ? "bg-red-500/10 text-red-300"
+                : "bg-emerald-500/10 text-emerald-300"
             }`}
-          />
-          {pair?.isBlacklisted ? "Blacklisted" : "Active"}
+          >
+            <span
+              className={`size-1.5 rounded-full ${
+                pair?.isBlacklisted ? "bg-red-400" : "bg-emerald-400"
+              }`}
+            />
+            {pair?.isBlacklisted ? "Blacklisted" : "Active"}
+          </div>
         </div>
 
         {/* Address */}
