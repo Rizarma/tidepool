@@ -24,7 +24,7 @@ export function parsePairToken(raw: unknown, amountField?: number): PairToken {
   if (!isObject(raw)) {
     return { mint: "" };
   }
-  return {
+  const result: PairToken = {
     mint: toString(raw.mint) ?? toString(raw.address) ?? "",
     name: toString(raw.name),
     symbol: toString(raw.symbol),
@@ -36,8 +36,20 @@ export function parsePairToken(raw: unknown, amountField?: number): PairToken {
     amount: Number.isFinite(amountField) ? amountField : undefined,
     holders: toNumber(raw.holders),
     freezeAuthorityDisabled: toBool(raw.freeze_authority_disabled),
+    totalSupply: toNumber(raw.total_supply),
     marketCap: toNumber(raw.market_cap),
   };
+
+  // Fallback: compute market cap from price × total_supply when Meteora returns 0/falsy
+  const price = result.priceUsd;
+  const supply = result.totalSupply;
+  const rawMarketCap = result.marketCap;
+  if (!rawMarketCap && price && supply) {
+    result.marketCap = price * supply;
+    result.marketCapFallback = true;
+  }
+
+  return result;
 }
 
 export function normalizePair(raw: unknown): DlmmPairInfo {
@@ -114,6 +126,7 @@ export function normalizePair(raw: unknown): DlmmPairInfo {
     apy: toNumber(raw.apy),
     isBlacklisted: toBool(raw.is_blacklisted),
     tags: toStringArray(raw.tags),
+    launchpad: toString(raw.launchpad),
     createdAt:
       toNumber(raw.created_at) ??
       toNumber(raw.createdAt) ??
@@ -238,43 +251,98 @@ export async function fetchMeteoraDlmmPool(
 }
 
 /**
+ * Fetch recently created DLMM pools for a single orientation (token_x or token_y = SOL).
+ */
+async function fetchMeteoraNewPoolsOrientation(
+  filterBy: string,
+  pageSize: number,
+  page: number,
+): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
+  return cacheFirst(`meteora:new:${filterBy}:${page}:${pageSize}`, async () => {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+      sort_by: "pool_created_at:desc",
+      filter_by: filterBy,
+    });
+    const url = `${BASE_URL}/pools?${params.toString()}`;
+    const data = await fetchJson(url);
+
+    if (!isObject(data) || !Array.isArray(data.data)) {
+      throw new Error("Invalid response from DLMM pools endpoint: expected paginated object");
+    }
+
+    const rawPools = data.data as unknown[];
+    const total = toNumber(data.total) ?? rawPools.length;
+    const pages = toNumber(data.pages) ?? 1;
+
+    const pools: DlmmPairInfo[] = [];
+    for (const raw of rawPools) {
+      if (!isObject(raw)) continue;
+      try {
+        const pair = normalizePair(raw);
+        pools.push(pair);
+      } catch {
+        continue;
+      }
+    }
+
+    return { pools, total, pages };
+  }, { ttlMs: 15_000, rateLimiter: rateLimiters.meteoraDlmm });
+}
+
+/**
  * Fetch recently created DLMM pools sorted by creation time.
+ * Queries both token_x=SOL and token_y=SOL orientations in parallel,
+ * then merges and deduplicates results.
  */
 export async function fetchMeteoraDlmmNewPools(
   pageSize = 20,
   page = 1,
 ): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
-  return cacheFirst(`meteora:new:${page}:${pageSize}`, async () => {
-  const params = new URLSearchParams({
-    page: String(page),
-    page_size: String(pageSize),
-    sort_by: "pool_created_at:desc",
-    filter_by: "is_blacklisted=false",
-  });
-  const url = `${BASE_URL}/pools?${params.toString()}`;
-  const data = await fetchJson(url);
+  const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
+  const solMint = "So11111111111111111111111111111111111111112";
 
-  if (!isObject(data) || !Array.isArray(data.data)) {
-    throw new Error("Invalid response from DLMM pools endpoint: expected paginated object");
-  }
+  // Fetch pages 1..N from both orientations to construct a correct combined page N.
+  // A pool on orientation A page 1 may be newer than orientation B page 2,
+  // so we must merge all pages up to N before slicing.
+  const pageNumbers = Array.from({ length: page }, (_, i) => i + 1);
 
-  const rawPools = data.data as unknown[];
-  const total = toNumber(data.total) ?? rawPools.length;
-  const pages = toNumber(data.pages) ?? 1;
+  const [yResults, xResults] = await Promise.all([
+    Promise.all(
+      pageNumbers.map((p) =>
+        fetchMeteoraNewPoolsOrientation(`${baseFilter} && token_y=${solMint}`, pageSize, p),
+      ),
+    ),
+    Promise.all(
+      pageNumbers.map((p) =>
+        fetchMeteoraNewPoolsOrientation(`${baseFilter} && token_x=${solMint}`, pageSize, p),
+      ),
+    ),
+  ]);
 
-  const pools: DlmmPairInfo[] = [];
-  for (const raw of rawPools) {
-    if (!isObject(raw)) continue;
-    try {
-      const pair = normalizePair(raw);
-      pools.push(pair);
-    } catch {
-      continue;
+  // Merge all pages, deduplicate by poolAddress
+  const seen = new Map<string, DlmmPairInfo>();
+  for (const result of [...yResults.flat(), ...xResults.flat()]) {
+    for (const pool of result.pools) {
+      if (!seen.has(pool.poolAddress)) {
+        seen.set(pool.poolAddress, pool);
+      }
     }
   }
 
+  const allPools = Array.from(seen.values()).sort((a, b) => {
+    return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+  });
+
+  // Estimate total as sum of both orientation totals (disjoint sets)
+  const total = yResults[yResults.length - 1].total + xResults[xResults.length - 1].total;
+  const pages = Math.ceil(total / pageSize);
+
+  const start = (page - 1) * pageSize;
+  const pools = allPools.slice(start, start + pageSize);
+
   return { pools, total, pages };
-  }, { ttlMs: 15_000, rateLimiter: rateLimiters.meteoraDlmm });
 }
 
 /**

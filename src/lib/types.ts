@@ -140,6 +140,8 @@ export interface PairToken {
   holders?: number;
   freezeAuthorityDisabled?: boolean;
   marketCap?: number;
+  marketCapFallback?: boolean;
+  totalSupply?: number;
 }
 
 export interface DlmmPairInfo {
@@ -161,6 +163,7 @@ export interface DlmmPairInfo {
   apy?: number;
   isBlacklisted?: boolean;
   tags?: string[];
+  launchpad?: string;
   /** Unix timestamp (ms) when the pool was created */
   createdAt?: number;
 }

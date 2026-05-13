@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { DlmmPairInfo, PairToken } from "@/lib/types";
 import {
   formatCompactUsd,
@@ -11,6 +12,7 @@ import {
   shortenAddress,
 } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
+import { TablePagination } from "./TablePagination";
 
 interface NewPairsResponse {
   pools: DlmmPairInfo[];
@@ -53,7 +55,7 @@ const sortableColumns: {
   { key: "createdAt", label: "Age", align: "right" },
 ];
 
-const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Verif.
+const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Launchpad.
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -71,14 +73,6 @@ function FreezeStatus({ token }: { token: PairToken }) {
     return <span className="text-red-400" aria-label="Freeze authority enabled">On</span>;
   }
   return <span className="text-zinc-500" aria-label="Freeze authority unknown">–</span>;
-}
-
-function VerifiedStatus({ token }: { token: PairToken }) {
-  return token.verified ? (
-    <span className="inline-flex items-center justify-center size-4 rounded bg-emerald-500/10 text-emerald-400 text-[9px]" aria-label="Verified">✓</span>
-  ) : (
-    <span className="text-zinc-600" aria-label="Not verified">–</span>
-  );
 }
 
 function VerificationDot() {
@@ -162,22 +156,40 @@ export function NewPairsTable({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("tidepool_auto_refresh") === "true";
+  });
   const [countdown, setCountdown] = useState(0);
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+    if (savedAt) {
+      const lastFetch = parseInt(savedAt, 10);
+      if (!isNaN(lastFetch)) return lastFetch;
+    }
+    return null;
+  });
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const page = useMemo(() => {
+    const p = parseInt(searchParams.get("page") ?? "1", 10);
+    return isNaN(p) || p < 1 ? 1 : p;
+  }, [searchParams]);
+
+  const pageSize = useMemo(() => {
+    const size = parseInt(searchParams.get("pageSize") ?? "20", 10);
+    return [10, 20, 50, 100].includes(size) ? size : 20;
+  }, [searchParams]);
 
   const lastFetchTimeRef = useRef<number>(0);
-
-  // ─── Restore + persist auto-refresh preference ────────────────────────────
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("tidepool_auto_refresh");
-      if (saved === "true") setAutoRefresh(true);
-    } catch {
-      // ignore
-    }
-  }, []);
+  const lastPageRef = useRef(1);
+  const tableBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -186,26 +198,6 @@ export function NewPairsTable({
       // ignore
     }
   }, [autoRefresh]);
-
-  // ─── Restore + persist last fetch timestamp ─────────────────────────────────
-  useEffect(() => {
-    try {
-      const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-      if (savedAt) {
-        const lastFetch = parseInt(savedAt, 10);
-        if (!isNaN(lastFetch)) {
-          setLastFetchedAt(lastFetch);
-          const elapsed = Date.now() - lastFetch;
-          const intervalMs = AUTO_REFRESH_INTERVAL * 1000;
-          if (elapsed >= 0 && elapsed < intervalMs) {
-            setCountdown(Math.max(1, Math.ceil((intervalMs - elapsed) / 1000)));
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   useEffect(() => {
     if (lastFetchedAt) {
@@ -219,27 +211,32 @@ export function NewPairsTable({
 
   // ─── Fetch effect ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // Cooldown guard: skip if too soon (except initial mount tick === 0)
-    if (Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS && tick > 0) {
+    const pageChanged = page !== lastPageRef.current;
+    lastPageRef.current = page;
+
+    // Cooldown guard: skip if too soon (except initial mount or page change)
+    if (!pageChanged && Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS && tick > 0) {
       return;
     }
 
     const controller = new AbortController();
     lastFetchTimeRef.current = Date.now();
-    setLoading(true);
-    setError(null);
 
-    fetch("/api/pools/new", { signal: controller.signal })
-      .then(async (res) => {
+    (async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await fetch(`/api/pools/new?page=${page}&pageSize=${pageSize}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(
             data.error?.message || `Failed to load pools (${res.status})`,
           );
         }
-        return res.json() as Promise<NewPairsResponse>;
-      })
-      .then((data) => {
+        const data = (await res.json()) as NewPairsResponse;
         const now = Date.now();
         const oneHour = 3600000;
         const ids = new Set(
@@ -248,20 +245,38 @@ export function NewPairsTable({
             .map((p) => p.poolAddress),
         );
         setPools(data.pools);
+        setTotalPages(data.pages);
+        setTotal(data.total);
         setNewPoolIds(ids);
         setLastFetchedAt(now);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
         setError(
           err instanceof Error ? err.message : "Failed to load new pools",
         );
-        setLoading(false);
-      });
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    })();
 
     return () => controller.abort();
-  }, [tick]);
+  }, [tick, page, pageSize]);
+
+  // ─── Page clamp effect ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (totalPages > 0 && page > totalPages) {
+      const params = new URLSearchParams(searchParams);
+      params.set("page", String(totalPages));
+      router.replace(`?${params.toString()}`);
+    }
+  }, [totalPages, page, searchParams, router]);
+
+  // ─── Scroll to top on page change ─────────────────────────────────────────
+  useEffect(() => {
+    tableBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page]);
 
   // ─── Countdown timer ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -308,22 +323,23 @@ export function NewPairsTable({
       document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [lastFetchedAt, autoRefresh]);
 
-  // ─── Last updated text (computed in effect, not render) ───────────────────
+  // ─── Last updated text ──────────────────────────────────────────────────────
   useEffect(() => {
-    const ts = lastFetchedAt;
-    if (!ts) {
-      return;
-    }
+    const compute = () => {
+      if (!lastFetchedAt) {
+        setLastUpdatedText(null);
+        return;
+      }
+      const diff = Date.now() - lastFetchedAt;
+      setLastUpdatedText(diff < 60000 ? "Just now" : `${formatAge(lastFetchedAt)} ago`);
+    };
 
-    function update() {
-      const diff = Date.now() - ts!;
-      const text = diff < 60000 ? "Just now" : `${formatAge(ts!)} ago`;
-      setLastUpdatedText(text);
-    }
-
-    update();
-    const id = setInterval(update, 5000);
-    return () => clearInterval(id);
+    const initId = setTimeout(compute, 0);
+    const intervalId = setInterval(compute, 5000);
+    return () => {
+      clearTimeout(initId);
+      clearInterval(intervalId);
+    };
   }, [lastFetchedAt]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
@@ -350,6 +366,19 @@ export function NewPairsTable({
     setAutoRefresh((prev) => !prev);
   }, []);
 
+  const handlePageChange = useCallback((newPage: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("page", String(newPage));
+    router.replace(`?${params.toString()}`);
+  }, [searchParams, router]);
+
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("page", "1");
+    params.set("pageSize", String(newSize));
+    router.replace(`?${params.toString()}`);
+  }, [searchParams, router]);
+
   // ─── Derived data ─────────────────────────────────────────────────────────
 
   const sortedPools = useMemo(() => {
@@ -371,6 +400,13 @@ export function NewPairsTable({
       return [...pools].sort((a, b) => {
         const aVal = getPrimaryToken(a).holders ?? 0;
         const bVal = getPrimaryToken(b).holders ?? 0;
+        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+      });
+    }
+    if (sortKey === "priceTokenYPerTokenX") {
+      return [...pools].sort((a, b) => {
+        const aVal = getPrimaryToken(a).priceUsd ?? 0;
+        const bVal = getPrimaryToken(b).priceUsd ?? 0;
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       });
     }
@@ -442,7 +478,7 @@ export function NewPairsTable({
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto panel-scroll">
+      <div ref={tableBodyRef} className="flex-1 overflow-auto panel-scroll">
         {error ? (
           <div className="h-full grid place-items-center p-6">
             <div className="text-center max-w-sm">
@@ -477,7 +513,7 @@ export function NewPairsTable({
                   Freeze
                 </th>
                 <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
-                  Verif.
+                  LP
                 </th>
               </tr>
             </thead>
@@ -591,7 +627,7 @@ export function NewPairsTable({
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatTokenPrice(pool.priceTokenYPerTokenX)}
+                      {formatTokenPrice(getPrimaryToken(pool).priceUsd)}
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {formatCompactUsd(pool.tvlUsd)}
@@ -613,6 +649,14 @@ export function NewPairsTable({
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {formatCompactUsd(getPrimaryToken(pool).marketCap)}
+                      {getPrimaryToken(pool).marketCapFallback && (
+                        <span
+                          className="inline-flex items-center justify-center size-3.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold leading-none ml-1 align-middle"
+                          title="Market cap computed from price × total supply (Meteora returned 0)"
+                        >
+                          !
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {formatCompactNumber(getPrimaryToken(pool).holders)}
@@ -624,7 +668,11 @@ export function NewPairsTable({
                       <FreezeStatus token={getPrimaryToken(pool)} />
                     </td>
                     <td className="px-3 py-2 text-center text-xs">
-                      <VerifiedStatus token={getPrimaryToken(pool)} />
+                      {pool.launchpad ? (
+                        <span className="text-[10px] text-zinc-400">{pool.launchpad}</span>
+                      ) : (
+                        <span className="text-zinc-600">–</span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -633,6 +681,17 @@ export function NewPairsTable({
           </table>
         )}
       </div>
+
+      {/* Pagination */}
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        pageSize={pageSize}
+        loading={loading}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+      />
     </div>
   );
 }
