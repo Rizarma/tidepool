@@ -199,7 +199,6 @@ export function RankedPoolsTable({
                 Base Fee
               </th>
               <th className="px-3 py-2 text-right font-medium">24h Fees</th>
-              <th className="px-3 py-2 text-right font-medium">Dyn Fee</th>
               <th className="px-3 py-2 text-right font-medium">Age</th>
             </tr>
           </thead>
@@ -264,9 +263,6 @@ export function RankedPoolsTable({
                   </td>
                   <td className="px-3 py-2 text-right text-zinc-300">
                     {formatCompactUsd(pool.fees24h)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-300">
-                    {feePct(pool.dynamicFeePct)}
                   </td>
                   <td className="px-3 py-2 text-right text-zinc-400">
                     {formatAge(pool.createdAt)}
