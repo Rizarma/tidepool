@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { DlmmPairInfo, PairToken } from "@/lib/types";
 import {
   formatCompactUsd,
@@ -170,10 +171,21 @@ export function NewPairsTable({
     return null;
   });
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const page = useMemo(() => {
+    const p = parseInt(searchParams.get("page") ?? "1", 10);
+    return isNaN(p) || p < 1 ? 1 : p;
+  }, [searchParams]);
+
+  const pageSize = useMemo(() => {
+    const size = parseInt(searchParams.get("pageSize") ?? "20", 10);
+    return [10, 20, 50, 100].includes(size) ? size : 20;
+  }, [searchParams]);
 
   const lastFetchTimeRef = useRef<number>(0);
   const lastPageRef = useRef(1);
@@ -344,6 +356,19 @@ export function NewPairsTable({
   const toggleAutoRefresh = useCallback(() => {
     setAutoRefresh((prev) => !prev);
   }, []);
+
+  const handlePageChange = useCallback((newPage: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("page", String(newPage));
+    router.replace(`?${params.toString()}`);
+  }, [searchParams, router]);
+
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("page", "1");
+    params.set("pageSize", String(newSize));
+    router.replace(`?${params.toString()}`);
+  }, [searchParams, router]);
 
   // ─── Derived data ─────────────────────────────────────────────────────────
 
@@ -655,11 +680,8 @@ export function NewPairsTable({
         total={total}
         pageSize={pageSize}
         loading={loading}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setPage(1);
-        }}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
       />
     </div>
   );
