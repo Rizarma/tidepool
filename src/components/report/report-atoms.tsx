@@ -1,5 +1,5 @@
 import type { PairToken, RiskLevel } from "@/lib/api-types";
-import { formatCompactUsd, formatNumber, formatUsd, numberOrDash, shortenAddress, yesNo } from "@/lib/format";
+import { formatCompactNumber, formatCompactUsd, formatNumber, formatUsd, shortenAddress } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
 
 export function DataRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
@@ -70,8 +70,9 @@ export function TokenSummaryCompact({ token }: { token?: PairToken }) {
       {/* — Pool — */}
       <DataRow label="Reserve" value={formatNumber(token?.amount)} />
       {/* — Metadata — */}
-      <DataRow label="Decimals" value={numberOrDash(token?.decimals)} />
-      <DataRow label="Verified" value={yesNo(token?.verified)} bad={token?.verified === false} />
+      {token?.holders !== undefined && (
+        <DataRow label="Holders" value={formatCompactNumber(token?.holders)} />
+      )}
     </div>
   );
 }
