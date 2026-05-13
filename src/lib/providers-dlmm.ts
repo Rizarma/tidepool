@@ -346,6 +346,54 @@ export async function fetchMeteoraDlmmNewPools(
 }
 
 /**
+ * Fetch all DLMM pools for a given token pair (both mints).
+ * Returns normalized, non-blacklisted pools sorted by TVL desc then volume desc.
+ */
+export async function fetchMeteoraDlmmGroupPools(
+  mintA: string,
+  mintB: string,
+): Promise<DlmmPairInfo[]> {
+  const [sortedA, sortedB] = [mintA, mintB].sort();
+  return cacheFirst(`meteora:group:${sortedA}:${sortedB}`, async () => {
+    const url = `${BASE_URL}/pools/groups/${sortedA}-${sortedB}?page=1&page_size=50&sort_by=tvl:desc&filter_by=is_blacklisted=false`;
+    const data = await fetchJson(url);
+
+    // Handle both { data: [...] } and array responses
+    let pools: unknown[];
+    if (isObject(data) && Array.isArray(prop(data, "data"))) {
+      pools = prop(data, "data") as unknown[];
+    } else if (Array.isArray(data)) {
+      pools = data;
+    } else {
+      throw new Error(
+        "Invalid response from DLMM group endpoint: expected array or object with data",
+      );
+    }
+
+    const result: DlmmPairInfo[] = [];
+    for (const raw of pools) {
+      if (!isObject(raw)) continue;
+      try {
+        const pair = normalizePair(raw);
+        if (pair.isBlacklisted) continue;
+        result.push(pair);
+      } catch {
+        continue;
+      }
+    }
+
+    // Sort by TVL desc, then volume24h desc
+    result.sort((a, b) => {
+      const tvlDiff = (b.tvlUsd ?? 0) - (a.tvlUsd ?? 0);
+      if (tvlDiff !== 0) return tvlDiff;
+      return (b.volume24h ?? 0) - (a.volume24h ?? 0);
+    });
+
+    return result;
+  }, { ttlMs: 30_000, rateLimiter: rateLimiters.meteoraDlmm });
+}
+
+/**
  * Fetch the best DLMM pool for a given mint pair.
  * Mints are sorted lexicographically to form the group key.
  */

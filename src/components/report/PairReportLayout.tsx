@@ -12,6 +12,7 @@ import {
 import { SourcesList } from "@/components/report/SourcesList";
 import { DataRow, MetricCell, PanelSection, TokenSummaryCompact } from "@/components/report/report-atoms";
 import { DiscoveryPanel } from "@/components/report/DiscoveryPanel";
+import { RelatedPoolsPanel } from "@/components/report/RelatedPoolsPanel";
 import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanel";
 import { CopyButton } from "@/components/CopyButton";
 
@@ -145,6 +146,22 @@ export function PairReportLayout({
           <MetricCell label="24h Fees" value={formatUsd(pair?.fees24h)} />
           <MetricCell label="Bin Step" value={numberOrDash(pair?.binStep)} />
         </div>
+
+        {/* Related Pools */}
+        {(() => {
+          const relatedPools =
+            report.relatedPools?.filter(
+              (p) => p.poolAddress !== pair?.poolAddress,
+            ) ?? [];
+          if (relatedPools.length === 0) return null;
+          return (
+            <RelatedPoolsPanel
+              pools={relatedPools}
+              currentPoolAddress={pair?.poolAddress}
+              pairName={name}
+            />
+          );
+        })()}
 
         {/* Price */}
         <PanelSection title="Price">

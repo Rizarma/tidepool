@@ -10,6 +10,7 @@ import { GET } from "./route";
 vi.mock("@/lib/providers-dlmm", () => ({
   fetchMeteoraDlmmPool: vi.fn(),
   fetchMeteoraDlmmPairByMints: vi.fn(),
+  fetchMeteoraDlmmGroupPools: vi.fn(),
 }));
 
 vi.mock("@/lib/providers", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/providers", () => ({
 import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
+  fetchMeteoraDlmmGroupPools,
 } from "@/lib/providers-dlmm";
 
 import { fetchJupiter } from "@/lib/providers";
@@ -62,6 +64,7 @@ function makePairInfo(overrides: Partial<DlmmPairInfo> = {}): DlmmPairInfo {
 describe("GET /api/scan/pair", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(fetchMeteoraDlmmGroupPools).mockResolvedValue([]);
   });
 
   // ─── Parameter Validation ────────────────────────────────────────────────
@@ -401,6 +404,56 @@ describe("GET /api/scan/pair", () => {
       const jupiter = body.sources.find((s: { provider: string }) => s.provider === "jupiter");
       expect(jupiter).toBeDefined();
       expect(jupiter?.success).toBe(true);
+    });
+
+    it("includes relatedPools excluding current pool when group fetch succeeds", async () => {
+      const ADDR_A = "22222222222222222222222222222222";
+      const ADDR_B = "33333333333333333333333333333333";
+      const currentPool = makePairInfo({ poolAddress: VALID_POOL });
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(currentPool);
+      vi.mocked(fetchMeteoraDlmmGroupPools).mockResolvedValue([
+        makePairInfo({ poolAddress: VALID_POOL, binStep: 10, baseFeePct: 0.01 }),
+        makePairInfo({ poolAddress: ADDR_A, binStep: 20, baseFeePct: 0.02 }),
+        makePairInfo({ poolAddress: ADDR_B, binStep: 50, baseFeePct: 0.05 }),
+      ]);
+      vi.mocked(fetchJupiter)
+        .mockResolvedValueOnce({ priceUsd: 1.0 })
+        .mockResolvedValueOnce({ priceUsd: 200.0 });
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}`));
+      expect(res.status).toBe(200);
+      const body = await parseJson(res);
+
+      expect(body.relatedPools).toHaveLength(2);
+      expect(body.relatedPools[0].poolAddress).toBe(ADDR_A);
+      expect(body.relatedPools[1].poolAddress).toBe(ADDR_B);
+      expect(
+        body.relatedPools.some((p: DlmmPairInfo) => p.poolAddress === VALID_POOL),
+      ).toBe(false);
+
+      // Group fetch was called with sorted mints
+      expect(vi.mocked(fetchMeteoraDlmmGroupPools)).toHaveBeenCalledWith(
+        VALID_MINT_A,
+        VALID_MINT_B,
+      );
+    });
+
+    it("returns empty relatedPools when group fetch fails", async () => {
+      vi.mocked(fetchMeteoraDlmmPool).mockResolvedValue(makePairInfo());
+      vi.mocked(fetchMeteoraDlmmGroupPools).mockRejectedValue(
+        new Error("Group endpoint failed"),
+      );
+      vi.mocked(fetchJupiter)
+        .mockResolvedValueOnce({ priceUsd: 1.0 })
+        .mockResolvedValueOnce({ priceUsd: 200.0 });
+
+      const res = await GET(makeRequest(`pool=${VALID_POOL}`));
+      expect(res.status).toBe(200);
+      const body = await parseJson(res);
+
+      expect(body.relatedPools).toEqual([]);
+      expect(body.pair.poolAddress).toBe(VALID_POOL);
+      expect(body.sources).toHaveLength(2);
     });
   });
 
