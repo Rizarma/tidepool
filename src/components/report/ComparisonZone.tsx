@@ -10,11 +10,11 @@ type PoolItem = NonNullable<NonNullable<PoolReport["relatedPools"]>[number]>;
 const SENSIBLE_APR_CAP = 1000; // 1000% APR cap for visual bars
 const COLLAPSE_THRESHOLD = 6;
 
-/** LP-friendly pool label: "Step 20 · 0.25%" instead of raw address */
+/** LP-friendly pool label: "Bin Step 20 · Fee 0.25%" instead of raw address */
 function poolConfigLabel(pool: PoolItem): string {
   const parts: string[] = [];
-  if (pool.binStep != null) parts.push(`Step ${pool.binStep}`);
-  if (pool.baseFeePct != null) parts.push(feePct(pool.baseFeePct));
+  if (pool.binStep != null) parts.push(`Bin Step ${pool.binStep}`);
+  if (pool.baseFeePct != null) parts.push(`Fee ${feePct(pool.baseFeePct)}`);
   return parts.length > 0 ? parts.join(" · ") : shortenAddress(pool.poolAddress ?? "");
 }
 
