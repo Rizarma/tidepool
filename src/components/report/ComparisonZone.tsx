@@ -1,12 +1,20 @@
 "use client";
 
 import type { PoolReport } from "@/lib/api-types";
-import { formatCompactUsd, pctValue, shortenAddress } from "@/lib/format";
+import { formatCompactUsd, pctValue, shortenAddress, feePct } from "@/lib/format";
 import { TerminalSection } from "./report-atoms";
 
 type PoolItem = NonNullable<NonNullable<PoolReport["relatedPools"]>[number]>;
 
 const SENSIBLE_APR_CAP = 1000; // 1000% APR cap for visual bars
+
+/** LP-friendly pool label: "Step 20 · 0.25%" instead of raw address */
+function poolConfigLabel(pool: PoolItem): string {
+  const parts: string[] = [];
+  if (pool.binStep != null) parts.push(`Step ${pool.binStep}`);
+  if (pool.baseFeePct != null) parts.push(feePct(pool.baseFeePct));
+  return parts.length > 0 ? parts.join(" · ") : shortenAddress(pool.poolAddress ?? "");
+}
 
 function normalizePools(
   pools: PoolItem[],
@@ -72,8 +80,8 @@ function ComparisonGroup({
                   }`}
                 >
                   {isCurrent
-                    ? "Current"
-                    : shortenAddress(pool.poolAddress ?? "")}
+                    ? `Current · ${poolConfigLabel(pool)}`
+                    : poolConfigLabel(pool)}
                 </span>
                 <span className="text-sm font-medium tabular-nums text-zinc-300">
                   {formatValue(value)}
