@@ -76,3 +76,72 @@ export function TokenSummaryCompact({ token }: { token?: PairToken }) {
     </div>
   );
 }
+
+export function TerminalSection({
+  title,
+  subtitle,
+  children,
+  className = "",
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 mb-4">
+        {title}
+      </h3>
+      {subtitle && <p className="text-xs text-zinc-600 mb-2">{subtitle}</p>}
+      {children}
+    </div>
+  );
+}
+
+export function TerminalMetric({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "good" | "bad" | "warn";
+}) {
+  const toneClasses: Record<string, string> = {
+    neutral: "text-zinc-100",
+    good: "text-emerald-300",
+    bad: "text-red-300",
+    warn: "text-amber-300",
+  };
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-zinc-500 uppercase tracking-wide">{label}</span>
+      <span className={`text-lg font-bold tabular-nums ${toneClasses[tone]}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+export function TerminalDataRow({
+  label,
+  value,
+  bad = false,
+}: {
+  label: string;
+  value: string;
+  bad?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-sm text-zinc-500">{label}</span>
+      <span
+        className={`text-sm font-medium tabular-nums text-right ${bad ? "text-red-300" : "text-zinc-200"}`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}

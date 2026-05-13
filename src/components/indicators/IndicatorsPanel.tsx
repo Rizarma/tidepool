@@ -66,7 +66,17 @@ function IndicatorCard({
   currentPrice?: number;
   symbolY: string;
 }) {
-  const { type, value, period, dataQuality, availableDataPoints, trend, isApproximate, unreliableReason, minDataPoints } = indicator;
+  const {
+    type,
+    value,
+    period,
+    dataQuality,
+    availableDataPoints,
+    trend,
+    isApproximate,
+    unreliableReason,
+    minDataPoints,
+  } = indicator;
   const isAbove = value != null && currentPrice != null && currentPrice > value;
   const isBelow = value != null && currentPrice != null && currentPrice < value;
   const hasValue = value != null && !Number.isNaN(value);
@@ -89,12 +99,14 @@ function IndicatorCard({
           : "text-zinc-100";
 
   return (
-    <div className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+    <div className="rounded bg-white/[0.04] px-3 py-2">
+      <p className="text-xs text-zinc-500">{label}</p>
       {hasValue ? (
-        <p className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${priceColor}`}>
+        <p
+          className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${priceColor}`}
+        >
           {formatTokenPrice(value)}{" "}
-          <span className="text-zinc-500 text-[10px]">{symbolY}</span>
+          <span className="text-zinc-500 text-xs">{symbolY}</span>
         </p>
       ) : (
         <p className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-500">
@@ -103,39 +115,43 @@ function IndicatorCard({
       )}
       {type === "supertrend" && trend && !unreliableReason && (
         <p
-          className={`text-[10px] mt-0.5 ${
-            trend === "up" ? "text-emerald-400" : "text-red-400"
+          className={`text-xs mt-0.5 ${
+            trend === "up" ? "text-emerald-300" : "text-red-300"
           }`}
         >
           {trend === "up" ? "▲ Uptrend" : "▼ Downtrend"}
         </p>
       )}
       {type === "supertrend" && unreliableReason && (
-        <p className="text-[10px] mt-0.5 text-amber-400">
-          {unreliableReason === "low_volatility" ? "Flat / low volatility" : unreliableReason}
+        <p className="text-xs mt-0.5 text-amber-300">
+          {unreliableReason === "low_volatility"
+            ? "Flat / low volatility"
+            : unreliableReason}
         </p>
       )}
       {type === "sma" && hasValue && (isAbove || isBelow) && (
         <p
-          className={`text-[10px] mt-0.5 ${
-            isAbove ? "text-emerald-400" : "text-red-400"
+          className={`text-xs mt-0.5 ${
+            isAbove ? "text-emerald-300" : "text-red-300"
           }`}
         >
           {isAbove ? "▲ Above current price" : "▼ Below current price"}
         </p>
       )}
       {isApproximate && hasValue && (
-        <p className="text-[10px] mt-0.5 text-amber-400">Approximated (no OHLC)</p>
+        <p className="text-xs mt-0.5 text-amber-300">
+          Approximated (no OHLC)
+        </p>
       )}
       {!hasValue && dataQuality && (
-        <p className="text-[10px] mt-0.5 text-zinc-500">
+        <p className="text-xs mt-0.5 text-zinc-500">
           {dataQuality === "insufficient"
             ? "No data available"
             : `Need ${minDataPoints ?? period} candles, have ${availableDataPoints ?? "?"}`}
         </p>
       )}
       {hasValue && dataQuality === "partial" && availableDataPoints != null && (
-        <p className="text-[10px] mt-0.5 text-amber-400">
+        <p className="text-xs mt-0.5 text-amber-300">
           Limited history — {availableDataPoints} candles
         </p>
       )}
@@ -187,7 +203,9 @@ export function IndicatorsPanel({
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [poolAddress, config, isReady, hasEnabledIndicators]);
 
   if (!poolAddress || config.timeframes.length === 0 || !hasEnabledIndicators) {
@@ -199,10 +217,12 @@ export function IndicatorsPanel({
       {(loading || error) && (
         <div className="flex justify-end mb-2">
           {loading && (
-            <span className="text-[10px] text-zinc-500 animate-pulse">Loading…</span>
+            <span className="text-xs text-zinc-500 animate-pulse">
+              Loading…
+            </span>
           )}
           {error && !loading && (
-            <span className="text-[10px] text-red-400">{error}</span>
+            <span className="text-xs text-red-400">{error}</span>
           )}
         </div>
       )}
@@ -211,10 +231,10 @@ export function IndicatorsPanel({
         <div>
           {groupByIndicator(data).map(({ type, label, items }) => (
             <div key={type} className="mb-3 last:mb-0">
-              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
+              <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1.5">
                 {label}
               </p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {items.map(({ timeframe, indicator }) => (
                   <IndicatorCard
                     key={timeframe}
@@ -229,7 +249,7 @@ export function IndicatorsPanel({
           ))}
         </div>
       ) : !loading ? (
-        <p className="text-[10px] text-zinc-500">No indicator data available.</p>
+        <p className="text-xs text-zinc-500">No indicator data available.</p>
       ) : null}
     </div>
   );
