@@ -47,7 +47,7 @@ export function PairReportLayout({
   }, [report.relatedPools, report.pair]);
 
   return (
-    <div className="min-h-full panel-scroll">
+    <div className="min-h-full">
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-8">
         {/* 1. Pool Header */}
         <PoolHeader
@@ -69,7 +69,7 @@ export function PairReportLayout({
         />
 
         {/* 2. Pool Price & External Links (sticky) */}
-        <div className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-sm border-b border-white/[0.03] py-3 space-y-2">
+        <div className="sticky top-0 z-30 bg-background border-b border-white/[0.03] py-3 space-y-2">
           <PoolPriceBlock
             priceTokenYPerTokenX={pair?.priceTokenYPerTokenX}
             inversePrice={pair?.inversePrice}
