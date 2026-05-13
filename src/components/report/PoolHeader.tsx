@@ -25,10 +25,6 @@ export function PoolHeader({
     <div className="p-6 rounded-xl bg-white/[0.03]">
       {/* ─── Identity ─── */}
       <div className="flex flex-col gap-2">
-        <span className="inline-flex w-fit rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide text-amber-300">
-          Meteora DLMM
-        </span>
-
         <div className="flex items-center justify-between gap-3">
           <h1 className="min-w-0 text-xl font-bold text-zinc-100">{name}</h1>
 
