@@ -156,23 +156,41 @@ export function NewPairsTable({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("tidepool_auto_refresh") === "true";
-  });
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
-    const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-    if (savedAt) {
-      const lastFetch = parseInt(savedAt, 10);
-      if (!isNaN(lastFetch)) return lastFetch;
-    }
-    return null;
-  });
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+
+  // Sync persisted state from localStorage after hydration (avoid SSR mismatch)
+  useEffect(() => {
+    Promise.resolve()
+      .then(() => {
+        try {
+          return localStorage.getItem("tidepool_auto_refresh") === "true";
+        } catch {
+          return false;
+        }
+      })
+      .then((val) => {
+        if (val) setAutoRefresh(true);
+      });
+    Promise.resolve()
+      .then(() => {
+        try {
+          const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+          if (!savedAt) return null;
+          const lastFetch = parseInt(savedAt, 10);
+          return isNaN(lastFetch) ? null : lastFetch;
+        } catch {
+          return null;
+        }
+      })
+      .then((val) => {
+        if (val !== null) setLastFetchedAt(val);
+      });
+  }, []);
 
   const searchParams = useSearchParams();
   const router = useRouter();
