@@ -2,123 +2,50 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import type { DlmmPairInfo, PairToken } from "@/lib/types";
-import {
-  formatCompactUsd,
-  formatCompactNumber,
-  formatTokenPrice,
-  formatAge,
-  pctValue,
-  shortenAddress,
-} from "@/lib/format";
-import { CopyButton } from "@/components/CopyButton";
-import { ExternalIconLinks } from "./ExternalIconLinks";
 import { TablePagination } from "./TablePagination";
+import {
+  SortDir,
+  Timeframe,
+  ColumnKey,
+  ALL_COLUMN_KEYS,
+  TIMEFRAMES,
+  sortableColumns,
+  LS_TIMEFRAME,
+  LS_VISIBLE_COLUMNS,
+  LS_TABLE_DENSITY,
+} from "./new-pairs-config";
+import { useNewPairsData } from "./useNewPairsData";
+import { useNewPairsSorting } from "./useNewPairsSorting";
+import { NewPairRow } from "./NewPairRow";
 
-interface NewPairsResponse {
-  pools: DlmmPairInfo[];
-  total: number;
-  pages: number;
-  source?: unknown;
-  fetchedAt?: string;
-}
-
-type SortKey =
-  | "createdAt"
-  | "priceTokenYPerTokenX"
-  | "tvlUsd"
-  | "volume24h"
-  | "fees24h"
-  | "apr"
-  | "binStep"
-  | "baseFeePct"
-  | "marketCap"
-  | "holders";
-type SortDir = "asc" | "desc";
-type Timeframe = "30m" | "1h" | "4h" | "6h" | "12h" | "24h";
-const TIMEFRAMES: Timeframe[] = ["30m", "1h", "4h", "6h", "12h", "24h"];
-
-const AUTO_REFRESH_INTERVAL = 60; // seconds
-const MIN_COOLDOWN_MS = 15000; // minimum ms between requests
-
-const sortableColumns: {
-  key: SortKey;
-  label: string;
-  align: "left" | "right";
-}[] = [
-  { key: "priceTokenYPerTokenX", label: "Price", align: "right" },
-  { key: "tvlUsd", label: "TVL", align: "right" },
-  { key: "volume24h", label: "24h Vol", align: "right" },
-  { key: "fees24h", label: "24h Fees", align: "right" },
-  { key: "apr", label: "APR", align: "right" },
-  { key: "binStep", label: "Bin Step", align: "right" },
-  { key: "baseFeePct", label: "Base Fee", align: "right" },
-  { key: "marketCap", label: "MCap", align: "right" },
-  { key: "holders", label: "Holders", align: "right" },
-  { key: "createdAt", label: "Age", align: "right" },
-];
-
-const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Launchpad.
-
-const SOL_MINT = "So11111111111111111111111111111111111111112";
-
-function getPrimaryToken(pair: DlmmPairInfo): PairToken {
-  if (pair.tokenX.mint === SOL_MINT) return pair.tokenY;
-  if (pair.tokenY.mint === SOL_MINT) return pair.tokenX;
-  return pair.tokenX;
-}
-
-function FreezeStatus({ token }: { token: PairToken }) {
-  if (token.freezeAuthorityDisabled === true) {
-    return <span className="text-emerald-400" aria-label="Freeze authority disabled">Off</span>;
-  }
-  if (token.freezeAuthorityDisabled === false) {
-    return <span className="text-red-400" aria-label="Freeze authority enabled">On</span>;
-  }
-  return <span className="text-zinc-500" aria-label="Freeze authority unknown">–</span>;
-}
-
-function VerificationDot() {
-  return (
-    <span
-      className="inline-block size-1.5 rounded-full bg-[var(--accent)] shrink-0"
-      title="Verified"
-      aria-label="Verified"
-    />
-  );
-}
-
-function NewBadge() {
-  return (
-    <span className="inline-flex items-center rounded bg-[var(--accent)]/15 px-1 py-0 text-[9px] font-bold uppercase tracking-wider text-[var(--accent)]">
-      New
-    </span>
-  );
-}
-
+// ─── SortHeader ────────────────────────────────────────────────────────────
 function SortHeader({
   label,
   active,
   dir,
   align,
   onClick,
+  padClass = "px-3 py-2",
 }: {
   label: string;
   active: boolean;
   dir: SortDir;
   align: "left" | "right";
   onClick: () => void;
+  padClass?: string;
 }) {
   return (
     <th
       scope="col"
-      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : undefined}
+      aria-sort={
+        active ? (dir === "asc" ? "ascending" : "descending") : undefined
+      }
       className={`px-0 py-0 text-[10px] font-semibold uppercase tracking-wider ${align === "right" ? "text-right" : ""}`}
     >
       <button
         type="button"
         onClick={onClick}
-        className={`inline-flex items-center gap-1 px-3 py-2 cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
+        className={`inline-flex items-center gap-1 ${padClass} cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
       >
         {label}
         {active && (
@@ -131,85 +58,97 @@ function SortHeader({
   );
 }
 
-function SkeletonRow() {
+// ─── SkeletonRow ───────────────────────────────────────────────────────────
+function SkeletonRow({
+  visibleColumns,
+  density,
+}: {
+  visibleColumns: Set<ColumnKey>;
+  density: "compact" | "comfortable";
+}) {
+  const pad = density === "compact" ? "px-3 py-2.5" : "px-4 py-3.5";
   return (
     <tr className="border-b border-[var(--panel-border)]">
-      <td className="px-3 py-2.5">
-        <div className="h-3 bg-zinc-800 rounded animate-pulse w-28" />
-        <div className="h-2 bg-zinc-800 rounded animate-pulse w-20 mt-1.5" />
-      </td>
-      {Array.from({ length: TOTAL_COLUMNS - 1 }).map((_, i) => (
-        <td key={i} className="px-3 py-2.5">
+      {visibleColumns.has("pair") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-28" />
+          <div className="h-2 bg-zinc-800 rounded animate-pulse w-20 mt-1.5" />
+        </td>
+      )}
+      {visibleColumns.has("priceTokenYPerTokenX") && (
+        <td className={pad}>
           <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
         </td>
-      ))}
+      )}
+      {visibleColumns.has("tvlUsd") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("volume24h") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("fees24h") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("apr") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("binStep") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("baseFeePct") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("marketCap") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("holders") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("createdAt") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("freeze") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
+      {visibleColumns.has("launchpad") && (
+        <td className={pad}>
+          <div className="h-3 bg-zinc-800 rounded animate-pulse w-12 ml-auto" />
+        </td>
+      )}
     </tr>
   );
 }
 
+// ─── NewPairsTable ─────────────────────────────────────────────────────────
 export function NewPairsTable({
   onSelectPool,
 }: {
   onSelectPool: (poolAddress: string) => void;
 }) {
-  const [pools, setPools] = useState<DlmmPairInfo[]>([]);
-  const [newPoolIds, setNewPoolIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
-  const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [timeframe, setTimeframe] = useState<Timeframe>("24h");
-
-  // Sync persisted state from localStorage after hydration (avoid SSR mismatch)
-  useEffect(() => {
-    Promise.resolve()
-      .then(() => {
-        try {
-          return localStorage.getItem("tidepool_auto_refresh") === "true";
-        } catch {
-          return false;
-        }
-      })
-      .then((val) => {
-        if (val) setAutoRefresh(true);
-      });
-    Promise.resolve()
-      .then(() => {
-        try {
-          const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-          if (!savedAt) return null;
-          const lastFetch = parseInt(savedAt, 10);
-          return isNaN(lastFetch) ? null : lastFetch;
-        } catch {
-          return null;
-        }
-      })
-      .then((val) => {
-        if (val !== null) setLastFetchedAt(val);
-      });
-    Promise.resolve()
-      .then(() => {
-        try {
-          return localStorage.getItem("tidepool_timeframe");
-        } catch {
-          return null;
-        }
-      })
-      .then((val) => {
-        if (val && TIMEFRAMES.includes(val as Timeframe)) setTimeframe(val as Timeframe);
-      });
-  }, []);
-
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  // URL params
   const page = useMemo(() => {
     const p = parseInt(searchParams.get("page") ?? "1", 10);
     return isNaN(p) || p < 1 ? 1 : p;
@@ -220,92 +159,110 @@ export function NewPairsTable({
     return [10, 20, 50, 100].includes(size) ? size : 20;
   }, [searchParams]);
 
-  const lastFetchTimeRef = useRef<number>(0);
-  const lastPageRef = useRef(1);
-  const tableBodyRef = useRef<HTMLDivElement>(null);
+  // Data fetching
+  const {
+    pools,
+    loading,
+    error,
+    totalPages,
+    total,
+    newPoolIds,
+    lastUpdatedText,
+    autoRefresh,
+    countdown,
+    triggerRefresh,
+    toggleAutoRefresh,
+  } = useNewPairsData({ page, pageSize });
 
-  useEffect(() => {
+  // Component state
+  const [timeframe, setTimeframe] = useState<Timeframe>("24h");
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    if (typeof window === "undefined") return new Set(ALL_COLUMN_KEYS);
     try {
-      localStorage.setItem("tidepool_auto_refresh", String(autoRefresh));
+      const saved = localStorage.getItem(LS_VISIBLE_COLUMNS);
+      if (saved) {
+        const parsed = JSON.parse(saved) as ColumnKey[];
+        return new Set(parsed.filter((k) => ALL_COLUMN_KEYS.includes(k)));
+      }
     } catch {
       // ignore
     }
-  }, [autoRefresh]);
-
-  useEffect(() => {
-    if (lastFetchedAt) {
-      try {
-        localStorage.setItem("tidepool_last_fetched_at", String(lastFetchedAt));
-      } catch {
-        // ignore
-      }
+    return new Set(ALL_COLUMN_KEYS);
+  });
+  const [density, setDensity] = useState<"compact" | "comfortable">(() => {
+    if (typeof window === "undefined") return "compact";
+    try {
+      const saved = localStorage.getItem(LS_TABLE_DENSITY);
+      if (saved === "comfortable") return "comfortable";
+    } catch {
+      // ignore
     }
-  }, [lastFetchedAt]);
+    return "compact";
+  });
+  const [columnsOpen, setColumnsOpen] = useState(false);
 
+  // Refs
+  const columnsDropdownRef = useRef<HTMLDivElement>(null);
+  const tableBodyRef = useRef<HTMLDivElement>(null);
+
+  // Sorting
+  const { sortKey, sortDir, sortedPools, handleSort } = useNewPairsSorting({
+    pools,
+    timeframe,
+  });
+
+  // Max TVL for micro-bars
+  const maxTvl = useMemo(() => {
+    return Math.max(...pools.map((p) => p.tvlUsd ?? 0), 1);
+  }, [pools]);
+
+  // ─── Effects ─────────────────────────────────────────────────────────────
+
+  // Hydration-safe timeframe sync
+  useEffect(() => {
+    Promise.resolve()
+      .then(() => {
+        try {
+          return localStorage.getItem(LS_TIMEFRAME);
+        } catch {
+          return null;
+        }
+      })
+      .then((val) => {
+        if (val && TIMEFRAMES.includes(val as Timeframe))
+          setTimeframe(val as Timeframe);
+      });
+  }, []);
+
+  // Persist component state
   useEffect(() => {
     try {
-      localStorage.setItem("tidepool_timeframe", timeframe);
+      localStorage.setItem(LS_TIMEFRAME, timeframe);
     } catch {
       // ignore
     }
   }, [timeframe]);
 
-  // ─── Fetch effect ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const pageChanged = page !== lastPageRef.current;
-    lastPageRef.current = page;
-
-    // Cooldown guard: skip if too soon (except initial mount or page change)
-    if (!pageChanged && Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS && tick > 0) {
-      return;
+    try {
+      localStorage.setItem(
+        LS_VISIBLE_COLUMNS,
+        JSON.stringify([...visibleColumns]),
+      );
+    } catch {
+      // ignore
     }
+  }, [visibleColumns]);
 
-    const controller = new AbortController();
-    lastFetchTimeRef.current = Date.now();
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_TABLE_DENSITY, density);
+    } catch {
+      // ignore
+    }
+  }, [density]);
 
-    (async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await fetch(`/api/pools/new?page=${page}&pageSize=${pageSize}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(
-            data.error?.message || `Failed to load pools (${res.status})`,
-          );
-        }
-        const data = (await res.json()) as NewPairsResponse;
-        const now = Date.now();
-        const oneHour = 3600000;
-        const ids = new Set(
-          data.pools
-            .filter((p) => p.createdAt && now - p.createdAt < oneHour)
-            .map((p) => p.poolAddress),
-        );
-        setPools(data.pools);
-        setTotalPages(data.pages);
-        setTotal(data.total);
-        setNewPoolIds(ids);
-        setLastFetchedAt(now);
-      } catch (err) {
-        if ((err as Error).name === "AbortError") return;
-        setError(
-          err instanceof Error ? err.message : "Failed to load new pools",
-        );
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    })();
-
-    return () => controller.abort();
-  }, [tick, page, pageSize]);
-
-  // ─── Page clamp effect ────────────────────────────────────────────────────
+  // Page clamp
   useEffect(() => {
     if (totalPages > 0 && page > totalPages) {
       const params = new URLSearchParams(searchParams);
@@ -314,165 +271,49 @@ export function NewPairsTable({
     }
   }, [totalPages, page, searchParams, router]);
 
-  // ─── Scroll to top on page change ─────────────────────────────────────────
+  // Scroll to top on page change
   useEffect(() => {
     tableBodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [page]);
 
-  // ─── Countdown timer ──────────────────────────────────────────────────────
+  // Columns dropdown click-outside
   useEffect(() => {
-    if (!autoRefresh) {
-      const id = setTimeout(() => setCountdown(0), 0);
-      return () => clearTimeout(id);
-    }
-
-    const initId = setTimeout(() => {
-      setCountdown((prev) => (prev > 0 ? prev : AUTO_REFRESH_INTERVAL));
-    }, 0);
-
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          if (Date.now() - lastFetchTimeRef.current >= MIN_COOLDOWN_MS) {
-            setTick((t) => t + 1);
-          }
-          return AUTO_REFRESH_INTERVAL;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      clearTimeout(initId);
-      clearInterval(interval);
-    };
-  }, [autoRefresh]);
-
-  // ─── Page Visibility API ───────────────────────────────────────────────────
-  useEffect(() => {
-    function onVisibilityChange() {
-      if (!autoRefresh) return;
-      if (document.visibilityState !== "visible" || !lastFetchedAt) return;
-      const staleMs = 60000;
-      if (Date.now() - lastFetchedAt <= staleMs) return;
-      if (Date.now() - lastFetchTimeRef.current < MIN_COOLDOWN_MS) return;
-      setTick((t) => t + 1);
-    }
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-  }, [lastFetchedAt, autoRefresh]);
-
-  // ─── Last updated text ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const compute = () => {
-      if (!lastFetchedAt) {
-        setLastUpdatedText(null);
-        return;
+    function handleClick(e: MouseEvent) {
+      if (
+        columnsDropdownRef.current &&
+        !columnsDropdownRef.current.contains(e.target as Node)
+      ) {
+        setColumnsOpen(false);
       }
-      const diff = Date.now() - lastFetchedAt;
-      setLastUpdatedText(diff < 60000 ? "Just now" : `${formatAge(lastFetchedAt)} ago`);
-    };
+    }
+    if (columnsOpen) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [columnsOpen]);
 
-    const initId = setTimeout(compute, 0);
-    const intervalId = setInterval(compute, 5000);
-    return () => {
-      clearTimeout(initId);
-      clearInterval(intervalId);
-    };
-  }, [lastFetchedAt]);
+  // ─── Handlers ────────────────────────────────────────────────────────────
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────
+  const handleTimeframeChange = (tf: Timeframe) => setTimeframe(tf);
 
-  const handleSort = useCallback(
-    (key: SortKey) => {
-      if (sortKey === key) {
-        setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
-      } else {
-        setSortKey(key);
-        setSortDir("desc");
-      }
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("page", String(newPage));
+      router.replace(`?${params.toString()}`);
     },
-    [sortKey],
+    [searchParams, router],
   );
 
-  const triggerRefresh = useCallback(() => {
-    const now = Date.now();
-    if (now - lastFetchTimeRef.current < MIN_COOLDOWN_MS) return;
-    setTick((t) => t + 1);
-  }, []);
+  const handlePageSizeChange = useCallback(
+    (newSize: number) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("page", "1");
+      params.set("pageSize", String(newSize));
+      router.replace(`?${params.toString()}`);
+    },
+    [searchParams, router],
+  );
 
-  const toggleAutoRefresh = useCallback(() => {
-    setAutoRefresh((prev) => !prev);
-  }, []);
-
-  const handleTimeframeChange = useCallback((tf: Timeframe) => {
-    setTimeframe(tf);
-  }, []);
-
-  const handlePageChange = useCallback((newPage: number) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("page", String(newPage));
-    router.replace(`?${params.toString()}`);
-  }, [searchParams, router]);
-
-  const handlePageSizeChange = useCallback((newSize: number) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("page", "1");
-    params.set("pageSize", String(newSize));
-    router.replace(`?${params.toString()}`);
-  }, [searchParams, router]);
-
-  // ─── Derived data ─────────────────────────────────────────────────────────
-
-  const sortedPools = useMemo(() => {
-    if (sortKey === "createdAt") {
-      return [...pools].sort((a, b) => {
-        const aVal = a.createdAt ?? 0;
-        const bVal = b.createdAt ?? 0;
-        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
-      });
-    }
-    if (sortKey === "marketCap") {
-      return [...pools].sort((a, b) => {
-        const aVal = getPrimaryToken(a).marketCap ?? 0;
-        const bVal = getPrimaryToken(b).marketCap ?? 0;
-        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
-      });
-    }
-    if (sortKey === "holders") {
-      return [...pools].sort((a, b) => {
-        const aVal = getPrimaryToken(a).holders ?? 0;
-        const bVal = getPrimaryToken(b).holders ?? 0;
-        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
-      });
-    }
-    if (sortKey === "priceTokenYPerTokenX") {
-      return [...pools].sort((a, b) => {
-        const aVal = getPrimaryToken(a).priceUsd ?? 0;
-        const bVal = getPrimaryToken(b).priceUsd ?? 0;
-        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
-      });
-    }
-    return [...pools].sort((a, b) => {
-      let aVal: number;
-      let bVal: number;
-      if (sortKey === "volume24h") {
-        aVal = a.volume?.[timeframe] ?? 0;
-        bVal = b.volume?.[timeframe] ?? 0;
-      } else if (sortKey === "fees24h") {
-        aVal = a.fees?.[timeframe] ?? 0;
-        bVal = b.fees?.[timeframe] ?? 0;
-      } else {
-        aVal = (a[sortKey] as number | undefined) ?? 0;
-        bVal = (b[sortKey] as number | undefined) ?? 0;
-      }
-      return sortDir === "asc" ? aVal - bVal : bVal - aVal;
-    });
-  }, [pools, sortKey, sortDir, timeframe]);
-
-  // ─── Render ─────────────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="h-full flex flex-col">
@@ -490,6 +331,97 @@ export function NewPairsTable({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Density toggle */}
+          <div className="flex items-center rounded overflow-hidden border border-zinc-700/50">
+            <button
+              type="button"
+              onClick={() => setDensity("compact")}
+              className={`px-1.5 py-0.5 text-[10px] font-medium transition ${
+                density === "compact"
+                  ? "bg-zinc-700 text-zinc-200"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+              aria-pressed={density === "compact"}
+            >
+              Compact
+            </button>
+            <button
+              type="button"
+              onClick={() => setDensity("comfortable")}
+              className={`px-1.5 py-0.5 text-[10px] font-medium transition ${
+                density === "comfortable"
+                  ? "bg-zinc-700 text-zinc-200"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+              aria-pressed={density === "comfortable"}
+            >
+              Comfortable
+            </button>
+          </div>
+
+          {/* Columns toggle */}
+          <div className="relative" ref={columnsDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setColumnsOpen((prev) => !prev)}
+              className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition ${
+                columnsOpen
+                  ? "bg-zinc-700 text-zinc-200"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
+              }`}
+              aria-expanded={columnsOpen}
+            >
+              Columns
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                className="size-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M5 7.5L10 12.5L15 7.5" />
+              </svg>
+            </button>
+            {columnsOpen && (
+              <div className="absolute right-0 mt-1 w-44 rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] shadow-xl py-1 z-30">
+                {ALL_COLUMN_KEYS.map((key) => {
+                  const label =
+                    key === "pair"
+                      ? "Pair"
+                      : key === "freeze"
+                        ? "Freeze"
+                        : key === "launchpad"
+                          ? "LP"
+                          : sortableColumns.find((c) => c.key === key)
+                              ?.label ?? key;
+                  return (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs text-zinc-300 cursor-pointer hover:bg-white/[0.04]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns.has(key)}
+                        onChange={() => {
+                          const next = new Set(visibleColumns);
+                          if (next.has(key)) {
+                            if (next.size > 1) next.delete(key);
+                          } else {
+                            next.add(key);
+                          }
+                          setVisibleColumns(next);
+                        }}
+                        className="accent-[var(--accent)]"
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Timeframe toggle */}
           <div className="flex items-center rounded overflow-hidden border border-zinc-700/50">
             {TIMEFRAMES.map((tf) => (
@@ -571,44 +503,68 @@ export function NewPairsTable({
           <table className="w-full min-w-[1400px] text-left">
             <thead className="sticky top-0 bg-[var(--panel-bg)] z-10">
               <tr className="border-b border-[var(--panel-border)]">
-                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                  Pair
-                </th>
-                {sortableColumns.map((col) => {
-                  const label =
-                    col.key === "volume24h"
-                      ? `${timeframe} Vol`
-                      : col.key === "fees24h"
-                        ? `${timeframe} Fees`
-                        : col.label;
-                  return (
-                    <SortHeader
-                      key={col.key}
-                      label={label}
-                      active={sortKey === col.key}
-                      dir={sortDir}
-                      align={col.align}
-                      onClick={() => handleSort(col.key)}
-                    />
-                  );
-                })}
-                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
-                  Freeze
-                </th>
-                <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
-                  LP
-                </th>
+                {visibleColumns.has("pair") && (
+                  <th
+                    scope="col"
+                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                  >
+                    Pair
+                  </th>
+                )}
+                {sortableColumns
+                  .filter((col) => visibleColumns.has(col.key))
+                  .map((col) => {
+                    const label =
+                      col.key === "volume24h"
+                        ? `${timeframe} Vol`
+                        : col.key === "fees24h"
+                          ? `${timeframe} Fees`
+                          : col.label;
+                    return (
+                      <SortHeader
+                        key={col.key}
+                        label={label}
+                        active={sortKey === col.key}
+                        dir={sortDir}
+                        align={col.align}
+                        onClick={() => handleSort(col.key)}
+                        padClass={
+                          density === "compact" ? "px-3 py-2" : "px-4 py-3"
+                        }
+                      />
+                    );
+                  })}
+                {visibleColumns.has("freeze") && (
+                  <th
+                    scope="col"
+                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                  >
+                    Freeze
+                  </th>
+                )}
+                {visibleColumns.has("launchpad") && (
+                  <th
+                    scope="col"
+                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                  >
+                    LP
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonRow key={i} />
+                  <SkeletonRow
+                    key={i}
+                    visibleColumns={visibleColumns}
+                    density={density}
+                  />
                 ))
               ) : sortedPools.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={TOTAL_COLUMNS}
+                    colSpan={visibleColumns.size}
                     className="px-3 py-8 text-center text-xs text-zinc-500"
                   >
                     No new pools found
@@ -616,93 +572,16 @@ export function NewPairsTable({
                 </tr>
               ) : (
                 sortedPools.map((pool) => (
-                  <tr
+                  <NewPairRow
                     key={pool.poolAddress}
-                    tabIndex={0}
-                    role="button"
-                    onClick={() => onSelectPool(pool.poolAddress)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onSelectPool(pool.poolAddress);
-                      }
-                    }}
-                    className="border-b border-[var(--panel-border)] cursor-pointer transition hover:bg-white/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
-                  >
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-medium text-zinc-200">
-                          {pool.tokenX.symbol ?? "?"}
-                        </span>
-                        {pool.tokenX.verified && <VerificationDot />}
-                        <span className="text-zinc-500 text-xs">/</span>
-                        <span className="text-xs font-medium text-zinc-200">
-                          {pool.tokenY.symbol ?? "?"}
-                        </span>
-                        {pool.tokenY.verified && <VerificationDot />}
-                        {newPoolIds.has(pool.poolAddress) && <NewBadge />}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] text-zinc-500 truncate max-w-[140px]">
-                          {pool.name ||
-                            `${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
-                        </span>
-                        <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
-                          {shortenAddress(pool.poolAddress)}
-                        </span>
-                        <CopyButton address={pool.poolAddress} />
-                        <ExternalIconLinks poolAddress={pool.poolAddress} primaryMint={getPrimaryToken(pool).mint} />
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatTokenPrice(getPrimaryToken(pool).priceUsd)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatCompactUsd(pool.tvlUsd)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatCompactUsd(pool.volume?.[timeframe])}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatCompactUsd(pool.fees?.[timeframe])}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {pctValue(pool.apr)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {pool.binStep ?? "–"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {pctValue(pool.baseFeePct)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatCompactUsd(getPrimaryToken(pool).marketCap)}
-                      {getPrimaryToken(pool).marketCapFallback && (
-                        <span
-                          className="inline-flex items-center justify-center size-3.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold leading-none ml-1 align-middle"
-                          title="Market cap computed from price × total supply (Meteora returned 0)"
-                        >
-                          !
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatCompactNumber(getPrimaryToken(pool).holders)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-400">
-                      {formatAge(pool.createdAt)}
-                    </td>
-                    <td className="px-3 py-2 text-center text-xs">
-                      <FreezeStatus token={getPrimaryToken(pool)} />
-                    </td>
-                    <td className="px-3 py-2 text-center text-xs">
-                      {pool.launchpad ? (
-                        <span className="text-[10px] text-zinc-400">{pool.launchpad}</span>
-                      ) : (
-                        <span className="text-zinc-600">–</span>
-                      )}
-                    </td>
-                  </tr>
+                    pool={pool}
+                    visibleColumns={visibleColumns}
+                    density={density}
+                    timeframe={timeframe}
+                    newPoolIds={newPoolIds}
+                    maxTvl={maxTvl}
+                    onSelectPool={onSelectPool}
+                  />
                 ))
               )}
             </tbody>

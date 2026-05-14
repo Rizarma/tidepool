@@ -1,0 +1,53 @@
+import type { DlmmPairInfo } from "@/lib/types";
+
+export interface NewPairsResponse {
+  pools: DlmmPairInfo[];
+  total: number;
+  pages: number;
+  source?: unknown;
+  fetchedAt?: string;
+}
+
+export type SortKey =
+  | "createdAt"
+  | "priceTokenYPerTokenX"
+  | "tvlUsd"
+  | "volume24h"
+  | "fees24h"
+  | "apr"
+  | "binStep"
+  | "baseFeePct"
+  | "marketCap"
+  | "holders";
+
+export type SortDir = "asc" | "desc";
+
+export type Timeframe = "30m" | "1h" | "4h" | "6h" | "12h" | "24h";
+
+export type ColumnKey = SortKey | "pair" | "freeze" | "launchpad";
+
+export const ALL_COLUMN_KEYS: ColumnKey[] = [
+  "pair",
+  "priceTokenYPerTokenX",
+  "tvlUsd",
+  "volume24h",
+  "fees24h",
+  "apr",
+  "binStep",
+  "baseFeePct",
+  "marketCap",
+  "holders",
+  "createdAt",
+  "freeze",
+  "launchpad",
+];
+
+export const TIMEFRAMES: Timeframe[] = ["30m", "1h", "4h", "6h", "12h", "24h"];
+export const AUTO_REFRESH_INTERVAL = 60; // seconds
+export const MIN_COOLDOWN_MS = 15000; // minimum ms between requests
+
+export const LS_AUTO_REFRESH = "tidepool_auto_refresh";
+export const LS_LAST_FETCHED_AT = "tidepool_last_fetched_at";
+export const LS_TIMEFRAME = "tidepool_timeframe";
+export const LS_VISIBLE_COLUMNS = "tidepool_visible_columns";
+export const LS_TABLE_DENSITY = "tidepool_table_density";
