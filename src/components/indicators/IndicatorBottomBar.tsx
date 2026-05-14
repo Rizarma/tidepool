@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { LinkOpener } from "@/components/LinkOpener";
 import { useIndicatorConfig } from "./IndicatorConfigContext";
 import { IndicatorSettings } from "./IndicatorSettings";
 
@@ -40,25 +41,21 @@ export function IndicatorBottomBar() {
       <div className="shrink-0 border-t border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2 flex items-center justify-between">
         <span className="text-[10px] text-zinc-500">{summary}</span>
         <div className="flex items-center gap-3">
-          <a
+          <LinkOpener
             href="https://gmgn.ai/?ref=yr2NU5dr"
-            target="_blank"
-            rel="noopener noreferrer"
             className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
           >
             <ExternalLinkIcon />
             <span>GMGN</span>
-          </a>
+          </LinkOpener>
           <span className="text-zinc-700 select-none">·</span>
-          <a
+          <LinkOpener
             href={lpAgentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
             className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
           >
             <ExternalLinkIcon />
             <span>LPAgent</span>
-          </a>
+          </LinkOpener>
           <button
           onClick={() => setShowSettings(true)}
           className="rounded p-1 hover:bg-white/[0.04] text-zinc-400 transition-colors"

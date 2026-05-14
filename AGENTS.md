@@ -22,7 +22,7 @@ Next.js 16 application for tidepool scanning and risk analysis.
 - Token-mint pool discovery uses `GET /api/scan/pools?mint=<mint>` and Meteora `GET /pools?query=<mint>`, then exact-filters token X/Y mint matches and sorts pools by TVL, then 24h volume.
 - Address intelligence lives at `GET /api/resolve-address?address=<address>` and can report `direct_pool_scan`, `pool_discovery`, `token_scan`, or `none`.
 - Keep token scans and pool scans conceptually separate: Token mode checks token risk; Pool mode checks Meteora DLMM pool data.
-- The homepage shows a live **New Pairs table** of recently created Meteora DLMM pools via `GET /api/pools/new`. Clicking a pool row navigates to `/pool/<address>` via `router.push()`.
+- The homepage shows a live **New Pairs table** of recently created Meteora DLMM pools via `GET /api/pools/new`. Columns include price, TVL, volume, fees, APR, bin step, base fee, market cap, holders, age, freeze authority status, and launchpad. Each row includes quick links to Meteora, GMGN, DexTools, DexScreener, Jupiter, and LPAgent. Clicking a pool row navigates to `/pool/<address>` via `router.push()`.
 - `GET /api/pools/new` proxies Meteora's new-pools endpoint and returns `{ pools: DlmmPairInfo[], total, pages }` with `createdAt` populated from `pool.created_at`.
 - The New Pairs table supports periodic auto-refresh (60s interval, 15s cooldown). Toggle state and countdown are persisted in `localStorage` with keys `tidepool_auto_refresh` and `tidepool_last_fetched_at`.
 - The Tidepool logo button navigates to `/` via `router.push('/')`, returning to the New Pairs table. Command bar inputs are persisted in `localStorage` via lazy `useState` initializers in `RouteScanForm.tsx`.
@@ -32,6 +32,25 @@ Next.js 16 application for tidepool scanning and risk analysis.
 - Pool price ratios for indicators are computed as `tokenX_USD / tokenY_USD` at matching timestamps from Birdeye price histories.
 - Indicator config is persisted in `localStorage` under key `tidepool_indicator_config`.
 - `IndicatorSettings.tsx` uses local draft state — changes only apply on the "Apply" button click. Do not change this to immediate apply.
+
+### Pool Report UI (Trading Terminal)
+
+The pool detail page (`/pool/[address]`) uses a terminal-style layout rendered by `PairReportLayout.tsx`. Sections render in this order:
+
+1. `PoolHeader` — Pool identity (name, address, launchpad), status badge (Active/Blacklisted), metrics grid (TVL, 24h Vol, 24h Fees, Bin Step), and fee row (APR, Base Fee, Dynamic Fee). Includes a discovery slot for the pool chooser when multiple pools exist.
+2. `PoolPriceBlock` (sticky) — Token price display: "1 X = price Y" and inverse. Stays visible while scrolling.
+3. `ExternalLinks` (sticky) — Links to Meteora, DexTools, DexScreener, GMGN, Jupiter, LPAgent. Uses hardcoded referral codes `GMGN_REFERRAL = "yr2NU5dr"` and `LPAGENT_REFERRAL = "URq8gm4"`.
+4. `ComparisonZone` — Bar chart comparison of TVL, 24h Volume, and APR across related pools. Collapsible when more than 6 pools. Uses `pctCompact` for APR labels. Pool labels use Meteora-style format: "Bin Step {n} · Fee {x}%".
+5. `IndicatorsPanel` — SMA technical indicators at configurable timeframes.
+6. `TokenCard` × 2 — Token X and Token Y detail cards showing price, market cap, reserve, holders, and mint address.
+7. `RankedPoolsTable` — Sortable table of all related pools. Columns: Pool, TVL Share (micro-bar), TVL, 24h Vol, APR, Bin Step, Base Fee, 24h Fees, Age. The Dynamic Fee column was removed. Current pool is highlighted with an amber "You are here" badge.
+8. `CompactFooter` — Pool tags, collapsible sources list, and data timestamp.
+
+`DiscoveryPanel` supports a `variant="compact"` prop used when embedded inside `PoolHeader`.
+
+### Related Pools
+
+Pool reports include `report.relatedPools` — other DLMM pools for the same token pair. Fetched via Meteora `GET /pools/groups/<mintA>-<mintB>` with pagination (page size 200) to retrieve all pools. The current pool is included in the normalized list if not already present. Related pools are shown in both the `ComparisonZone` (bar charts) and `RankedPoolsTable` (sortable table).
 
 ### App Router Routes
 
@@ -51,6 +70,16 @@ The app uses Next.js 16 App Router with segmented routes. The root `layout.tsx` 
 - `src/app/AppShell.tsx` — Persistent shell with `IndicatorConfigProvider`, `RouteScanForm`, `IndicatorBottomBar`
 - `src/components/scan/RouteScanForm.tsx` — Route-aware command bar. Derives mode from `pathname`/`searchParams`. Uses lazy `useState` initializers for `localStorage` restore (no sync `setState` in effects). On `/`, mode toggle updates URL (`/?mode=token` or `/`). On report routes, mode toggle only affects local state via `setMode()`.
 - `src/lib/report-fetchers.ts` — `ApiFetchError` extends Error with `{ code?: ApiErrorCode; status: number; body?: unknown }`. Typed helpers: `fetchPoolReport`, `fetchTokenReport`, `fetchPoolDiscovery`, `fetchPoolByMints`.
+- `src/lib/format.ts` — Shared formatting helpers (currency, percentages, addresses, ages). See Shared Formatting Helpers section below.
+- `src/components/report/PairReportLayout.tsx` — Terminal-style pool report layout composing all pool report sections
+- `src/components/report/PoolHeader.tsx` — Pool identity, metrics grid, status badge, fee row
+- `src/components/report/PoolPriceBlock.tsx` — Sticky token price display
+- `src/components/report/ExternalLinks.tsx` — External platform links with referral codes
+- `src/components/report/ComparisonZone.tsx` — Collapsible bar chart comparison of related pools
+- `src/components/report/RelatedPoolsPanel.tsx` — Sortable related pools table (`RankedPoolsTable`) and compatibility wrapper (`RelatedPoolsPanel`)
+- `src/components/report/TokenCard.tsx` — Token detail card for Token X / Token Y
+- `src/components/report/CompactFooter.tsx` — Tags, sources, data age footer
+- `src/components/report/report-atoms.tsx` — Reusable UI atoms: `TerminalSection`, `TerminalDataRow`, `TerminalMetric`, `DataRow`, `RiskBadge`, `MetricCell`, `PanelSection`, `TokenSummaryCompact`
 
 **Deleted SPA files (do not reference or re-create):**
 - `src/components/scan/ScanClient.tsx`
@@ -147,6 +176,29 @@ Error responses continue to use `Response.json()` or `apiErrorResponse()` withou
 `vitest.setup.ts` clears both `cache` and `dedup` before each test. When adding new tests that exercise cached providers, you do not need to manually clear cache state — the setup file handles it.
 
 If a test file previously called `clearIndicatorResponseCache()`, that function is now a no-op (the local response cache was removed in favor of provider-level caching). The test setup file ensures a clean state for all tests.
+
+## Shared Formatting Helpers
+
+`src/lib/format.ts` exports shared formatting utilities used across the UI:
+
+| Function | Purpose |
+|----------|---------|
+| `formatUsd(value)` | Currency formatter with adaptive precision |
+| `formatCompactUsd(value)` | Compact USD — `$1.2K`, `$3.4M` |
+| `formatCompactNumber(value)` | Compact number — `1.2K`, `3.4M`, `1.23B` |
+| `formatTokenPrice(value)` | Token price with exponential fallback for extreme values |
+| `pctValue(value)` | Percentage with 2 decimals — `12.34%` |
+| `pctCompact(value)` | Compact percentage for large values — `2.76k%`, `1.50M%` |
+| `feePct(value)` | Fee percentage with adaptive precision — `0.0025%` or `0.25%` |
+| `shortenAddress(addr, start?, end?)` | Shorten base58 — `7x8K…3aB9` |
+| `short(value)` | Shorten any string > 12 chars |
+| `formatAge(timestamp)` | Relative age — `2m`, `1h`, `3d` |
+| `numberOrDash(value)` | Number or `—` |
+| `programLabel(program)` | SPL Token / Token-2022 / shortened address |
+| `isBadRugLevel(level)` | True for danger/critical/high/risky |
+| `yesNo(value)` | Yes / No / Unknown |
+
+All formatters return `"—"` for `null`/`undefined`/`NaN` unless otherwise noted.
 
 ## Detailed Instructions
 

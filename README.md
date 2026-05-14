@@ -25,7 +25,7 @@ Tidepool includes example scans for USDC, JUP, and BONK.
 
 Paste a Meteora DLMM pool address, paste a token mint from GMGN, or enter both token mint addresses in a pair. Tidepool can discover Meteora DLMM pools that contain a token mint and selects the highest-TVL match by default.
 
-The homepage also shows a live table of recently created Meteora DLMM pools with sortable columns for price, TVL, volume, fees, APR, bin step, base fee, market cap, holders, and age. Click any pool to run a full scan.
+The homepage also shows a live table of recently created Meteora DLMM pools with sortable columns for price, TVL, volume, fees, APR, bin step, base fee, market cap, holders, age, freeze authority status, and launchpad. Each row includes quick links to Meteora, GMGN, DexTools, DexScreener, Jupiter, and LPAgent. Click any pool to run a full scan.
 
 Pool scans show:
 
@@ -33,8 +33,11 @@ Pool scans show:
 - Price, TVL, daily volume, fees, APR, and APY when available
 - Bin step and fee settings
 - Token details for both sides of the pair
+- Related pools for the same token pair, with a comparison chart and sortable table
 - Blacklist status and pool tags
+- Launchpad name when the pool was created via a launchpad
 - A pool chooser when more than one matching pool exists
+- Direct links to Meteora, DexTools, DexScreener, GMGN, Jupiter, and LPAgent
 - Which data sources answered the scan
 - SMA (Simple Moving Average) indicators at configurable timeframes (1m, 5m, 15m, 1h, 4h, 1d), with a settings panel to toggle timeframes and adjust the SMA period
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { PoolReport } from "@/lib/api-types";
-import { formatCompactUsd, pctCompact, pctValue, shortenAddress, feePct } from "@/lib/format";
+import { formatCompactUsd, pctCompact, shortenAddress, feePct } from "@/lib/format";
 import { TerminalSection } from "./report-atoms";
 
 type PoolItem = NonNullable<NonNullable<PoolReport["relatedPools"]>[number]>;

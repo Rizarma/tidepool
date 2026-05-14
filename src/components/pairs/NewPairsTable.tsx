@@ -12,6 +12,7 @@ import {
   shortenAddress,
 } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
+import { LinkOpener } from "@/components/LinkOpener";
 import { TablePagination } from "./TablePagination";
 
 interface NewPairsResponse {
@@ -589,72 +590,60 @@ export function NewPairsTable({
                         </span>
                         <CopyButton address={pool.poolAddress} />
                         <span className="mx-1 text-zinc-700">|</span>
-                        <a
+                        <LinkOpener
                           href={`https://app.meteora.ag/dlmm/${pool.poolAddress}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on Meteora"
                           aria-label="View on Meteora"
                         >
                           Met
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}?ref=${GMGN_REFERRAL}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on GMGN"
                           aria-label="View on GMGN"
                         >
                           GMGN
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://www.dextools.io/app/en/solana/pair-explorer/${pool.poolAddress}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on DexTools"
                           aria-label="View on DexTools"
                         >
                           DexT
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://dexscreener.com/solana/${pool.poolAddress}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on DexScreener"
                           aria-label="View on DexScreener"
                         >
                           DexS
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://jup.ag/tokens/${getPrimaryToken(pool).mint}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on Jupiter"
                           aria-label="View on Jupiter"
                         >
                           Jupiter
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://app.lpagent.io/pools/${encodeURIComponent(pool.poolAddress)}?referral=${LPAGENT_REFERRAL}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on LPAgent"
                           aria-label="View on LPAgent"
                         >
                           LPAgent
-                        </a>
+                        </LinkOpener>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">

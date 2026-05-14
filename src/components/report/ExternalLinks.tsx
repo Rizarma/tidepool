@@ -1,6 +1,7 @@
 "use client";
 
 import type { PoolReport } from "@/lib/api-types";
+import { LinkOpener } from "@/components/LinkOpener";
 
 const GMGN_REFERRAL = "yr2NU5dr";
 const LPAGENT_REFERRAL = "URq8gm4";
@@ -58,16 +59,14 @@ export function ExternalLinks({
   return (
     <div className="flex flex-wrap gap-3">
       {links.map(({ label, href }) => (
-        <a
+        <LinkOpener
           key={label}
           href={href}
-          target="_blank"
-          rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition"
         >
           {label}
           <span aria-hidden="true">↗</span>
-        </a>
+        </LinkOpener>
       ))}
     </div>
   );

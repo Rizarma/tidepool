@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import type { PoolReport } from "@/lib/api-types";
+import { CopyButton } from "@/components/CopyButton";
 import {
   shortenAddress,
   numberOrDash,
@@ -226,6 +227,9 @@ export function RankedPoolsTable({
                         </Link>
                       ) : (
                         <span className="text-zinc-600">—</span>
+                      )}
+                      {pool.poolAddress && (
+                        <CopyButton address={pool.poolAddress} />
                       )}
                       {isCurrent && (
                         <span className="inline-flex items-center rounded bg-amber-500/15 px-1 py-0 text-[10px] font-bold uppercase text-amber-300">
