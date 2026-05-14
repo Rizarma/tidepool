@@ -9,7 +9,7 @@ import {
   numberOrDash,
   feePct,
   formatCompactUsd,
-  pctValue,
+  pctCompact,
   formatAge,
 } from "@/lib/format";
 
@@ -253,7 +253,7 @@ export function RankedPoolsTable({
                     {formatCompactUsd(pool.volume24h)}
                   </td>
                   <td className="px-3 py-2 text-right text-zinc-300">
-                    {pctValue(pool.apr)}
+                    {pctCompact(pool.apr)}
                   </td>
                   <td className="px-3 py-2 text-right text-zinc-300">
                     {numberOrDash(pool.binStep)}

@@ -32,6 +32,15 @@ export function pctValue(value?: number): string {
   return `${value.toFixed(2)}%`;
 }
 
+/** Compact percentage — 2.76k%, 1.5M% */
+export function pctCompact(value?: number): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs < 1000) return `${value.toFixed(2)}%`;
+  if (abs < 1_000_000) return `${(value / 1000).toFixed(2)}k%`;
+  return `${(value / 1_000_000).toFixed(2)}M%`;
+}
+
 export function short(value?: string | null): string | undefined {
   if (!value) return undefined;
   return value.length > 12 ? `${value.slice(0, 5)}…${value.slice(-5)}` : value;

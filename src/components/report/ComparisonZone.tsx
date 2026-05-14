@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { PoolReport } from "@/lib/api-types";
-import { formatCompactUsd, pctValue, shortenAddress, feePct } from "@/lib/format";
+import { formatCompactUsd, pctCompact, pctValue, shortenAddress, feePct } from "@/lib/format";
 import { TerminalSection } from "./report-atoms";
 
 type PoolItem = NonNullable<NonNullable<PoolReport["relatedPools"]>[number]>;
@@ -171,7 +171,7 @@ export function ComparisonZone({
           pools={normalizedPools}
           currentPoolAddress={currentPoolAddress}
           getValue={(p) => p.apr}
-          formatValue={pctValue}
+          formatValue={pctCompact}
           fixedCap={SENSIBLE_APR_CAP}
         />
       </div>
