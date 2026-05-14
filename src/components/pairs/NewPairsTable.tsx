@@ -229,7 +229,16 @@ export function NewPairsTable({
   } = useNewPairsData({ page, pageSize, filters });
 
   // Component state
-  const [timeframe, setTimeframe] = useState<Timeframe>("24h");
+  const [timeframe, setTimeframe] = useState<Timeframe>(() => {
+    if (typeof window === "undefined") return "24h";
+    try {
+      const saved = localStorage.getItem(LS_TIMEFRAME);
+      if (saved && TIMEFRAMES.includes(saved as Timeframe)) return saved as Timeframe;
+    } catch {
+      // ignore
+    }
+    return "24h";
+  });
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
     if (typeof window === "undefined") return new Set(ALL_COLUMN_KEYS);
     try {
@@ -273,21 +282,7 @@ export function NewPairsTable({
 
   // ─── Effects ─────────────────────────────────────────────────────────────
 
-  // Hydration-safe timeframe sync
-  useEffect(() => {
-    Promise.resolve()
-      .then(() => {
-        try {
-          return localStorage.getItem(LS_TIMEFRAME);
-        } catch {
-          return null;
-        }
-      })
-      .then((val) => {
-        if (val && TIMEFRAMES.includes(val as Timeframe))
-          setTimeframe(val as Timeframe);
-      });
-  }, []);
+
 
   // Persist component state
   useEffect(() => {

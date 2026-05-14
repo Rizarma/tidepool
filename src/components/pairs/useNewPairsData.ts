@@ -56,10 +56,27 @@ export function useNewPairsData({
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [newPoolIds, setNewPoolIds] = useState<Set<string>>(new Set());
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const savedAt = localStorage.getItem(LS_LAST_FETCHED_AT);
+      if (!savedAt) return null;
+      const lastFetch = parseInt(savedAt, 10);
+      return isNaN(lastFetch) ? null : lastFetch;
+    } catch {
+      return null;
+    }
+  });
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
   const [liveAge, setLiveAge] = useState<string>("");
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(LS_AUTO_REFRESH) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [countdown, setCountdown] = useState(0);
   const [tick, setTick] = useState(0);
 
@@ -68,35 +85,7 @@ export function useNewPairsData({
   const hasLoadedRef = useRef(false);
   const prevPoolsRef = useRef<DlmmPairInfo[]>([]);
 
-  // ─── Hydration-safe localStorage sync ───────────────────────────────────
-  useEffect(() => {
-    Promise.resolve()
-      .then(() => {
-        try {
-          return localStorage.getItem(LS_AUTO_REFRESH) === "true";
-        } catch {
-          return false;
-        }
-      })
-      .then((val) => {
-        if (val) setAutoRefresh(true);
-      });
 
-    Promise.resolve()
-      .then(() => {
-        try {
-          const savedAt = localStorage.getItem(LS_LAST_FETCHED_AT);
-          if (!savedAt) return null;
-          const lastFetch = parseInt(savedAt, 10);
-          return isNaN(lastFetch) ? null : lastFetch;
-        } catch {
-          return null;
-        }
-      })
-      .then((val) => {
-        if (val !== null) setLastFetchedAt(val);
-      });
-  }, []);
 
   // ─── Persist autoRefresh ─────────────────────────────────────────────────
   useEffect(() => {
