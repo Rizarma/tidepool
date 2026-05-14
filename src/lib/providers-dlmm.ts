@@ -122,6 +122,29 @@ export function normalizePair(raw: unknown): DlmmPairInfo {
     tvlUsd: toNumber(raw.tvl) ?? toNumber(raw.liquidity),
     volume24h: toNumber(prop(raw, "volume", "24h")) ?? toNumber(raw.trade_volume_24h),
     fees24h: toNumber(prop(raw, "fees", "24h")) ?? toNumber(raw.fee_volume_24h),
+    // Build timeframe records from nested volume/fees objects
+    volume: (() => {
+      const out: Record<string, number> = {};
+      const nested = isObject(raw.volume) ? raw.volume : undefined;
+      if (nested) {
+        for (const key of Object.keys(nested)) {
+          const val = toNumber(nested[key]);
+          if (val !== undefined) out[key] = val;
+        }
+      }
+      return Object.keys(out).length > 0 ? out : undefined;
+    })(),
+    fees: (() => {
+      const out: Record<string, number> = {};
+      const nested = isObject(raw.fees) ? raw.fees : undefined;
+      if (nested) {
+        for (const key of Object.keys(nested)) {
+          const val = toNumber(nested[key]);
+          if (val !== undefined) out[key] = val;
+        }
+      }
+      return Object.keys(out).length > 0 ? out : undefined;
+    })(),
     apr: toNumber(raw.apr),
     apy: toNumber(raw.apy),
     isBlacklisted: toBool(raw.is_blacklisted),
@@ -299,14 +322,24 @@ async function fetchMeteoraNewPoolsOrientation(
 export async function fetchMeteoraDlmmNewPools(
   pageSize = 20,
   page = 1,
+  filters?: {
+    minTvl?: number | null;
+    minApr?: number | null;
+    maxAgeHours?: number | null;
+    freezeOffOnly?: boolean;
+  }
 ): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
   const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
   const solMint = "So11111111111111111111111111111111111111112";
 
+  const hasActiveFilters = filters &&
+    (filters.minTvl != null || filters.minApr != null || filters.maxAgeHours != null || filters.freezeOffOnly);
+  const fetchPages = hasActiveFilters ? Math.max(page, 5) : page;
+
   // Fetch pages 1..N from both orientations to construct a correct combined page N.
   // A pool on orientation A page 1 may be newer than orientation B page 2,
   // so we must merge all pages up to N before slicing.
-  const pageNumbers = Array.from({ length: page }, (_, i) => i + 1);
+  const pageNumbers = Array.from({ length: fetchPages }, (_, i) => i + 1);
 
   const [yResults, xResults] = await Promise.all([
     Promise.all(
@@ -335,12 +368,36 @@ export async function fetchMeteoraDlmmNewPools(
     return (b.createdAt ?? 0) - (a.createdAt ?? 0);
   });
 
-  // Estimate total as sum of both orientation totals (disjoint sets)
-  const total = yResults[yResults.length - 1].total + xResults[xResults.length - 1].total;
+  // Apply server-side filters
+  let filteredPools = allPools;
+  if (filters?.minTvl != null) {
+    const minTvl = filters.minTvl;
+    filteredPools = filteredPools.filter((p) => (p.tvlUsd ?? 0) >= minTvl);
+  }
+  if (filters?.minApr != null) {
+    const minApr = filters.minApr;
+    filteredPools = filteredPools.filter((p) => (p.apr ?? 0) >= minApr);
+  }
+  if (filters?.maxAgeHours != null) {
+    const maxAgeHours = filters.maxAgeHours;
+    const now = Math.floor(Date.now() / 1000);
+    filteredPools = filteredPools.filter((p) => {
+      if (!p.createdAt) return false;
+      return (now - p.createdAt) / 3600 <= maxAgeHours;
+    });
+  }
+  if (filters?.freezeOffOnly) {
+    filteredPools = filteredPools.filter((p) => {
+      const primary = p.tokenX.mint === solMint ? p.tokenY : p.tokenY.mint === solMint ? p.tokenX : p.tokenX;
+      return primary.freezeAuthorityDisabled === true;
+    });
+  }
+
+  const total = filteredPools.length;
   const pages = Math.ceil(total / pageSize);
 
   const start = (page - 1) * pageSize;
-  const pools = allPools.slice(start, start + pageSize);
+  const pools = filteredPools.slice(start, start + pageSize);
 
   return { pools, total, pages };
 }

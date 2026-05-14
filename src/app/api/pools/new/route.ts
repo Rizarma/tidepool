@@ -19,7 +19,21 @@ export async function GET(request: Request): Promise<Response> {
     const pageSizeParam = searchParams.get("pageSize");
     const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
     const pageSize = pageSizeParam ? Math.max(1, Math.min(1000, parseInt(pageSizeParam, 10) || 20)) : 20;
-    const result = await timedFetch("meteora_dlmm", () => fetchMeteoraDlmmNewPools(pageSize, page));
+    const parseNumberParam = (val: string | null): number | null => {
+      if (!val) return null;
+      const num = parseFloat(val);
+      if (!Number.isFinite(num) || num < 0) return null;
+      return num;
+    };
+
+    const filters = {
+      minTvl: parseNumberParam(searchParams.get("minTvl")),
+      minApr: parseNumberParam(searchParams.get("minApr")),
+      maxAgeHours: parseNumberParam(searchParams.get("maxAgeHours")),
+      freezeOffOnly: searchParams.get("freezeOffOnly") === "true",
+    };
+
+    const result = await timedFetch("meteora_dlmm", () => fetchMeteoraDlmmNewPools(pageSize, page, filters));
 
     const source = buildSourceStatus("meteora_dlmm", result);
 
