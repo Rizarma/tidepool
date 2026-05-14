@@ -10,10 +10,10 @@ import {
   ALL_COLUMN_KEYS,
   TIMEFRAMES,
   sortableColumns,
-  LS_TIMEFRAME,
   LS_VISIBLE_COLUMNS,
   LS_TABLE_DENSITY,
 } from "./new-pairs-config";
+import { useNewPairsPreferences } from "@/components/NewPairsPreferencesContext";
 import { useNewPairsData } from "./useNewPairsData";
 import { useNewPairsSorting } from "./useNewPairsSorting";
 import { useNewPairsFilters } from "./useNewPairsFilters";
@@ -42,6 +42,10 @@ function SortHeader({
   padClass?: string;
   tooltip?: string;
 }) {
+  const tooltipId = tooltip
+    ? `tooltip-${label.toLowerCase().replace(/\s+/g, "-")}`
+    : undefined;
+
   return (
     <th
       scope="col"
@@ -53,11 +57,16 @@ function SortHeader({
       <button
         type="button"
         onClick={onClick}
+        aria-describedby={tooltipId}
         className={`inline-flex items-center gap-1 ${padClass} cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
       >
         {label}
         {tooltip && (
-          <span className="relative inline-flex items-center ml-1 group">
+          <span
+            className="relative inline-flex items-center ml-1 group/tooltip focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
+            tabIndex={0}
+            aria-label={`${label} info`}
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -68,14 +77,17 @@ function SortHeader({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="size-3 text-zinc-600 group-hover:text-zinc-400 transition"
+              className="size-3 text-zinc-600 group-hover/tooltip:text-zinc-400 transition"
               aria-hidden="true"
             >
               <circle cx="12" cy="12" r="10" />
               <path d="M12 16v-4" />
               <path d="M12 8h.01" />
             </svg>
-            <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-50 w-64 px-3 py-2 text-[10px] normal-case tracking-normal font-normal text-zinc-300 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded shadow-lg opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
+            <span
+              id={tooltipId}
+              className="absolute right-0 top-full mt-1.5 z-50 w-64 px-3 py-2 text-[10px] normal-case tracking-normal font-normal text-zinc-300 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded shadow-lg opacity-0 pointer-events-none transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto group-focus-within/tooltip:pointer-events-auto"
+            >
               {tooltip}
             </span>
           </span>
@@ -222,23 +234,15 @@ export function NewPairsTable({
     lastUpdatedText,
     liveAge,
     isRefreshing,
-    autoRefresh,
     countdown,
     triggerRefresh,
-    toggleAutoRefresh,
   } = useNewPairsData({ page, pageSize, filters });
+  const { timeframe, setTimeframe, autoRefresh, setAutoRefresh } = useNewPairsPreferences();
+  const toggleAutoRefresh = useCallback(() => {
+    setAutoRefresh(!autoRefresh);
+  }, [autoRefresh, setAutoRefresh]);
 
   // Component state
-  const [timeframe, setTimeframe] = useState<Timeframe>(() => {
-    if (typeof window === "undefined") return "24h";
-    try {
-      const saved = localStorage.getItem(LS_TIMEFRAME);
-      if (saved && TIMEFRAMES.includes(saved as Timeframe)) return saved as Timeframe;
-    } catch {
-      // ignore
-    }
-    return "24h";
-  });
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
     if (typeof window === "undefined") return new Set(ALL_COLUMN_KEYS);
     try {
@@ -285,14 +289,6 @@ export function NewPairsTable({
 
 
   // Persist component state
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_TIMEFRAME, timeframe);
-    } catch {
-      // ignore
-    }
-  }, [timeframe]);
-
   useEffect(() => {
     try {
       localStorage.setItem(

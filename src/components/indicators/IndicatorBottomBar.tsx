@@ -1,5 +1,5 @@
 /**
- * Bottom bar showing current indicator config + settings trigger.
+ * Bottom bar with external links + settings trigger.
  *
  * Always visible at the bottom of the app shell.
  */
@@ -9,7 +9,6 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { LinkOpener } from "@/components/LinkOpener";
-import { useIndicatorConfig } from "./IndicatorConfigContext";
 import { IndicatorSettings } from "./IndicatorSettings";
 
 const LPAGENT_REFERRAL = "URq8gm4";
@@ -24,7 +23,6 @@ function getLpAgentUrl(pathname: string | null): string {
 }
 
 export function IndicatorBottomBar() {
-  const { config } = useIndicatorConfig();
   const [showSettings, setShowSettings] = useState(false);
   const pathname = usePathname();
 
@@ -50,11 +48,11 @@ export function IndicatorBottomBar() {
             <span>LPAgent</span>
           </LinkOpener>
           <button
-          onClick={() => setShowSettings(true)}
-          className="rounded p-1 hover:bg-white/[0.04] text-zinc-400 transition-colors"
-          aria-label="Indicator settings"
-          title="Indicator settings"
-        >
+            onClick={() => setShowSettings(true)}
+            className="rounded p-1 hover:bg-white/[0.04] text-zinc-400 transition-colors"
+            aria-label="Indicator settings"
+            title="Indicator settings"
+          >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="14"

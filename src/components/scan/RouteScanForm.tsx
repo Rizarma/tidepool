@@ -121,6 +121,7 @@ export function RouteScanForm() {
           onSubmit={handleSubmit}
           className="flex flex-1 items-center justify-center gap-2 min-w-0"
           aria-label="Scan address form"
+          aria-busy={loading}
         >
           <div className="relative flex flex-1 min-w-0 max-w-2xl items-center">
             <input
@@ -152,8 +153,6 @@ export function RouteScanForm() {
             {loading ? "…" : "Scan"}
           </button>
         </form>
-
-
       </div>
 
       {/* Error bar */}
