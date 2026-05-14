@@ -430,7 +430,7 @@ export function NewPairsTable({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-[var(--panel-border)]">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-y-2 px-4 py-2.5 border-b border-[var(--panel-border)]">
         <div className="flex items-center gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
             New Pools
@@ -442,7 +442,7 @@ export function NewPairsTable({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Density toggle */}
           <div className="flex items-center rounded overflow-hidden border border-white/[0.06]">
             <button
@@ -604,7 +604,7 @@ export function NewPairsTable({
 
       {/* Filter bar */}
       {!loading && (pools.length > 0 || activeFilterCount > 0) && (
-        <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-[var(--panel-border)]">
+        <div className="shrink-0 flex flex-wrap items-center gap-3 px-4 py-2 border-b border-[var(--panel-border)]">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Filters
           </span>
