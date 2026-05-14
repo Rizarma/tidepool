@@ -94,6 +94,15 @@ export function NewPairCard({
   return (
     <div
       onClick={() => onSelectPool(pool.poolAddress)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelectPool(pool.poolAddress);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open pool ${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
       className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-lg p-4 cursor-pointer transition hover:border-white/[0.1] hover:bg-white/[0.02]"
     >
       {/* Header */}

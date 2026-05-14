@@ -332,10 +332,14 @@ export async function fetchMeteoraDlmmNewPools(
   const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
   const solMint = "So11111111111111111111111111111111111111112";
 
+  const hasActiveFilters = filters &&
+    (filters.minTvl != null || filters.minApr != null || filters.maxAgeHours != null || filters.freezeOffOnly);
+  const fetchPages = hasActiveFilters ? Math.max(page, 5) : page;
+
   // Fetch pages 1..N from both orientations to construct a correct combined page N.
   // A pool on orientation A page 1 may be newer than orientation B page 2,
   // so we must merge all pages up to N before slicing.
-  const pageNumbers = Array.from({ length: page }, (_, i) => i + 1);
+  const pageNumbers = Array.from({ length: fetchPages }, (_, i) => i + 1);
 
   const [yResults, xResults] = await Promise.all([
     Promise.all(

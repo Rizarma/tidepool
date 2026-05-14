@@ -22,7 +22,8 @@ export async function GET(request: Request): Promise<Response> {
     const parseNumberParam = (val: string | null): number | null => {
       if (!val) return null;
       const num = parseFloat(val);
-      return Number.isNaN(num) ? null : num;
+      if (!Number.isFinite(num) || num < 0) return null;
+      return num;
     };
 
     const filters = {

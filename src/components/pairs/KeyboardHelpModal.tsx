@@ -31,6 +31,16 @@ export function KeyboardHelpModal({ open, onClose }: KeyboardHelpModalProps) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open, onClose]);
 
+  // Focus close button when opening
+  useEffect(() => {
+    if (open && panelRef.current) {
+      const closeBtn = panelRef.current.querySelector(
+        'button[aria-label="Close help"]'
+      ) as HTMLElement | null;
+      closeBtn?.focus();
+    }
+  }, [open]);
+
   // Close on Escape
   useEffect(() => {
     if (!open) return;

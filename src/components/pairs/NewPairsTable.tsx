@@ -603,7 +603,7 @@ export function NewPairsTable({
       </div>
 
       {/* Filter bar */}
-      {!loading && pools.length > 0 && (
+      {!loading && (pools.length > 0 || activeFilterCount > 0) && (
         <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-[var(--panel-border)]">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Filters
