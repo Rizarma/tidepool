@@ -367,16 +367,19 @@ export async function fetchMeteoraDlmmNewPools(
   // Apply server-side filters
   let filteredPools = allPools;
   if (filters?.minTvl != null) {
-    filteredPools = filteredPools.filter((p) => (p.tvlUsd ?? 0) >= filters.minTvl);
+    const minTvl = filters.minTvl;
+    filteredPools = filteredPools.filter((p) => (p.tvlUsd ?? 0) >= minTvl);
   }
   if (filters?.minApr != null) {
-    filteredPools = filteredPools.filter((p) => (p.apr ?? 0) >= filters.minApr);
+    const minApr = filters.minApr;
+    filteredPools = filteredPools.filter((p) => (p.apr ?? 0) >= minApr);
   }
   if (filters?.maxAgeHours != null) {
+    const maxAgeHours = filters.maxAgeHours;
     const now = Math.floor(Date.now() / 1000);
     filteredPools = filteredPools.filter((p) => {
       if (!p.createdAt) return false;
-      return (now - p.createdAt) / 3600 <= filters.maxAgeHours;
+      return (now - p.createdAt) / 3600 <= maxAgeHours;
     });
   }
   if (filters?.freezeOffOnly) {

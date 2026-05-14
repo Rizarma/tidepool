@@ -60,6 +60,23 @@ export interface FilterState {
   freezeOffOnly: boolean;
 }
 
+export const sortableColumns: {
+  key: SortKey;
+  label: string;
+  align: "left" | "right";
+}[] = [
+  { key: "priceTokenYPerTokenX", label: "Price", align: "right" },
+  { key: "tvlUsd", label: "TVL", align: "right" },
+  { key: "volume24h", label: "24h Vol", align: "right" },
+  { key: "fees24h", label: "24h Fees", align: "right" },
+  { key: "apr", label: "APR", align: "right" },
+  { key: "binStep", label: "Bin Step", align: "right" },
+  { key: "baseFeePct", label: "Base Fee", align: "right" },
+  { key: "marketCap", label: "MCap", align: "right" },
+  { key: "holders", label: "Holders", align: "right" },
+  { key: "createdAt", label: "Age", align: "right" },
+];
+
 export const DEFAULT_FILTERS: FilterState = {
   minTvl: null,
   minApr: null,
