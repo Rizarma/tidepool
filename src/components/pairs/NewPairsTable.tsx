@@ -75,7 +75,7 @@ function SortHeader({
               <path d="M12 16v-4" />
               <path d="M12 8h.01" />
             </svg>
-            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-50 w-64 px-3 py-2 text-[10px] normal-case tracking-normal font-normal text-zinc-300 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded shadow-lg opacity-0 invisible transition-opacity group-hover:opacity-100 group-hover:visible">
+            <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-50 w-64 px-3 py-2 text-[10px] normal-case tracking-normal font-normal text-zinc-300 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded shadow-lg opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
               {tooltip}
             </span>
           </span>
