@@ -139,6 +139,8 @@ export interface PairToken {
   amount?: number;
   holders?: number;
   freezeAuthorityDisabled?: boolean;
+  mintAuthority?: string | null;
+  freezeAuthority?: string | null;
   marketCap?: number;
   marketCapFallback?: boolean;
   totalSupply?: number;

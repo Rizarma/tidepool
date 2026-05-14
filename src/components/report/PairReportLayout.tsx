@@ -13,6 +13,8 @@ import { ExternalLinks } from "@/components/report/ExternalLinks";
 import { TokenCard } from "@/components/report/TokenCard";
 import { RankedPoolsTable } from "@/components/report/RelatedPoolsPanel";
 import { CompactFooter } from "@/components/report/CompactFooter";
+import { TokenAnalysisCards } from "@/components/report/TokenAnalysisCards";
+import { TokenAnalysisMatrix } from "@/components/report/TokenAnalysisMatrix";
 
 export function PairReportLayout({
   report,
@@ -104,13 +106,19 @@ export function PairReportLayout({
           </TerminalSection>
         )}
 
-        {/* 5. Token Cards */}
+        {/* 5. Analysis — Option 2: Twin Audit Cards */}
+        <TokenAnalysisCards tokenX={tokenX} tokenY={tokenY} />
+
+        {/* 6. Token Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
 
-        {/* 6. Ranked Pools Table */}
+        {/* 7. Analysis — Option 3: Audit Comparison Matrix */}
+        <TokenAnalysisMatrix tokenX={tokenX} tokenY={tokenY} />
+
+        {/* 8. Ranked Pools Table */}
         {normalizedPools.length > 0 && (
           <RankedPoolsTable
             pools={normalizedPools}
