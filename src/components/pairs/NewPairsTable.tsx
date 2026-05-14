@@ -12,7 +12,7 @@ import {
   shortenAddress,
 } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
-import { LinkOpener } from "@/components/LinkOpener";
+import { ExternalIconLinks } from "./ExternalIconLinks";
 import { TablePagination } from "./TablePagination";
 
 interface NewPairsResponse {
@@ -61,8 +61,6 @@ const sortableColumns: {
 const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Launchpad.
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
-const GMGN_REFERRAL = "yr2NU5dr";
-const LPAGENT_REFERRAL = "URq8gm4";
 
 function getPrimaryToken(pair: DlmmPairInfo): PairToken {
   if (pair.tokenX.mint === SOL_MINT) return pair.tokenY;
@@ -653,61 +651,7 @@ export function NewPairsTable({
                           {shortenAddress(pool.poolAddress)}
                         </span>
                         <CopyButton address={pool.poolAddress} />
-                        <span className="mx-1 text-zinc-700">|</span>
-                        <LinkOpener
-                          href={`https://app.meteora.ag/dlmm/${pool.poolAddress}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
-                          title="View on Meteora"
-                          aria-label="View on Meteora"
-                        >
-                          Met
-                        </LinkOpener>
-                        <LinkOpener
-                          href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}?ref=${GMGN_REFERRAL}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
-                          title="View on GMGN"
-                          aria-label="View on GMGN"
-                        >
-                          GMGN
-                        </LinkOpener>
-                        <LinkOpener
-                          href={`https://www.dextools.io/app/en/solana/pair-explorer/${pool.poolAddress}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
-                          title="View on DexTools"
-                          aria-label="View on DexTools"
-                        >
-                          DexT
-                        </LinkOpener>
-                        <LinkOpener
-                          href={`https://dexscreener.com/solana/${pool.poolAddress}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
-                          title="View on DexScreener"
-                          aria-label="View on DexScreener"
-                        >
-                          DexS
-                        </LinkOpener>
-                        <LinkOpener
-                          href={`https://jup.ag/tokens/${getPrimaryToken(pool).mint}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
-                          title="View on Jupiter"
-                          aria-label="View on Jupiter"
-                        >
-                          Jupiter
-                        </LinkOpener>
-                        <LinkOpener
-                          href={`https://app.lpagent.io/pools/${encodeURIComponent(pool.poolAddress)}?referral=${LPAGENT_REFERRAL}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
-                          title="View on LPAgent"
-                          aria-label="View on LPAgent"
-                        >
-                          LPAgent
-                        </LinkOpener>
+                        <ExternalIconLinks poolAddress={pool.poolAddress} primaryMint={getPrimaryToken(pool).mint} />
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
