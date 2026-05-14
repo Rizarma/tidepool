@@ -221,6 +221,7 @@ export function NewPairsTable({
     newPoolIds,
     lastUpdatedText,
     liveAge,
+    isRefreshing,
     autoRefresh,
     countdown,
     triggerRefresh,
@@ -619,14 +620,22 @@ export function NewPairsTable({
             </span>
           )}
 
+          {/* Refresh indicator */}
+          {isRefreshing && (
+            <span className="hidden sm:flex items-center gap-1.5">
+              <span className="inline-block size-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-[10px] text-zinc-500">Refreshing…</span>
+            </span>
+          )}
+
           {/* Refresh button */}
           <button
             type="button"
             onClick={triggerRefresh}
-            disabled={loading}
-            className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${loading ? "bg-white/[0.03] text-zinc-500 opacity-50 cursor-not-allowed" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
+            disabled={loading || isRefreshing}
+            className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${loading || isRefreshing ? "bg-white/[0.03] text-zinc-500 opacity-50 cursor-not-allowed" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
           >
-            {loading ? "Loading…" : "Refresh"}
+            {isRefreshing ? "Refreshing…" : loading ? "Loading…" : "Refresh"}
           </button>
         </div>
       </div>

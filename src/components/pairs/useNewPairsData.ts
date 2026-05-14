@@ -23,6 +23,7 @@ export function useNewPairsData({
 }) {
   const [pools, setPools] = useState<DlmmPairInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -36,6 +37,7 @@ export function useNewPairsData({
 
   const lastFetchTimeRef = useRef<number>(0);
   const lastPageRef = useRef(1);
+  const hasLoadedRef = useRef(false);
 
   // ─── Hydration-safe localStorage sync ───────────────────────────────────
   useEffect(() => {
@@ -105,7 +107,11 @@ export function useNewPairsData({
     lastFetchTimeRef.current = Date.now();
 
     (async () => {
-      setLoading(true);
+      const isInitialLoad = !hasLoadedRef.current;
+      if (isInitialLoad || pageChanged) {
+        setLoading(true);
+      }
+      setIsRefreshing(true);
       setError(null);
 
       try {
@@ -148,6 +154,8 @@ export function useNewPairsData({
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
+          setIsRefreshing(false);
+          hasLoadedRef.current = true;
         }
       }
     })();
@@ -258,6 +266,7 @@ export function useNewPairsData({
   return {
     pools,
     loading,
+    isRefreshing,
     error,
     totalPages,
     total,
