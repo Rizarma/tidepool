@@ -24,12 +24,27 @@ interface NewPairRowProps {
 
 function FreezeStatus({ token }: { token: PairToken }) {
   if (token.freezeAuthorityDisabled === true) {
-    return <span className="text-emerald-400" aria-label="Freeze authority disabled">Off</span>;
+    return (
+      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+        <span className="size-1.5 rounded-full bg-emerald-400" />
+        Off
+      </span>
+    );
   }
   if (token.freezeAuthorityDisabled === false) {
-    return <span className="text-red-400" aria-label="Freeze authority enabled">On</span>;
+    return (
+      <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border border-red-500/25 bg-red-500/10 text-red-300">
+        <span className="size-1.5 rounded-full bg-red-400" />
+        On
+      </span>
+    );
   }
-  return <span className="text-zinc-500" aria-label="Freeze authority unknown">–</span>;
+  return (
+    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border border-zinc-700 bg-zinc-800/40 text-zinc-500">
+      <span className="size-1.5 rounded-full bg-zinc-600" />
+      –
+    </span>
+  );
 }
 
 function VerificationDot() {
@@ -44,7 +59,7 @@ function VerificationDot() {
 
 function NewBadge() {
   return (
-    <span className="inline-flex items-center rounded bg-[var(--accent)]/15 px-1 py-0 text-[9px] font-bold uppercase tracking-wider text-[var(--accent)]">
+    <span className="inline-flex items-center rounded bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--background)] shadow-[0_0_12px_rgba(232,164,74,0.25)]">
       New
     </span>
   );
@@ -60,7 +75,7 @@ export function NewPairRow({
   onSelectPool,
 }: NewPairRowProps) {
   const pad = density === "compact" ? "px-3 py-2" : "px-4 py-3";
-  const textSize = density === "compact" ? "text-xs" : "text-sm";
+
   const primaryToken = getPrimaryToken(pool);
 
   return (
@@ -74,7 +89,7 @@ export function NewPairRow({
           onSelectPool(pool.poolAddress);
         }
       }}
-      className="border-b border-[var(--panel-border)] cursor-pointer transition hover:bg-white/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+      className="border-b border-[var(--panel-border)] cursor-pointer transition even:bg-white/[0.015] hover:bg-white/[0.05] border-l-2 border-transparent hover:border-l-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
     >
       {visibleColumns.has("pair") && (
         <td className={pad}>
@@ -104,12 +119,12 @@ export function NewPairRow({
         </td>
       )}
       {visibleColumns.has("priceTokenYPerTokenX") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-semibold font-mono text-zinc-200 tabular-nums ${pad}`}>
           {formatTokenPrice(primaryToken.priceUsd)}
         </td>
       )}
       {visibleColumns.has("tvlUsd") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-semibold font-mono text-zinc-200 tabular-nums ${pad}`}>
           <div className="relative inline-block w-full">
             <div
               className="absolute inset-y-0 left-0 bg-[var(--accent)]/10 rounded-sm"
@@ -120,32 +135,32 @@ export function NewPairRow({
         </td>
       )}
       {visibleColumns.has("volume24h") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-semibold font-mono text-zinc-200 tabular-nums ${pad}`}>
           {formatCompactUsd(pool.volume?.[timeframe])}
         </td>
       )}
       {visibleColumns.has("fees24h") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-semibold font-mono text-zinc-200 tabular-nums ${pad}`}>
           {formatCompactUsd(pool.fees?.[timeframe])}
         </td>
       )}
       {visibleColumns.has("apr") && (
-        <td className={`text-right font-medium tabular-nums ${getAprClass(pool.apr)} ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-semibold font-mono ${getAprClass(pool.apr)} ${pad}`}>
           {pctValue(pool.apr)}
         </td>
       )}
       {visibleColumns.has("binStep") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-normal font-mono text-zinc-400 tabular-nums ${pad}`}>
           {pool.binStep ?? "–"}
         </td>
       )}
       {visibleColumns.has("baseFeePct") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-normal font-mono text-zinc-400 tabular-nums ${pad}`}>
           {pctValue(pool.baseFeePct)}
         </td>
       )}
       {visibleColumns.has("marketCap") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-medium font-mono text-zinc-300 tabular-nums ${pad}`}>
           {formatCompactUsd(primaryToken.marketCap)}
           {primaryToken.marketCapFallback && (
             <span
@@ -158,12 +173,12 @@ export function NewPairRow({
         </td>
       )}
       {visibleColumns.has("holders") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-300 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-medium font-mono text-zinc-300 tabular-nums ${pad}`}>
           {formatCompactNumber(primaryToken.holders)}
         </td>
       )}
       {visibleColumns.has("createdAt") && (
-        <td className={`text-right font-medium tabular-nums text-zinc-400 ${pad} ${textSize}`}>
+        <td className={`text-right ${density === "compact" ? "text-xs" : "text-sm"} font-normal font-mono text-zinc-400 tabular-nums ${pad}`}>
           {formatAge(pool.createdAt)}
         </td>
       )}

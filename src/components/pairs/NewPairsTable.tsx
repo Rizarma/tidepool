@@ -49,9 +49,21 @@ function SortHeader({
       >
         {label}
         {active && (
-          <span className="text-[8px] text-[var(--accent)]">
-            {dir === "asc" ? "▲" : "▼"}
-          </span>
+          <svg
+            viewBox="0 0 12 12"
+            className="size-3 text-[var(--accent)]"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {dir === "asc" ? (
+              <path d="M3 8.5L6 4.5L9 8.5" />
+            ) : (
+              <path d="M3 4.5L6 8.5L9 4.5" />
+            )}
+          </svg>
         )}
       </button>
     </th>
