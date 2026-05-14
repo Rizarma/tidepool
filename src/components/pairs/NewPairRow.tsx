@@ -41,7 +41,7 @@ function FreezeStatus({ token }: { token: PairToken }) {
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border border-zinc-700 bg-zinc-800/40 text-zinc-500">
+    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border border-zinc-700 bg-zinc-800/40 text-zinc-400">
       <span className="size-1.5 rounded-full bg-zinc-600" />
       –
     </span>
@@ -99,7 +99,7 @@ export const NewPairRow = memo(function NewPairRow({
               {pool.tokenX.symbol ?? "?"}
             </span>
             {pool.tokenX.verified && <VerificationDot />}
-            <span className="text-zinc-500 text-xs">/</span>
+            <span className="text-zinc-400 text-xs">/</span>
             <span className="text-xs font-medium text-zinc-200">
               {pool.tokenY.symbol ?? "?"}
             </span>
@@ -107,11 +107,11 @@ export const NewPairRow = memo(function NewPairRow({
             {newPoolIds.has(pool.poolAddress) && <NewBadge />}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] text-zinc-500 truncate max-w-[140px]">
+            <span className="text-[10px] text-zinc-400 truncate max-w-[140px]">
               {pool.name ||
                 `${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
             </span>
-            <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
+            <span className="text-[10px] text-zinc-400 font-mono tabular-nums">
               {shortenAddress(pool.poolAddress)}
             </span>
             <span className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -195,7 +195,7 @@ export const NewPairRow = memo(function NewPairRow({
           {pool.launchpad ? (
             <span className="text-[10px] text-zinc-400">{pool.launchpad}</span>
           ) : (
-            <span className="text-zinc-600">–</span>
+            <span className="text-zinc-500">–</span>
           )}
         </td>
       )}

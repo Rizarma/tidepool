@@ -9,7 +9,7 @@ export function getPrimaryToken(pair: DlmmPairInfo): PairToken {
 }
 
 export function getAprClass(apr?: number): string {
-  if (apr == null || Number.isNaN(apr)) return "text-zinc-500";
+  if (apr == null || Number.isNaN(apr)) return "text-zinc-400";
   if (apr > 150) return "text-rose-400 font-semibold";
   if (apr >= 50) return "text-amber-400 font-semibold";
   return "text-zinc-300";

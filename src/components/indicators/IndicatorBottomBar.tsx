@@ -34,7 +34,7 @@ export function IndicatorBottomBar() {
         <div className="flex items-center gap-3">
           <LinkOpener
             href="https://gmgn.ai/?ref=yr2NU5dr"
-            className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-300 transition-colors"
           >
             <ExternalLinkIcon />
             <span>GMGN</span>
@@ -42,7 +42,7 @@ export function IndicatorBottomBar() {
           <span className="text-zinc-700 select-none">·</span>
           <LinkOpener
             href={lpAgentUrl}
-            className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-300 transition-colors"
           >
             <ExternalLinkIcon />
             <span>LPAgent</span>

@@ -51,11 +51,11 @@ export function PoolHeader({
             {pair?.launchpad && (
               <>
                 <span className="text-xs text-zinc-400">{pair.launchpad}</span>
-                <span className="text-zinc-600 shrink-0">·</span>
+                <span className="text-zinc-400 shrink-0">·</span>
               </>
             )}
             <span
-              className="font-mono text-xs text-zinc-500"
+              className="font-mono text-xs text-zinc-400"
               title={poolAddress}
             >
               {shortenAddress(poolAddress)}
@@ -71,7 +71,7 @@ export function PoolHeader({
       {/* ─── Metrics grid ─── */}
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-500 uppercase tracking-wide">
+          <span className="text-xs text-zinc-400 uppercase tracking-wide">
             TVL
           </span>
           <span className="text-lg font-bold tabular-nums text-zinc-100">
@@ -79,7 +79,7 @@ export function PoolHeader({
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-500 uppercase tracking-wide">
+          <span className="text-xs text-zinc-400 uppercase tracking-wide">
             24h Vol
           </span>
           <span className="text-lg font-bold tabular-nums text-zinc-100">
@@ -87,7 +87,7 @@ export function PoolHeader({
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-500 uppercase tracking-wide">
+          <span className="text-xs text-zinc-400 uppercase tracking-wide">
             24h Fees
           </span>
           <span className="text-lg font-bold tabular-nums text-zinc-100">
@@ -95,7 +95,7 @@ export function PoolHeader({
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-500 uppercase tracking-wide">
+          <span className="text-xs text-zinc-400 uppercase tracking-wide">
             Bin Step
           </span>
           <span className="text-lg font-bold tabular-nums text-zinc-100">
@@ -107,19 +107,19 @@ export function PoolHeader({
       {/* ─── Fee row ─── */}
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500">APR</span>
+          <span className="text-xs text-zinc-400">APR</span>
           <span className="text-sm font-semibold tabular-nums text-zinc-200">
             {pctValue(pair?.apr)}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500">Base Fee</span>
+          <span className="text-xs text-zinc-400">Base Fee</span>
           <span className="text-sm font-semibold tabular-nums text-zinc-200">
             {feePct(pair?.baseFeePct)}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500">Dynamic Fee</span>
+          <span className="text-xs text-zinc-400">Dynamic Fee</span>
           <span className="text-sm font-semibold tabular-nums text-zinc-200">
             {feePct(pair?.dynamicFeePct)}
           </span>

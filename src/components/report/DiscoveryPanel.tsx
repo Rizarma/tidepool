@@ -65,7 +65,7 @@ export function DiscoveryPanel({
         >
           {!isCompact && (
             <div className="px-3 py-1.5 border-b border-[var(--panel-border)]">
-              <span className="text-xs font-bold uppercase tracking-wide text-zinc-500">
+              <span className="text-xs font-bold uppercase tracking-wide text-zinc-400">
                 Select Pool
               </span>
             </div>
@@ -86,7 +86,7 @@ export function DiscoveryPanel({
                   onClick={() =>
                     poolAddress && onSelectPool?.(poolAddress)
                   }
-                  className={`w-full text-left px-3 py-2 flex items-center gap-3 transition ${
+                  className={`w-full text-left px-3 py-2 flex items-center gap-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--background)] ${
                     isCompact
                       ? "border-b border-white/[0.04] last:border-b-0"
                       : "border-b border-[var(--panel-border)] last:border-b-0"
@@ -106,7 +106,7 @@ export function DiscoveryPanel({
                       {pairName}
                     </p>
                     <p
-                      className={`font-mono text-zinc-500 truncate text-xs`}
+                      className={`font-mono text-zinc-400 truncate text-xs`}
                     >
                       {short(pool.poolAddress)}
                     </p>
@@ -118,25 +118,25 @@ export function DiscoveryPanel({
                   >
                     {pool.tvlUsd != null && (
                       <span title="TVL">
-                        <span className="text-zinc-600 mr-0.5">TVL</span>
+                        <span className="text-zinc-400 mr-0.5">TVL</span>
                         {formatUsd(pool.tvlUsd)}
                       </span>
                     )}
                     {pool.volume24h != null && (
                       <span title="24h Volume">
-                        <span className="text-zinc-600 mr-0.5">Vol</span>
+                        <span className="text-zinc-400 mr-0.5">Vol</span>
                         {formatUsd(pool.volume24h)}
                       </span>
                     )}
                     {pool.apr != null && (
                       <span title="APR">
-                        <span className="text-zinc-600 mr-0.5">APR</span>
+                        <span className="text-zinc-400 mr-0.5">APR</span>
                         {pctValue(pool.apr)}
                       </span>
                     )}
                     {pool.binStep != null && (
                       <span title="Bin Step">
-                        <span className="text-zinc-600 mr-0.5">Bin</span>
+                        <span className="text-zinc-400 mr-0.5">Bin</span>
                         {pool.binStep}
                       </span>
                     )}
@@ -167,7 +167,7 @@ export function DiscoveryPanel({
           <span className="text-xs">→</span>
           Run token scan for entered mint
           <span
-            className={`font-mono text-zinc-500 text-xs`}
+            className={`font-mono text-zinc-400 text-xs`}
           >
             {short(discoveredMint)}
           </span>

@@ -55,7 +55,7 @@ export default function PoolRouteView({ address }: { address: string }) {
       <div className="h-full grid place-items-center p-6" role="alert" aria-live="polite">
         <div className="max-w-md text-center rounded-xl bg-white/[0.03] p-6">
           <h2 className="text-base font-semibold text-zinc-200">Unable to load pool scan</h2>
-          <p className="mt-2 text-xs text-zinc-500">{error.message}</p>
+          <p className="mt-2 text-xs text-zinc-400">{error.message}</p>
           <div className="mt-4 flex gap-3 justify-center">
             <button
               onClick={() => window.location.reload()}

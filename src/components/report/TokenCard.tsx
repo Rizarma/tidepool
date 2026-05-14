@@ -29,7 +29,7 @@ export function TokenCard({
           {token?.symbol ?? "—"}
         </span>
         {token?.name && token.name !== token?.symbol && (
-          <span className="text-xs text-zinc-500">{token.name}</span>
+          <span className="text-xs text-zinc-400">{token.name}</span>
         )}
       </div>
 
@@ -59,7 +59,7 @@ export function TokenCard({
       {token?.mint && (
         <div className="mt-3 flex items-center gap-1.5">
           <span
-            className="font-mono text-xs text-zinc-500"
+            className="font-mono text-xs text-zinc-400"
             title={token.mint}
           >
             {shortenAddress(token.mint)}

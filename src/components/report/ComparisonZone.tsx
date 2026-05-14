@@ -58,7 +58,7 @@ function ComparisonGroup({
 
   return (
     <div>
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-3">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-3">
         {title}
       </h4>
       <div className="space-y-3">

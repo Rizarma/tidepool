@@ -5,7 +5,7 @@ import { CopyButton } from "@/components/CopyButton";
 export function DataRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2 py-1 border-b border-[var(--panel-border)] last:border-b-0">
-      <span className="text-[11px] text-zinc-500">{label}</span>
+      <span className="text-[11px] text-zinc-400">{label}</span>
       <span title={value} className={`text-[11px] font-medium tabular-nums text-right truncate max-w-[14rem] ${bad ? "text-red-300" : "text-zinc-200"}`}>
         {value}
       </span>
@@ -32,16 +32,16 @@ export function RiskBadge({ level, score }: { level: RiskLevel; score: number })
 export function MetricCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-wider text-zinc-400">{label}</p>
       <p className="mt-0.5 text-sm font-semibold text-zinc-100 tabular-nums truncate">{value}</p>
     </div>
   );
 }
 
-export function PanelSection({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
+export function PanelSection({ title, children, className = "", as: Tag = "h3" }: { title: string; children: React.ReactNode; className?: string; as?: "h1" | "h2" | "h3" }) {
   return (
     <div className={className}>
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 mb-2">{title}</h3>
+      <Tag className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400 mb-2">{title}</Tag>
       {children}
     </div>
   );
@@ -55,7 +55,7 @@ export function TokenSummaryCompact({ token }: { token?: PairToken }) {
       <DataRow label="Symbol" value={token?.symbol ?? "—"} />
       {token?.mint && (
         <div className="flex items-center justify-between gap-2 py-1 border-b border-[var(--panel-border)]">
-          <span className="text-[11px] text-zinc-500">Mint</span>
+          <span className="text-[11px] text-zinc-400">Mint</span>
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-[10px] text-zinc-400" title={token.mint}>
               {shortenAddress(token.mint)}
@@ -90,10 +90,10 @@ export function TerminalSection({
 }) {
   return (
     <div className={className}>
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 mb-4">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400 mb-4">
         {title}
       </h3>
-      {subtitle && <p className="text-xs text-zinc-600 mb-2">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-zinc-400 mb-2">{subtitle}</p>}
       {children}
     </div>
   );
@@ -117,7 +117,7 @@ export function TerminalMetric({
 
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-zinc-500 uppercase tracking-wide">{label}</span>
+      <span className="text-xs text-zinc-400 uppercase tracking-wide">{label}</span>
       <span className={`text-lg font-bold tabular-nums ${toneClasses[tone]}`}>
         {value}
       </span>
@@ -136,7 +136,7 @@ export function TerminalDataRow({
 }) {
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-sm text-zinc-500">{label}</span>
+      <span className="text-sm text-zinc-400">{label}</span>
       <span
         className={`text-sm font-medium tabular-nums text-right ${bad ? "text-red-300" : "text-zinc-200"}`}
       >

@@ -42,7 +42,7 @@ function FreezeStatus({ token }: { token: PairToken }) {
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border border-zinc-700 bg-zinc-800/40 text-zinc-500">
+    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium border border-zinc-700 bg-zinc-800/40 text-zinc-400">
       <span className="size-1.5 rounded-full bg-zinc-600" />
       –
     </span>
@@ -70,7 +70,7 @@ function Metric({
 }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
+      <div className="text-[10px] text-zinc-400 uppercase tracking-wider">
         {label}
       </div>
       <div
@@ -104,7 +104,7 @@ export const NewPairCard = memo(function NewPairCard({
       role="button"
       tabIndex={0}
       aria-label={`Open pool ${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
-      className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-lg p-4 cursor-pointer transition hover:border-white/[0.1] hover:bg-white/[0.02]"
+      className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-lg p-4 cursor-pointer transition hover:border-white/[0.1] hover:bg-white/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--background)]"
     >
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-y-2">
@@ -113,17 +113,17 @@ export const NewPairCard = memo(function NewPairCard({
             <span className="text-sm font-semibold text-zinc-200">
               {pool.tokenX.symbol ?? "?"}
             </span>
-            <span className="text-zinc-500 text-xs">/</span>
+            <span className="text-zinc-400 text-xs">/</span>
             <span className="text-sm font-semibold text-zinc-200">
               {pool.tokenY.symbol ?? "?"}
             </span>
             {isNew && <NewBadge />}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] text-zinc-500 truncate max-w-[140px]">
+            <span className="text-[10px] text-zinc-400 truncate max-w-[140px]">
               {pool.name || `${pool.tokenX.symbol ?? "?"}/${pool.tokenY.symbol ?? "?"}`}
             </span>
-            <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
+            <span className="text-[10px] text-zinc-400 font-mono tabular-nums">
               {shortenAddress(pool.poolAddress)}
             </span>
             <CopyButton address={pool.poolAddress} />

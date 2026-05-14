@@ -131,7 +131,7 @@ export function RouteScanForm() {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Pool or token address…"
-              className="w-full min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] py-1.5 pl-3 pr-9 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+              className="w-full min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] py-1.5 pl-3 pr-9 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-400"
               spellCheck={false}
             />
             <button
@@ -139,7 +139,7 @@ export function RouteScanForm() {
               onClick={() => void handlePaste()}
               aria-label="Paste from clipboard"
               title="Paste from clipboard"
-              className="absolute right-1 grid size-6 place-items-center rounded text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+              className="absolute right-1 grid size-6 place-items-center rounded text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
             >
               <ClipboardIcon />
             </button>

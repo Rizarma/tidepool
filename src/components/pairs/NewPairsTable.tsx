@@ -58,7 +58,7 @@ function SortHeader({
         type="button"
         onClick={onClick}
         aria-describedby={tooltipId}
-        className={`inline-flex items-center gap-1 ${padClass} cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
+        className={`inline-flex items-center gap-1 ${padClass} cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-400"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
       >
         {label}
         {tooltip && (
@@ -77,7 +77,7 @@ function SortHeader({
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="size-3 text-zinc-600 group-hover/tooltip:text-zinc-400 transition"
+              className="size-3 text-zinc-400 group-hover/tooltip:text-zinc-400 transition"
               aria-hidden="true"
             >
               <circle cx="12" cy="12" r="10" />
@@ -457,7 +457,7 @@ export function NewPairsTable({
             New Pools
           </h2>
           {!loading && pools.length > 0 && (
-            <span className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-500">
+            <span className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-400">
               {pools.length}
             </span>
           )}
@@ -600,13 +600,13 @@ export function NewPairsTable({
 
           {/* Live timestamp */}
           {liveAge && (
-            <span className="text-[10px] text-zinc-500 tabular-nums">
+            <span className="text-[10px] text-zinc-400 tabular-nums">
               Updated {liveAge}
             </span>
           )}
           {/* Last updated (when auto is off) */}
           {!autoRefresh && lastUpdatedText && (
-            <span className="text-[10px] text-zinc-500 tabular-nums">
+            <span className="text-[10px] text-zinc-400 tabular-nums">
               {lastUpdatedText}
             </span>
           )}
@@ -615,7 +615,7 @@ export function NewPairsTable({
           {isRefreshing && (
             <span className="hidden sm:flex items-center gap-1.5">
               <span className="inline-block size-1.5 rounded-full bg-amber-400 animate-pulse" />
-              <span className="text-[10px] text-zinc-500">Refreshing…</span>
+              <span className="text-[10px] text-zinc-400">Refreshing…</span>
             </span>
           )}
 
@@ -624,7 +624,7 @@ export function NewPairsTable({
             type="button"
             onClick={triggerRefresh}
             disabled={loading || isRefreshing}
-            className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${loading || isRefreshing ? "bg-white/[0.03] text-zinc-500 opacity-50 cursor-not-allowed" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
+            className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${loading || isRefreshing ? "bg-white/[0.03] text-zinc-400 opacity-50 cursor-not-allowed" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
           >
             {isRefreshing ? "Refreshing…" : loading ? "Loading…" : "Refresh"}
           </button>
@@ -634,7 +634,7 @@ export function NewPairsTable({
       {/* Filter bar */}
       {!loading && (pools.length > 0 || activeFilterCount > 0) && (
         <div className="shrink-0 flex flex-wrap items-center gap-3 px-4 py-2 border-b border-[var(--panel-border)]">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
             Filters
           </span>
           {activeFilterCount > 0 && (
@@ -644,7 +644,7 @@ export function NewPairsTable({
           )}
           <div className="flex items-center gap-2">
             <div className="relative">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 pointer-events-none">
                 $
               </span>
               <input
@@ -659,7 +659,7 @@ export function NewPairsTable({
                     minTvl: val && !Number.isNaN(num) ? num : null,
                   }));
                 }}
-                className="w-24 rounded border border-white/[0.06] bg-white/[0.03] pl-4 pr-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+                className="w-24 rounded border border-white/[0.06] bg-white/[0.03] pl-4 pr-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-400 focus:border-[var(--accent)]/50 focus:outline-none"
               />
             </div>
             <div className="relative">
@@ -675,9 +675,9 @@ export function NewPairsTable({
                     minApr: val && !Number.isNaN(num) ? num : null,
                   }));
                 }}
-                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-400 focus:border-[var(--accent)]/50 focus:outline-none"
               />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 pointer-events-none">
                 %
               </span>
             </div>
@@ -694,9 +694,9 @@ export function NewPairsTable({
                     maxAgeHours: val && !Number.isNaN(num) ? num : null,
                   }));
                 }}
-                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-400 focus:border-[var(--accent)]/50 focus:outline-none"
               />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 pointer-events-none">
                 h
               </span>
             </div>
@@ -716,7 +716,7 @@ export function NewPairsTable({
               <button
                 type="button"
                 onClick={clearFilters}
-                className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 hover:text-zinc-300 transition"
+                className="rounded px-2 py-1 text-[10px] font-medium text-zinc-400 hover:text-zinc-300 transition"
               >
                 Clear
               </button>
@@ -749,7 +749,7 @@ export function NewPairsTable({
                 {visibleColumns.has("pair") && (
                   <th
                     scope="col"
-                    className={`sticky left-0 z-20 bg-[var(--panel-bg)] ${isScrolled ? "shadow-[4px_0_12px_rgba(0,0,0,0.4)]" : ""} text-[10px] font-semibold uppercase tracking-wider text-zinc-500 ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                    className={`sticky left-0 z-20 bg-[var(--panel-bg)] ${isScrolled ? "shadow-[4px_0_12px_rgba(0,0,0,0.4)]" : ""} text-[10px] font-semibold uppercase tracking-wider text-zinc-400 ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
                   >
                     Pair
                   </th>
@@ -781,7 +781,7 @@ export function NewPairsTable({
                 {visibleColumns.has("freeze") && (
                   <th
                     scope="col"
-                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-400 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
                   >
                     Freeze
                   </th>
@@ -789,7 +789,7 @@ export function NewPairsTable({
                 {visibleColumns.has("launchpad") && (
                   <th
                     scope="col"
-                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-400 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
                   >
                     LP
                   </th>
@@ -813,7 +813,7 @@ export function NewPairsTable({
                   >
                     {activeFilterCount > 0 ? (
                       <div className="space-y-3">
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-xs text-zinc-400">
                           No pools match your filters
                         </p>
                         <button
@@ -825,7 +825,7 @@ export function NewPairsTable({
                         </button>
                       </div>
                     ) : (
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-zinc-400">
                         No new pools found
                       </p>
                     )}
@@ -866,7 +866,7 @@ export function NewPairsTable({
                 <div className="grid place-items-center p-6">
                   {activeFilterCount > 0 ? (
                     <div className="space-y-3">
-                      <p className="text-xs text-zinc-500">No pools match your filters</p>
+                      <p className="text-xs text-zinc-400">No pools match your filters</p>
                       <button
                         type="button"
                         onClick={clearFilters}
@@ -876,7 +876,7 @@ export function NewPairsTable({
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-zinc-500">No new pools found</p>
+                    <p className="text-xs text-zinc-400">No new pools found</p>
                   )}
                 </div>
               ) : (

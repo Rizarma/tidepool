@@ -16,6 +16,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  color-scheme: dark;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -23,8 +27,8 @@ body {
 }
 
 ::selection {
-  background: #e8a44a;
-  color: #0c0e12;
+  background: var(--accent);
+  color: var(--background);
 }
 
 /* Viewport-locked shell for desktop */

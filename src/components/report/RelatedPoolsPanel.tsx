@@ -57,7 +57,7 @@ function SortHeader({
       type="button"
       onClick={() => onSort(field)}
       className={`w-full text-right font-medium transition hover:text-zinc-300 flex items-center justify-end gap-1 ${
-        isActive ? "text-zinc-200" : "text-zinc-500"
+        isActive ? "text-zinc-200" : "text-zinc-400"
       }`}
       aria-label={`Sort by ${label}`}
       aria-pressed={isActive}
@@ -132,13 +132,13 @@ export function RankedPoolsTable({
 
   return (
     <div className="mt-3">
-      <h3 className="text-xs uppercase tracking-wide text-zinc-500 font-semibold mb-2">
+      <h3 className="text-xs uppercase tracking-wide text-zinc-400 font-semibold mb-2">
         {title}
       </h3>
       <div className="relative overflow-x-auto after:absolute after:right-0 after:top-0 after:h-full after:w-8 after:bg-gradient-to-l after:from-[var(--background)] after:to-transparent after:pointer-events-none after:content-['']">
         <table className="w-full min-w-[600px] text-sm">
           <thead className="sticky top-0 bg-[var(--background)] z-10">
-            <tr className="border-b border-[var(--panel-border)] text-zinc-500">
+            <tr className="border-b border-[var(--panel-border)] text-zinc-400">
               <th className="px-3 py-2 text-left font-medium">Pool</th>
               <th className="px-3 py-2 text-left font-medium">TVL Share</th>
               <th
@@ -226,7 +226,7 @@ export function RankedPoolsTable({
                           {shortenAddress(pool.poolAddress)}
                         </Link>
                       ) : (
-                        <span className="text-zinc-600">—</span>
+                        <span className="text-zinc-500">—</span>
                       )}
                       {pool.poolAddress && (
                         <CopyButton address={pool.poolAddress} />
@@ -277,7 +277,7 @@ export function RankedPoolsTable({
           </tbody>
         </table>
       </div>
-      <p className="mt-1 text-xs text-zinc-600">
+      <p className="mt-1 text-xs text-zinc-400">
         {sortedPools.length} pool{sortedPools.length > 1 ? "s" : ""} for this
         pair
       </p>
