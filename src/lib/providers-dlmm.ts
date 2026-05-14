@@ -322,6 +322,12 @@ async function fetchMeteoraNewPoolsOrientation(
 export async function fetchMeteoraDlmmNewPools(
   pageSize = 20,
   page = 1,
+  filters?: {
+    minTvl?: number | null;
+    minApr?: number | null;
+    maxAgeHours?: number | null;
+    freezeOffOnly?: boolean;
+  }
 ): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
   const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
   const solMint = "So11111111111111111111111111111111111111112";
@@ -358,12 +364,33 @@ export async function fetchMeteoraDlmmNewPools(
     return (b.createdAt ?? 0) - (a.createdAt ?? 0);
   });
 
-  // Estimate total as sum of both orientation totals (disjoint sets)
-  const total = yResults[yResults.length - 1].total + xResults[xResults.length - 1].total;
+  // Apply server-side filters
+  let filteredPools = allPools;
+  if (filters?.minTvl != null) {
+    filteredPools = filteredPools.filter((p) => (p.tvlUsd ?? 0) >= filters.minTvl);
+  }
+  if (filters?.minApr != null) {
+    filteredPools = filteredPools.filter((p) => (p.apr ?? 0) >= filters.minApr);
+  }
+  if (filters?.maxAgeHours != null) {
+    const now = Math.floor(Date.now() / 1000);
+    filteredPools = filteredPools.filter((p) => {
+      if (!p.createdAt) return false;
+      return (now - p.createdAt) / 3600 <= filters.maxAgeHours;
+    });
+  }
+  if (filters?.freezeOffOnly) {
+    filteredPools = filteredPools.filter((p) => {
+      const primary = p.tokenX.mint === solMint ? p.tokenY : p.tokenY.mint === solMint ? p.tokenX : p.tokenX;
+      return primary.freezeAuthorityDisabled === true;
+    });
+  }
+
+  const total = filteredPools.length;
   const pages = Math.ceil(total / pageSize);
 
   const start = (page - 1) * pageSize;
-  const pools = allPools.slice(start, start + pageSize);
+  const pools = filteredPools.slice(start, start + pageSize);
 
   return { pools, total, pages };
 }

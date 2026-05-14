@@ -18,6 +18,7 @@ import { useNewPairsData } from "./useNewPairsData";
 import { useNewPairsSorting } from "./useNewPairsSorting";
 import { useNewPairsFilters } from "./useNewPairsFilters";
 import { NewPairRow } from "./NewPairRow";
+import { NewPairsCards } from "./NewPairsCards";
 
 // ─── SortHeader ────────────────────────────────────────────────────────────
 function SortHeader({
@@ -172,7 +173,15 @@ export function NewPairsTable({
     return [10, 20, 50, 100].includes(size) ? size : 20;
   }, [searchParams]);
 
-  // Data fetching
+  // Filters (state only — server applies them)
+  const {
+    filters,
+    setFilters,
+    activeFilterCount,
+    clearFilters,
+  } = useNewPairsFilters();
+
+  // Data fetching (server returns already-filtered pools)
   const {
     pools,
     loading,
@@ -185,7 +194,7 @@ export function NewPairsTable({
     countdown,
     triggerRefresh,
     toggleAutoRefresh,
-  } = useNewPairsData({ page, pageSize });
+  } = useNewPairsData({ page, pageSize, filters });
 
   // Component state
   const [timeframe, setTimeframe] = useState<Timeframe>("24h");
@@ -219,18 +228,9 @@ export function NewPairsTable({
   const columnsDropdownRef = useRef<HTMLDivElement>(null);
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
-  // Filters
-  const {
-    filters,
-    setFilters,
-    filteredPools,
-    activeFilterCount,
-    clearFilters,
-  } = useNewPairsFilters(pools);
-
   // Sorting
   const { sortKey, sortDir, sortedPools, handleSort } = useNewPairsSorting({
-    pools: filteredPools,
+    pools,
     timeframe,
   });
 
@@ -322,6 +322,24 @@ export function NewPairsTable({
     onScroll();
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Reset to page 1 when filters change
+  const prevFiltersRef = useRef(filters);
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    prevFiltersRef.current = filters;
+    if (prev === filters) return;
+    const changed =
+      prev.minTvl !== filters.minTvl ||
+      prev.minApr !== filters.minApr ||
+      prev.maxAgeHours !== filters.maxAgeHours ||
+      prev.freezeOffOnly !== filters.freezeOffOnly;
+    if (changed && page !== 1) {
+      const params = new URLSearchParams(searchParams);
+      params.set("page", "1");
+      router.replace(`?${params.toString()}`);
+    }
+  }, [filters, page, searchParams, router]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
@@ -627,7 +645,9 @@ export function NewPairsTable({
             </div>
           </div>
         ) : (
-          <table className="w-full min-w-[1400px] text-left">
+          <>
+            <div className="hidden lg:block">
+              <table className="w-full min-w-[1400px] text-left">
             <thead className="sticky top-0 bg-[var(--panel-bg)] z-10">
               <tr className="border-b border-[var(--panel-border)]">
                 {visibleColumns.has("pair") && (
@@ -730,6 +750,50 @@ export function NewPairsTable({
               )}
             </tbody>
           </table>
+            </div>
+            <div className="lg:hidden">
+              {loading ? (
+                <div className="grid gap-3 p-4 sm:grid-cols-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-lg p-4 space-y-3 animate-pulse">
+                      <div className="h-4 bg-zinc-800 rounded w-24" />
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="h-3 bg-zinc-800 rounded" />
+                        <div className="h-3 bg-zinc-800 rounded" />
+                        <div className="h-3 bg-zinc-800 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : sortedPools.length === 0 ? (
+                <div className="grid place-items-center p-6">
+                  {activeFilterCount > 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-zinc-500">No pools match your filters</p>
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="rounded px-3 py-1.5 text-[11px] font-medium bg-white/[0.06] text-zinc-300 hover:bg-white/[0.1] transition"
+                      >
+                        Clear Filters
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-zinc-500">No new pools found</p>
+                  )}
+                </div>
+              ) : (
+                <NewPairsCards
+                  pools={sortedPools}
+                  visibleColumns={visibleColumns}
+                  density={density}
+                  timeframe={timeframe}
+                  newPoolIds={newPoolIds}
+                  onSelectPool={onSelectPool}
+                />
+              )}
+            </div>
+          </>
         )}
       </div>
 

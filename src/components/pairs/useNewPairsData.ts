@@ -9,14 +9,17 @@ import {
   MIN_COOLDOWN_MS,
   LS_AUTO_REFRESH,
   LS_LAST_FETCHED_AT,
+  FilterState,
 } from "./new-pairs-config";
 
 export function useNewPairsData({
   page,
   pageSize,
+  filters,
 }: {
   page: number;
   pageSize: number;
+  filters?: FilterState;
 }) {
   const [pools, setPools] = useState<DlmmPairInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,8 +108,16 @@ export function useNewPairsData({
       setError(null);
 
       try {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("pageSize", String(pageSize));
+        if (filters?.minTvl != null) params.set("minTvl", String(filters.minTvl));
+        if (filters?.minApr != null) params.set("minApr", String(filters.minApr));
+        if (filters?.maxAgeHours != null) params.set("maxAgeHours", String(filters.maxAgeHours));
+        if (filters?.freezeOffOnly) params.set("freezeOffOnly", "true");
+
         const res = await fetch(
-          `/api/pools/new?page=${page}&pageSize=${pageSize}`,
+          `/api/pools/new?${params.toString()}`,
           { signal: controller.signal }
         );
         if (!res.ok) {
@@ -141,7 +152,7 @@ export function useNewPairsData({
     })();
 
     return () => controller.abort();
-  }, [tick, page, pageSize]);
+  }, [tick, page, pageSize, filters?.minTvl, filters?.minApr, filters?.maxAgeHours, filters?.freezeOffOnly]);
 
   // ─── Countdown timer ─────────────────────────────────────────────────────
   useEffect(() => {
