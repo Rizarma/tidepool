@@ -21,6 +21,9 @@ import { NewPairRow } from "./NewPairRow";
 import { NewPairsCards } from "./NewPairsCards";
 import { KeyboardHelpModal } from "./KeyboardHelpModal";
 
+const APR_TOOLTIP =
+  "APR is annualized from the past 24h of fees relative to pool TVL, sourced directly from Meteora. It's a trailing metric — not a prediction. New pools often show inflated APR due to low initial liquidity. High APR correlates with high volatility and impermanent loss risk.";
+
 // ─── SortHeader ────────────────────────────────────────────────────────────
 function SortHeader({
   label,
@@ -29,6 +32,7 @@ function SortHeader({
   align,
   onClick,
   padClass = "px-3 py-2",
+  tooltip,
 }: {
   label: string;
   active: boolean;
@@ -36,6 +40,7 @@ function SortHeader({
   align: "left" | "right";
   onClick: () => void;
   padClass?: string;
+  tooltip?: string;
 }) {
   return (
     <th
@@ -51,6 +56,30 @@ function SortHeader({
         className={`inline-flex items-center gap-1 ${padClass} cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
       >
         {label}
+        {tooltip && (
+          <span className="relative inline-flex items-center ml-1 group">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-3 text-zinc-600 group-hover:text-zinc-400 transition"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4" />
+              <path d="M12 8h.01" />
+            </svg>
+            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-50 w-64 px-3 py-2 text-[10px] normal-case tracking-normal font-normal text-zinc-300 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded shadow-lg opacity-0 invisible transition-opacity group-hover:opacity-100 group-hover:visible">
+              {tooltip}
+            </span>
+          </span>
+        )}
         {active && (
           <svg
             viewBox="0 0 12 12"
@@ -745,6 +774,7 @@ export function NewPairsTable({
                         padClass={
                           density === "compact" ? "px-3 py-2" : "px-4 py-3"
                         }
+                        tooltip={col.key === "apr" ? APR_TOOLTIP : undefined}
                       />
                     );
                   })}
