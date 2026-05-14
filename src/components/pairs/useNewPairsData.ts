@@ -3,6 +3,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DlmmPairInfo } from "@/lib/types";
 import { formatAge } from "@/lib/format";
+
+/**
+ * Compare only fields that render in the table/card.
+ * If unchanged, the old object reference is reused so React.memo
+ * can skip re-rendering the row entirely.
+ */
+function poolFieldsEqual(a: DlmmPairInfo, b: DlmmPairInfo): boolean {
+  return (
+    a.tvlUsd === b.tvlUsd &&
+    a.volume24h === b.volume24h &&
+    a.fees24h === b.fees24h &&
+    a.apr === b.apr &&
+    a.priceTokenYPerTokenX === b.priceTokenYPerTokenX &&
+    a.inversePrice === b.inversePrice &&
+    a.baseFeePct === b.baseFeePct &&
+    a.binStep === b.binStep &&
+    a.isBlacklisted === b.isBlacklisted &&
+    a.launchpad === b.launchpad &&
+    a.tokenX?.priceUsd === b.tokenX?.priceUsd &&
+    a.tokenY?.priceUsd === b.tokenY?.priceUsd &&
+    a.tokenX?.marketCap === b.tokenX?.marketCap &&
+    a.tokenY?.marketCap === b.tokenY?.marketCap &&
+    a.tokenX?.holders === b.tokenX?.holders &&
+    a.tokenY?.holders === b.tokenY?.holders &&
+    a.tokenX?.freezeAuthorityDisabled === b.tokenX?.freezeAuthorityDisabled &&
+    a.tokenY?.freezeAuthorityDisabled === b.tokenY?.freezeAuthorityDisabled
+  );
+}
 import {
   NewPairsResponse,
   AUTO_REFRESH_INTERVAL,
@@ -38,6 +66,7 @@ export function useNewPairsData({
   const lastFetchTimeRef = useRef<number>(0);
   const lastPageRef = useRef(1);
   const hasLoadedRef = useRef(false);
+  const prevPoolsRef = useRef<DlmmPairInfo[]>([]);
 
   // ─── Hydration-safe localStorage sync ───────────────────────────────────
   useEffect(() => {
@@ -141,7 +170,16 @@ export function useNewPairsData({
             .filter((p) => p.createdAt && now - p.createdAt < oneHour)
             .map((p) => p.poolAddress)
         );
-        setPools(data.pools);
+        const prevMap = new Map(prevPoolsRef.current.map((p) => [p.poolAddress, p]));
+        const stablePools = data.pools.map((newPool) => {
+          const oldPool = prevMap.get(newPool.poolAddress);
+          if (oldPool && poolFieldsEqual(oldPool, newPool)) {
+            return oldPool;
+          }
+          return newPool;
+        });
+        setPools(stablePools);
+        prevPoolsRef.current = stablePools;
         setTotalPages(data.pages);
         setTotal(data.total);
         setNewPoolIds(ids);

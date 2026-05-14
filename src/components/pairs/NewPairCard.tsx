@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { DlmmPairInfo, PairToken } from "@/lib/types";
 import {
   formatTokenPrice,
@@ -81,7 +82,7 @@ function Metric({
   );
 }
 
-export function NewPairCard({
+export const NewPairCard = memo(function NewPairCard({
   pool,
   visibleColumns,
   timeframe,
@@ -188,4 +189,4 @@ export function NewPairCard({
       </div>
     </div>
   );
-}
+});

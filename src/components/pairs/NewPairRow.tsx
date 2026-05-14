@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { DlmmPairInfo, PairToken } from "@/lib/types";
 import {
   formatTokenPrice,
@@ -65,7 +66,7 @@ function NewBadge() {
   );
 }
 
-export function NewPairRow({
+export const NewPairRow = memo(function NewPairRow({
   pool,
   visibleColumns,
   density,
@@ -200,4 +201,4 @@ export function NewPairRow({
       )}
     </tr>
   );
-}
+});
