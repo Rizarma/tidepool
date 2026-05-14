@@ -122,6 +122,29 @@ export function normalizePair(raw: unknown): DlmmPairInfo {
     tvlUsd: toNumber(raw.tvl) ?? toNumber(raw.liquidity),
     volume24h: toNumber(prop(raw, "volume", "24h")) ?? toNumber(raw.trade_volume_24h),
     fees24h: toNumber(prop(raw, "fees", "24h")) ?? toNumber(raw.fee_volume_24h),
+    // Build timeframe records from nested volume/fees objects
+    volume: (() => {
+      const out: Record<string, number> = {};
+      const nested = isObject(raw.volume) ? raw.volume : undefined;
+      if (nested) {
+        for (const key of Object.keys(nested)) {
+          const val = toNumber(nested[key]);
+          if (val !== undefined) out[key] = val;
+        }
+      }
+      return Object.keys(out).length > 0 ? out : undefined;
+    })(),
+    fees: (() => {
+      const out: Record<string, number> = {};
+      const nested = isObject(raw.fees) ? raw.fees : undefined;
+      if (nested) {
+        for (const key of Object.keys(nested)) {
+          const val = toNumber(nested[key]);
+          if (val !== undefined) out[key] = val;
+        }
+      }
+      return Object.keys(out).length > 0 ? out : undefined;
+    })(),
     apr: toNumber(raw.apr),
     apy: toNumber(raw.apy),
     isBlacklisted: toBool(raw.is_blacklisted),

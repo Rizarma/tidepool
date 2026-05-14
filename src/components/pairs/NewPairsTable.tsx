@@ -35,6 +35,8 @@ type SortKey =
   | "marketCap"
   | "holders";
 type SortDir = "asc" | "desc";
+type Timeframe = "30m" | "1h" | "4h" | "6h" | "12h" | "24h";
+const TIMEFRAMES: Timeframe[] = ["30m", "1h", "4h", "6h", "12h", "24h"];
 
 const AUTO_REFRESH_INTERVAL = 60; // seconds
 const MIN_COOLDOWN_MS = 15000; // minimum ms between requests
@@ -165,6 +167,7 @@ export function NewPairsTable({
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [timeframe, setTimeframe] = useState<Timeframe>("24h");
 
   // Sync persisted state from localStorage after hydration (avoid SSR mismatch)
   useEffect(() => {
@@ -192,6 +195,17 @@ export function NewPairsTable({
       })
       .then((val) => {
         if (val !== null) setLastFetchedAt(val);
+      });
+    Promise.resolve()
+      .then(() => {
+        try {
+          return localStorage.getItem("tidepool_timeframe");
+        } catch {
+          return null;
+        }
+      })
+      .then((val) => {
+        if (val && TIMEFRAMES.includes(val as Timeframe)) setTimeframe(val as Timeframe);
       });
   }, []);
 
@@ -229,6 +243,14 @@ export function NewPairsTable({
       }
     }
   }, [lastFetchedAt]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("tidepool_timeframe", timeframe);
+    } catch {
+      // ignore
+    }
+  }, [timeframe]);
 
   // ─── Fetch effect ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -387,6 +409,10 @@ export function NewPairsTable({
     setAutoRefresh((prev) => !prev);
   }, []);
 
+  const handleTimeframeChange = useCallback((tf: Timeframe) => {
+    setTimeframe(tf);
+  }, []);
+
   const handlePageChange = useCallback((newPage: number) => {
     const params = new URLSearchParams(searchParams);
     params.set("page", String(newPage));
@@ -432,11 +458,21 @@ export function NewPairsTable({
       });
     }
     return [...pools].sort((a, b) => {
-      const aVal = (a[sortKey] as number | undefined) ?? 0;
-      const bVal = (b[sortKey] as number | undefined) ?? 0;
+      let aVal: number;
+      let bVal: number;
+      if (sortKey === "volume24h") {
+        aVal = a.volume?.[timeframe] ?? 0;
+        bVal = b.volume?.[timeframe] ?? 0;
+      } else if (sortKey === "fees24h") {
+        aVal = a.fees?.[timeframe] ?? 0;
+        bVal = b.fees?.[timeframe] ?? 0;
+      } else {
+        aVal = (a[sortKey] as number | undefined) ?? 0;
+        bVal = (b[sortKey] as number | undefined) ?? 0;
+      }
       return sortDir === "asc" ? aVal - bVal : bVal - aVal;
     });
-  }, [pools, sortKey, sortDir]);
+  }, [pools, sortKey, sortDir, timeframe]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -456,6 +492,26 @@ export function NewPairsTable({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Timeframe toggle */}
+          <div className="flex items-center rounded overflow-hidden border border-zinc-700/50">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf}
+                type="button"
+                onClick={() => handleTimeframeChange(tf)}
+                className={`px-1.5 py-0.5 text-[10px] font-medium transition ${
+                  timeframe === tf
+                    ? "bg-zinc-700 text-zinc-200"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+                aria-pressed={timeframe === tf}
+                aria-label={`${tf} timeframe`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+
           {/* Auto toggle */}
           <button
             type="button"
@@ -520,16 +576,24 @@ export function NewPairsTable({
                 <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                   Pair
                 </th>
-                {sortableColumns.map((col) => (
-                  <SortHeader
-                    key={col.key}
-                    label={col.label}
-                    active={sortKey === col.key}
-                    dir={sortDir}
-                    align={col.align}
-                    onClick={() => handleSort(col.key)}
-                  />
-                ))}
+                {sortableColumns.map((col) => {
+                  const label =
+                    col.key === "volume24h"
+                      ? `${timeframe} Vol`
+                      : col.key === "fees24h"
+                        ? `${timeframe} Fees`
+                        : col.label;
+                  return (
+                    <SortHeader
+                      key={col.key}
+                      label={label}
+                      active={sortKey === col.key}
+                      dir={sortDir}
+                      align={col.align}
+                      onClick={() => handleSort(col.key)}
+                    />
+                  );
+                })}
                 <th scope="col" className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center">
                   Freeze
                 </th>
@@ -653,10 +717,10 @@ export function NewPairsTable({
                       {formatCompactUsd(pool.tvlUsd)}
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatCompactUsd(pool.volume24h)}
+                      {formatCompactUsd(pool.volume?.[timeframe])}
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
-                      {formatCompactUsd(pool.fees24h)}
+                      {formatCompactUsd(pool.fees?.[timeframe])}
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">
                       {pctValue(pool.apr)}

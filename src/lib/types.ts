@@ -159,6 +159,10 @@ export interface DlmmPairInfo {
   tvlUsd?: number;
   volume24h?: number;
   fees24h?: number;
+  /** All available volume timeframes from the provider (e.g. { "30m": 123, "1h": 456, "24h": 789 }) */
+  volume?: Record<string, number>;
+  /** All available fees timeframes from the provider */
+  fees?: Record<string, number>;
   apr?: number;
   apy?: number;
   isBlacklisted?: boolean;
