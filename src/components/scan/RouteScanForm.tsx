@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Logo } from "@/components/Logo";
 import { fetchAddressResolution } from "@/lib/report-fetchers";
 
 const LS_ADDRESS = "tidepool_last_address";
@@ -107,9 +108,7 @@ export function RouteScanForm() {
           className="flex items-center gap-2 shrink-0 cursor-pointer group"
           aria-label="Go to homepage"
         >
-          <div className="grid size-7 place-items-center rounded bg-[var(--accent)] text-xs font-black text-[var(--background)] transition group-hover:bg-[var(--accent-dim)]">
-            T
-          </div>
+          <Logo className="size-7 text-[var(--accent)] transition group-hover:text-[var(--accent-dim)]" />
           <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-300 hidden sm:inline transition group-hover:text-zinc-200">
             Tidepool
           </span>
