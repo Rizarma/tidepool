@@ -258,10 +258,12 @@ export async function fetchMeteoraDlmmPoolsByMint(
  */
 export async function fetchMeteoraDlmmPool(
   poolAddress: string,
+  signal?: AbortSignal,
 ): Promise<DlmmPairInfo> {
   return cacheFirst(`meteora:pool:${poolAddress}`, async () => {
-  const url = `${BASE_URL}/pools/${poolAddress}`;
-  const data = await fetchJson(url);
+    if (signal?.aborted) throw new Error("Request aborted");
+    const url = `${BASE_URL}/pools/${poolAddress}`;
+    const data = await fetchJson(url, 10_000, signal);
 
   if (!isObject(data)) {
     throw new Error("Invalid response from DLMM: expected object");
@@ -332,9 +334,9 @@ export async function fetchMeteoraDlmmNewPools(
   const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
   const solMint = "So11111111111111111111111111111111111111112";
 
-  const hasActiveFilters = filters &&
-    (filters.minTvl != null || filters.minApr != null || filters.maxAgeHours != null || filters.freezeOffOnly);
-  const fetchPages = hasActiveFilters ? Math.max(page, 5) : page;
+  // Cap at 10 pages max to prevent request amplification attacks.
+  const fetchPages = Math.min(page, 10);
+  // TODO: If active filters are present and page > 10, server-side filtering is preferred.
 
   // Fetch pages 1..N from both orientations to construct a correct combined page N.
   // A pool on orientation A page 1 may be newer than orientation B page 2,
