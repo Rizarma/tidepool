@@ -89,6 +89,11 @@ export interface PoolReport {
     tokenY?: PairToken;
     tags?: string[];
   };
+  relatedPools?: (DeepPartial<DlmmPairInfo> & {
+    tokenX?: PairToken;
+    tokenY?: PairToken;
+    tags?: string[];
+  })[];
   indicators?: PoolIndicators;
   sources?: SourceStatus[];
   fetchedAt?: string;

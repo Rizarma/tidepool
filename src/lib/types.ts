@@ -171,6 +171,8 @@ export interface DlmmPairInfo {
 export interface PoolReport {
   kind: "pair";
   pair: DlmmPairInfo;
+  /** Other non-blacklisted pools for the same token pair, excluding the current pool. */
+  relatedPools?: DlmmPairInfo[];
   indicators?: PoolIndicators;
   sources: SourceStatus[];
   /** ISO timestamp */

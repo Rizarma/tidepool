@@ -53,19 +53,19 @@ export default function PoolRouteView({ address }: { address: string }) {
   if (error) {
     return (
       <div className="h-full grid place-items-center p-6" role="alert" aria-live="polite">
-        <div className="max-w-md text-center">
+        <div className="max-w-md text-center rounded-xl bg-white/[0.03] p-6">
           <h2 className="text-base font-semibold text-zinc-200">Unable to load pool scan</h2>
           <p className="mt-2 text-xs text-zinc-500">{error.message}</p>
           <div className="mt-4 flex gap-3 justify-center">
             <button
               onClick={() => window.location.reload()}
-              className="rounded bg-[var(--accent)] px-3 py-1.5 text-[11px] font-bold text-[var(--background)] transition hover:bg-[var(--accent-dim)]"
+              className="rounded bg-[var(--accent)] px-3 py-1.5 text-sm font-bold text-[var(--background)] transition hover:bg-[var(--accent-dim)]"
             >
               Retry
             </button>
             <button
               onClick={() => router.push("/")}
-              className="rounded border border-[var(--panel-border)] px-3 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:text-zinc-200"
+              className="rounded border border-[var(--panel-border)] px-3 py-1.5 text-sm font-medium text-zinc-300 transition hover:text-zinc-200"
             >
               Go home
             </button>

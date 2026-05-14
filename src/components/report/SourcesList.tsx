@@ -18,7 +18,7 @@ export function SourcesList({ sources, fetchedAt }: { sources?: SourceStatus[]; 
         </div>
       ))}
       {fetchedAt && (
-        <p className="pt-1.5 px-2 text-[10px] text-zinc-500">
+        <p className="pt-1.5 px-2 text-xs text-zinc-500">
           {new Date(fetchedAt).toLocaleString()}
         </p>
       )}

@@ -12,6 +12,7 @@ import {
   shortenAddress,
 } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
+import { LinkOpener } from "@/components/LinkOpener";
 import { TablePagination } from "./TablePagination";
 
 interface NewPairsResponse {
@@ -58,6 +59,8 @@ const sortableColumns: {
 const TOTAL_COLUMNS = 1 + sortableColumns.length + 2; // Pair + sortable + Freeze + Launchpad.
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
+const GMGN_REFERRAL = "yr2NU5dr";
+const LPAGENT_REFERRAL = "URq8gm4";
 
 function getPrimaryToken(pair: DlmmPairInfo): PairToken {
   if (pair.tokenX.mint === SOL_MINT) return pair.tokenY;
@@ -156,23 +159,41 @@ export function NewPairsTable({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tick, setTick] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("tidepool_auto_refresh") === "true";
-  });
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
-    const savedAt = localStorage.getItem("tidepool_last_fetched_at");
-    if (savedAt) {
-      const lastFetch = parseInt(savedAt, 10);
-      if (!isNaN(lastFetch)) return lastFetch;
-    }
-    return null;
-  });
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+
+  // Sync persisted state from localStorage after hydration (avoid SSR mismatch)
+  useEffect(() => {
+    Promise.resolve()
+      .then(() => {
+        try {
+          return localStorage.getItem("tidepool_auto_refresh") === "true";
+        } catch {
+          return false;
+        }
+      })
+      .then((val) => {
+        if (val) setAutoRefresh(true);
+      });
+    Promise.resolve()
+      .then(() => {
+        try {
+          const savedAt = localStorage.getItem("tidepool_last_fetched_at");
+          if (!savedAt) return null;
+          const lastFetch = parseInt(savedAt, 10);
+          return isNaN(lastFetch) ? null : lastFetch;
+        } catch {
+          return null;
+        }
+      })
+      .then((val) => {
+        if (val !== null) setLastFetchedAt(val);
+      });
+  }, []);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -569,61 +590,60 @@ export function NewPairsTable({
                         </span>
                         <CopyButton address={pool.poolAddress} />
                         <span className="mx-1 text-zinc-700">|</span>
-                        <a
+                        <LinkOpener
                           href={`https://app.meteora.ag/dlmm/${pool.poolAddress}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on Meteora"
                           aria-label="View on Meteora"
                         >
                           Met
-                        </a>
-                        <a
-                          href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        </LinkOpener>
+                        <LinkOpener
+                          href={`https://gmgn.ai/sol/token/${getPrimaryToken(pool).mint}?ref=${GMGN_REFERRAL}`}
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on GMGN"
                           aria-label="View on GMGN"
                         >
                           GMGN
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://www.dextools.io/app/en/solana/pair-explorer/${pool.poolAddress}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on DexTools"
                           aria-label="View on DexTools"
                         >
                           DexT
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://dexscreener.com/solana/${pool.poolAddress}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on DexScreener"
                           aria-label="View on DexScreener"
                         >
                           DexS
-                        </a>
-                        <a
+                        </LinkOpener>
+                        <LinkOpener
                           href={`https://jup.ag/tokens/${getPrimaryToken(pool).mint}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
                           title="View on Jupiter"
                           aria-label="View on Jupiter"
                         >
                           Jupiter
-                        </a>
+                        </LinkOpener>
+                        <LinkOpener
+                          href={`https://app.lpagent.io/pools/${encodeURIComponent(pool.poolAddress)}?referral=${LPAGENT_REFERRAL}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[9px] text-zinc-600 hover:text-[var(--accent)] transition"
+                          title="View on LPAgent"
+                          aria-label="View on LPAgent"
+                        >
+                          LPAgent
+                        </LinkOpener>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-zinc-300">

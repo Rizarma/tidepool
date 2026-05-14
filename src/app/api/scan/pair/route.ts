@@ -10,6 +10,7 @@ import { isValidSolanaAddress } from "@/lib/validation";
 import {
   fetchMeteoraDlmmPool,
   fetchMeteoraDlmmPairByMints,
+  fetchMeteoraDlmmGroupPools,
 } from "@/lib/providers-dlmm";
 import { fetchJupiter } from "@/lib/providers";
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
@@ -134,11 +135,29 @@ async function handlePairScan(request: Request): Promise<Response> {
 
   const pair: DlmmPairInfo = result.value.data;
 
-  await enrichPairWithJupiterPrices(pair, sources);
+  // Parallel fetch: related pools + Jupiter prices
+  let relatedPools: DlmmPairInfo[] = [];
+
+  if (pair.tokenX.mint && pair.tokenY.mint) {
+    const [groupResult] = await Promise.all([
+      timedFetch("meteora_dlmm", () =>
+        fetchMeteoraDlmmGroupPools(pair.tokenX.mint, pair.tokenY.mint),
+      ),
+      enrichPairWithJupiterPrices(pair, sources),
+    ]);
+
+    if (groupResult.status === "fulfilled") {
+      relatedPools = groupResult.value.data;
+    }
+    // On rejection: silently degrade to []
+  } else {
+    await enrichPairWithJupiterPrices(pair, sources);
+  }
 
   const report: PoolReport = {
     kind: "pair",
     pair,
+    relatedPools,
     sources,
     fetchedAt: new Date().toISOString(),
   };
