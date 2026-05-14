@@ -1,5 +1,5 @@
 /**
- * Bottom bar showing current indicator config + settings trigger.
+ * Bottom bar with external links + settings trigger.
  *
  * Always visible at the bottom of the app shell.
  */
@@ -9,7 +9,6 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { LinkOpener } from "@/components/LinkOpener";
-import { useIndicatorConfig } from "./IndicatorConfigContext";
 import { IndicatorSettings } from "./IndicatorSettings";
 
 const LPAGENT_REFERRAL = "URq8gm4";
@@ -24,26 +23,18 @@ function getLpAgentUrl(pathname: string | null): string {
 }
 
 export function IndicatorBottomBar() {
-  const { config } = useIndicatorConfig();
   const [showSettings, setShowSettings] = useState(false);
   const pathname = usePathname();
-
-  const enabledIndicators = config.indicators.filter((i) => i.enabled !== false);
-  const summary =
-    enabledIndicators.length === 0
-      ? "Indicators off"
-      : `${config.timeframes.join(" · ")} · ${enabledIndicators.map((i) => `${i.type.toUpperCase()}(${i.period})`).join(" · ")}`;
 
   const lpAgentUrl = getLpAgentUrl(pathname);
 
   return (
     <>
-      <div className="shrink-0 border-t border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2 flex items-center justify-between">
-        <span className="text-[10px] text-zinc-500">{summary}</span>
+      <div className="shrink-0 border-t border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2 flex items-center justify-end">
         <div className="flex items-center gap-3">
           <LinkOpener
             href="https://gmgn.ai/?ref=yr2NU5dr"
-            className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-300 transition-colors"
           >
             <ExternalLinkIcon />
             <span>GMGN</span>
@@ -51,17 +42,17 @@ export function IndicatorBottomBar() {
           <span className="text-zinc-700 select-none">·</span>
           <LinkOpener
             href={lpAgentUrl}
-            className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-300 transition-colors"
           >
             <ExternalLinkIcon />
             <span>LPAgent</span>
           </LinkOpener>
           <button
-          onClick={() => setShowSettings(true)}
-          className="rounded p-1 hover:bg-white/[0.04] text-zinc-400 transition-colors"
-          aria-label="Indicator settings"
-          title="Indicator settings"
-        >
+            onClick={() => setShowSettings(true)}
+            className="rounded p-1 hover:bg-white/[0.04] text-zinc-400 transition-colors"
+            aria-label="Indicator settings"
+            title="Indicator settings"
+          >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="14"

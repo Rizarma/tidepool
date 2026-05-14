@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Logo } from "@/components/Logo";
 import { fetchAddressResolution } from "@/lib/report-fetchers";
 
 const LS_ADDRESS = "tidepool_last_address";
@@ -107,9 +108,7 @@ export function RouteScanForm() {
           className="flex items-center gap-2 shrink-0 cursor-pointer group"
           aria-label="Go to homepage"
         >
-          <div className="grid size-7 place-items-center rounded bg-[var(--accent)] text-xs font-black text-[var(--background)] transition group-hover:bg-[var(--accent-dim)]">
-            T
-          </div>
+          <Logo className="size-7 text-[var(--accent)] transition group-hover:text-[var(--accent-dim)]" />
           <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-300 hidden sm:inline transition group-hover:text-zinc-200">
             Tidepool
           </span>
@@ -122,6 +121,7 @@ export function RouteScanForm() {
           onSubmit={handleSubmit}
           className="flex flex-1 items-center justify-center gap-2 min-w-0"
           aria-label="Scan address form"
+          aria-busy={loading}
         >
           <div className="relative flex flex-1 min-w-0 max-w-2xl items-center">
             <input
@@ -131,7 +131,7 @@ export function RouteScanForm() {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Pool or token address…"
-              className="w-full min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] py-1.5 pl-3 pr-9 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600"
+              className="w-full min-w-0 rounded border border-[var(--panel-border)] bg-[var(--background)] py-1.5 pl-3 pr-9 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-400"
               spellCheck={false}
             />
             <button
@@ -139,7 +139,7 @@ export function RouteScanForm() {
               onClick={() => void handlePaste()}
               aria-label="Paste from clipboard"
               title="Paste from clipboard"
-              className="absolute right-1 grid size-6 place-items-center rounded text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
+              className="absolute right-1 grid size-6 place-items-center rounded text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
             >
               <ClipboardIcon />
             </button>
@@ -153,21 +153,6 @@ export function RouteScanForm() {
             {loading ? "…" : "Scan"}
           </button>
         </form>
-
-        {/* Status indicator */}
-        <div className="h-5 w-px bg-[var(--panel-border)] shrink-0 hidden sm:block" />
-        <div
-          className="hidden sm:flex items-center gap-1.5 shrink-0"
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className={`inline-block size-1.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-zinc-600"}`}
-          />
-          <span className="text-[10px] text-zinc-500">
-            {loading ? "Resolving" : "Idle"}
-          </span>
-        </div>
       </div>
 
       {/* Error bar */}

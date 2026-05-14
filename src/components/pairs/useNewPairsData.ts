@@ -1,16 +1,76 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DlmmPairInfo } from "@/lib/types";
+import type { DlmmPairInfo, PairToken } from "@/lib/types";
 import { formatAge } from "@/lib/format";
 import {
   NewPairsResponse,
   AUTO_REFRESH_INTERVAL,
   MIN_COOLDOWN_MS,
-  LS_AUTO_REFRESH,
   LS_LAST_FETCHED_AT,
   FilterState,
 } from "./new-pairs-config";
+import { useNewPairsPreferences } from "@/components/NewPairsPreferencesContext";
+
+function timeframeMapsEqual(
+  a: Record<string, number> | undefined,
+  b: Record<string, number> | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const allKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of allKeys) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
+function tokenFieldsEqual(a: PairToken | undefined, b: PairToken | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.mint === b.mint &&
+    a.symbol === b.symbol &&
+    a.name === b.name &&
+    a.decimals === b.decimals &&
+    a.priceUsd === b.priceUsd &&
+    a.verified === b.verified &&
+    a.amount === b.amount &&
+    a.holders === b.holders &&
+    a.freezeAuthorityDisabled === b.freezeAuthorityDisabled &&
+    a.marketCap === b.marketCap &&
+    a.marketCapFallback === b.marketCapFallback &&
+    a.totalSupply === b.totalSupply
+  );
+}
+
+/**
+ * Compare all fields that render in the table/card.
+ * If unchanged, the old object reference is reused so React.memo
+ * can skip re-rendering the row entirely.
+ */
+function poolFieldsEqual(a: DlmmPairInfo, b: DlmmPairInfo): boolean {
+  if (a === b) return true;
+  return (
+    a.poolAddress === b.poolAddress &&
+    a.name === b.name &&
+    a.tvlUsd === b.tvlUsd &&
+    a.volume24h === b.volume24h &&
+    a.fees24h === b.fees24h &&
+    timeframeMapsEqual(a.volume, b.volume) &&
+    timeframeMapsEqual(a.fees, b.fees) &&
+    a.apr === b.apr &&
+    a.priceTokenYPerTokenX === b.priceTokenYPerTokenX &&
+    a.inversePrice === b.inversePrice &&
+    a.baseFeePct === b.baseFeePct &&
+    a.binStep === b.binStep &&
+    a.isBlacklisted === b.isBlacklisted &&
+    a.launchpad === b.launchpad &&
+    a.createdAt === b.createdAt &&
+    tokenFieldsEqual(a.tokenX, b.tokenX) &&
+    tokenFieldsEqual(a.tokenY, b.tokenY)
+  );
+}
 
 export function useNewPairsData({
   page,
@@ -23,58 +83,34 @@ export function useNewPairsData({
 }) {
   const [pools, setPools] = useState<DlmmPairInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [newPoolIds, setNewPoolIds] = useState<Set<string>>(new Set());
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const savedAt = localStorage.getItem(LS_LAST_FETCHED_AT);
+      if (!savedAt) return null;
+      const lastFetch = parseInt(savedAt, 10);
+      return isNaN(lastFetch) ? null : lastFetch;
+    } catch {
+      return null;
+    }
+  });
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
   const [liveAge, setLiveAge] = useState<string>("");
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const { autoRefresh } = useNewPairsPreferences();
   const [countdown, setCountdown] = useState(0);
   const [tick, setTick] = useState(0);
 
   const lastFetchTimeRef = useRef<number>(0);
   const lastPageRef = useRef(1);
+  const hasLoadedRef = useRef(false);
+  const prevPoolsRef = useRef<DlmmPairInfo[]>([]);
+  const newPoolIdsRef = useRef<Set<string>>(new Set());
 
-  // ─── Hydration-safe localStorage sync ───────────────────────────────────
-  useEffect(() => {
-    Promise.resolve()
-      .then(() => {
-        try {
-          return localStorage.getItem(LS_AUTO_REFRESH) === "true";
-        } catch {
-          return false;
-        }
-      })
-      .then((val) => {
-        if (val) setAutoRefresh(true);
-      });
-
-    Promise.resolve()
-      .then(() => {
-        try {
-          const savedAt = localStorage.getItem(LS_LAST_FETCHED_AT);
-          if (!savedAt) return null;
-          const lastFetch = parseInt(savedAt, 10);
-          return isNaN(lastFetch) ? null : lastFetch;
-        } catch {
-          return null;
-        }
-      })
-      .then((val) => {
-        if (val !== null) setLastFetchedAt(val);
-      });
-  }, []);
-
-  // ─── Persist autoRefresh ─────────────────────────────────────────────────
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_AUTO_REFRESH, String(autoRefresh));
-    } catch {
-      // ignore
-    }
-  }, [autoRefresh]);
 
   // ─── Persist lastFetchedAt ────────────────────────────────────────────────
   useEffect(() => {
@@ -105,7 +141,11 @@ export function useNewPairsData({
     lastFetchTimeRef.current = Date.now();
 
     (async () => {
-      setLoading(true);
+      const isInitialLoad = !hasLoadedRef.current;
+      if (isInitialLoad || pageChanged) {
+        setLoading(true);
+      }
+      setIsRefreshing(true);
       setError(null);
 
       try {
@@ -135,10 +175,32 @@ export function useNewPairsData({
             .filter((p) => p.createdAt && now - p.createdAt < oneHour)
             .map((p) => p.poolAddress)
         );
-        setPools(data.pools);
+        const prevMap = new Map(prevPoolsRef.current.map((p) => [p.poolAddress, p]));
+        const stablePools = data.pools.map((newPool) => {
+          const oldPool = prevMap.get(newPool.poolAddress);
+          if (oldPool && poolFieldsEqual(oldPool, newPool)) {
+            return oldPool;
+          }
+          return newPool;
+        });
+        setPools(stablePools);
+        prevPoolsRef.current = stablePools;
         setTotalPages(data.pages);
         setTotal(data.total);
-        setNewPoolIds(ids);
+        const prevIds = newPoolIdsRef.current;
+        let changed = ids.size !== prevIds.size;
+        if (!changed) {
+          for (const id of ids) {
+            if (!prevIds.has(id)) {
+              changed = true;
+              break;
+            }
+          }
+        }
+        if (changed) {
+          newPoolIdsRef.current = ids;
+          setNewPoolIds(ids);
+        }
         setLastFetchedAt(now);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
@@ -148,6 +210,8 @@ export function useNewPairsData({
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
+          setIsRefreshing(false);
+          hasLoadedRef.current = true;
         }
       }
     })();
@@ -251,13 +315,10 @@ export function useNewPairsData({
     setTick((t) => t + 1);
   }, []);
 
-  const toggleAutoRefresh = useCallback(() => {
-    setAutoRefresh((prev) => !prev);
-  }, []);
-
   return {
     pools,
     loading,
+    isRefreshing,
     error,
     totalPages,
     total,
@@ -265,9 +326,7 @@ export function useNewPairsData({
     lastFetchedAt,
     lastUpdatedText,
     liveAge,
-    autoRefresh,
     countdown,
     triggerRefresh,
-    toggleAutoRefresh,
   };
 }

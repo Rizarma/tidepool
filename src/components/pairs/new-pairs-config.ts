@@ -52,6 +52,8 @@ export const LS_TIMEFRAME = "tidepool_timeframe";
 export const LS_VISIBLE_COLUMNS = "tidepool_visible_columns";
 export const LS_TABLE_DENSITY = "tidepool_table_density";
 export const LS_FILTERS = "tidepool_filters";
+export const LS_SORT_KEY = "tidepool_sort_key";
+export const LS_SORT_DIR = "tidepool_sort_dir";
 
 export interface FilterState {
   minTvl: number | null;

@@ -12,13 +12,13 @@ export function SourcesList({ sources, fetchedAt }: { sources?: SourceStatus[]; 
             <span className={`inline-block size-1.5 rounded-full shrink-0 ${source.success ? "bg-emerald-400" : "bg-red-400"}`} />
             <span className="font-medium capitalize text-zinc-300 truncate">{source.provider.replaceAll("_", " ")}</span>
           </div>
-          <span className="text-zinc-500 tabular-nums shrink-0">
+          <span className="text-zinc-400 tabular-nums shrink-0">
             {source.success ? `${source.latencyMs ?? 0}ms` : source.error ?? "err"}
           </span>
         </div>
       ))}
       {fetchedAt && (
-        <p className="pt-1.5 px-2 text-xs text-zinc-500">
+        <p className="pt-1.5 px-2 text-xs text-zinc-400">
           {new Date(fetchedAt).toLocaleString()}
         </p>
       )}

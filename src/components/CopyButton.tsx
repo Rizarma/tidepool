@@ -28,7 +28,7 @@ export function CopyButton({ address }: { address: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center justify-center rounded p-0.5 text-zinc-600 hover:text-zinc-300 transition"
+      className="inline-flex items-center justify-center rounded p-0.5 text-zinc-400 hover:text-zinc-300 transition"
       title={copied ? "Copied!" : "Copy address"}
     >
       {copied ? (

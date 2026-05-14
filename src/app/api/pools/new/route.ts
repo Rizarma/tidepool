@@ -12,13 +12,27 @@ import { cacheableJson } from "@/lib/api-cache";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MAX_PAGE = 50;
+const MAX_PAGE_SIZE = 1000;
+
 export async function GET(request: Request): Promise<Response> {
   try {
     const { searchParams } = new URL(request.url);
     const pageParam = searchParams.get("page");
     const pageSizeParam = searchParams.get("pageSize");
-    const page = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
-    const pageSize = pageSizeParam ? Math.max(1, Math.min(1000, parseInt(pageSizeParam, 10) || 20)) : 20;
+
+    const rawPage = pageParam ? parseInt(pageParam, 10) : 1;
+    if (!Number.isFinite(rawPage) || rawPage < 1 || rawPage > MAX_PAGE) {
+      return apiErrorResponse("INVALID_PARAMETER", `page must be 1-${MAX_PAGE}`, 400);
+    }
+    const page = rawPage;
+
+    const rawPageSize = pageSizeParam ? parseInt(pageSizeParam, 10) : 20;
+    if (!Number.isFinite(rawPageSize) || rawPageSize < 1 || rawPageSize > MAX_PAGE_SIZE) {
+      return apiErrorResponse("INVALID_PARAMETER", `pageSize must be 1-${MAX_PAGE_SIZE}`, 400);
+    }
+    const pageSize = rawPageSize;
+
     const parseNumberParam = (val: string | null): number | null => {
       if (!val) return null;
       const num = parseFloat(val);
@@ -26,10 +40,33 @@ export async function GET(request: Request): Promise<Response> {
       return num;
     };
 
+    const minTvlRaw = searchParams.get("minTvl");
+    const minAprRaw = searchParams.get("minApr");
+    const maxAgeHoursRaw = searchParams.get("maxAgeHours");
+
+    if (minTvlRaw !== null) {
+      const num = parseFloat(minTvlRaw);
+      if (!Number.isFinite(num) || num < 0) {
+        return apiErrorResponse("INVALID_PARAMETER", "minTvl must be a non-negative number", 400);
+      }
+    }
+    if (minAprRaw !== null) {
+      const num = parseFloat(minAprRaw);
+      if (!Number.isFinite(num) || num < 0) {
+        return apiErrorResponse("INVALID_PARAMETER", "minApr must be a non-negative number", 400);
+      }
+    }
+    if (maxAgeHoursRaw !== null) {
+      const num = parseFloat(maxAgeHoursRaw);
+      if (!Number.isFinite(num) || num < 0) {
+        return apiErrorResponse("INVALID_PARAMETER", "maxAgeHours must be a non-negative number", 400);
+      }
+    }
+
     const filters = {
-      minTvl: parseNumberParam(searchParams.get("minTvl")),
-      minApr: parseNumberParam(searchParams.get("minApr")),
-      maxAgeHours: parseNumberParam(searchParams.get("maxAgeHours")),
+      minTvl: parseNumberParam(minTvlRaw),
+      minApr: parseNumberParam(minAprRaw),
+      maxAgeHours: parseNumberParam(maxAgeHoursRaw),
       freezeOffOnly: searchParams.get("freezeOffOnly") === "true",
     };
 

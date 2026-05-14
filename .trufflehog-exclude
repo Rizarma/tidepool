@@ -1,0 +1,16 @@
+(^|/)node_modules/
+(^|/)\.next/
+(^|/)out/
+(^|/)dist/
+(^|/)build/
+(^|/)coverage/
+(^|/)\.turbo/
+(^|/)\.vercel/
+(^|/)playwright-report/
+(^|/)test-results/
+(^|/)\.pnpm-store/
+(^|/)tmp/
+(^|/)temp/
+(^|/)\.cache/
+(^|/)logs?/
+.*\.log$

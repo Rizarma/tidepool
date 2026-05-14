@@ -1,9 +1,23 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DlmmPairInfo } from "@/lib/types";
 import type { SortKey, SortDir, Timeframe } from "./new-pairs-config";
+import { LS_SORT_KEY, LS_SORT_DIR } from "./new-pairs-config";
 import { getPrimaryToken } from "./pair-utils";
+
+const VALID_SORT_KEYS: SortKey[] = [
+  "createdAt",
+  "priceTokenYPerTokenX",
+  "tvlUsd",
+  "volume24h",
+  "fees24h",
+  "apr",
+  "binStep",
+  "baseFeePct",
+  "marketCap",
+  "holders",
+];
 
 export function useNewPairsSorting({
   pools,
@@ -12,8 +26,43 @@ export function useNewPairsSorting({
   pools: DlmmPairInfo[];
   timeframe: Timeframe;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    if (typeof window === "undefined") return "createdAt";
+    try {
+      const saved = localStorage.getItem(LS_SORT_KEY);
+      if (saved && VALID_SORT_KEYS.includes(saved as SortKey)) return saved as SortKey;
+    } catch {
+      // ignore
+    }
+    return "createdAt";
+  });
+  const [sortDir, setSortDir] = useState<SortDir>(() => {
+    if (typeof window === "undefined") return "desc";
+    try {
+      const saved = localStorage.getItem(LS_SORT_DIR);
+      if (saved === "asc" || saved === "desc") return saved;
+    } catch {
+      // ignore
+    }
+    return "desc";
+  });
+
+  // Persist sort state
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_SORT_KEY, sortKey);
+    } catch {
+      // ignore
+    }
+  }, [sortKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_SORT_DIR, sortDir);
+    } catch {
+      // ignore
+    }
+  }, [sortDir]);
 
   const handleSort = useCallback(
     (key: SortKey) => {

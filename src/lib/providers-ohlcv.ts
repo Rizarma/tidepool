@@ -39,7 +39,7 @@ export type BirdeyeHistoryResult = PriceHistoryResult;
 
 export interface OhlcvProvider {
   /** Fetch price history for a pool. Timeframe is user-facing (e.g. "5m", "1h"). */
-  fetchHistory(poolAddress: string, timeframe: string, periods: number): Promise<PriceHistoryResult>;
+  fetchHistory(poolAddress: string, timeframe: string, periods: number, signal?: AbortSignal): Promise<PriceHistoryResult>;
 }
 
 // ─── Birdeye Provider ────────────────────────────────────────────────────────
@@ -156,6 +156,7 @@ async function fetchBirdeyeTokenHistory(
   timeframe: string,
   periods: number,
   retries = 3,
+  signal?: AbortSignal,
 ): Promise<PriceHistoryResult> {
   const apiKey = getBirdeyeApiKey();
   if (!apiKey) {
@@ -181,6 +182,9 @@ async function fetchBirdeyeTokenHistory(
       for (let attempt = 0; attempt <= retries; attempt++) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 15_000);
+
+        const abortHandler = () => controller.abort();
+        signal?.addEventListener('abort', abortHandler);
 
         try {
           const res = await fetch(url, {
@@ -222,6 +226,7 @@ async function fetchBirdeyeTokenHistory(
           throw lastError;
         } finally {
           clearTimeout(timer);
+          signal?.removeEventListener('abort', abortHandler);
         }
       }
 
@@ -285,6 +290,7 @@ async function fetchMeteoraOhlcv(
   timeframe: string,
   periods: number,
   retries = 3,
+  signal?: AbortSignal,
 ): Promise<PriceHistoryResult> {
   return cacheFirst(
     meteoraCacheKey(poolAddress, timeframe, periods),
@@ -303,6 +309,9 @@ async function fetchMeteoraOhlcv(
       for (let attempt = 0; attempt <= retries; attempt++) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 15_000);
+
+        const abortHandler = () => controller.abort();
+        signal?.addEventListener('abort', abortHandler);
 
         try {
           const res = await fetch(url, { signal: controller.signal });
@@ -341,6 +350,7 @@ async function fetchMeteoraOhlcv(
           throw lastError;
         } finally {
           clearTimeout(timer);
+          signal?.removeEventListener('abort', abortHandler);
         }
       }
 
@@ -374,15 +384,15 @@ function delay(ms: number): Promise<void> {
 // ─── Provider Implementations ───────────────────────────────────────────────
 
 const birdeyeProvider: OhlcvProvider = {
-  async fetchHistory(poolAddress, timeframe, periods) {
+  async fetchHistory(poolAddress, timeframe, periods, signal) {
     const apiKey = getBirdeyeApiKey();
     if (!apiKey) {
       throw new Error("BIRDEYE_API_KEY is not configured");
     }
-    const pair = await fetchMeteoraDlmmPool(poolAddress);
+    const pair = await fetchMeteoraDlmmPool(poolAddress, signal);
     const [xHistory, yHistory] = await Promise.all([
-      fetchBirdeyeTokenHistory(pair.tokenX.mint, timeframe, periods),
-      fetchBirdeyeTokenHistory(pair.tokenY.mint, timeframe, periods),
+      fetchBirdeyeTokenHistory(pair.tokenX.mint, timeframe, periods, 3, signal),
+      fetchBirdeyeTokenHistory(pair.tokenY.mint, timeframe, periods, 3, signal),
     ]);
     // Compute pool ratios: tokenX_USD / tokenY_USD = tokenY per tokenX
     const yMap = new Map<number, number>();
@@ -401,8 +411,8 @@ const birdeyeProvider: OhlcvProvider = {
 };
 
 const meteoraProvider: OhlcvProvider = {
-  async fetchHistory(poolAddress, timeframe, periods) {
-    return fetchMeteoraOhlcv(poolAddress, timeframe, periods);
+  async fetchHistory(poolAddress, timeframe, periods, signal) {
+    return fetchMeteoraOhlcv(poolAddress, timeframe, periods, 3, signal);
   },
 };
 

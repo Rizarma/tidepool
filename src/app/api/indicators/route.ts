@@ -44,6 +44,8 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 async function handleIndicators(request: Request): Promise<Response> {
+  const controller = new AbortController();
+
   const { searchParams } = new URL(request.url);
 
   const pool = searchParams.get("pool")?.trim();
@@ -77,13 +79,23 @@ async function handleIndicators(request: Request): Promise<Response> {
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const invalidTimeframes = timeframes.filter(
+  const uniqueTimeframes = [...new Set(timeframes)];
+
+  const invalidTimeframes = uniqueTimeframes.filter(
     (tf): tf is string => !VALID_TIMEFRAMES.includes(tf as Timeframe),
   );
   if (invalidTimeframes.length > 0) {
     return apiErrorResponse(
       "INVALID_PARAMETER",
       `Invalid timeframes: ${invalidTimeframes.join(", ")}`,
+      400,
+    );
+  }
+
+  if (uniqueTimeframes.length > 5) {
+    return apiErrorResponse(
+      "INVALID_PARAMETER",
+      "Maximum 5 timeframes allowed",
       400,
     );
   }
@@ -148,9 +160,17 @@ async function handleIndicators(request: Request): Promise<Response> {
     indicators.push(entry);
   }
 
+  if (indicators.length > 3) {
+    return apiErrorResponse(
+      "INVALID_PARAMETER",
+      "Maximum 3 indicators allowed",
+      400,
+    );
+  }
+
   // Fetch pool data to get token mints (needed for all paths)
   const poolResult = await timedFetch("meteora_dlmm", () =>
-    fetchMeteoraDlmmPool(pool),
+    fetchMeteoraDlmmPool(pool, controller.signal),
   );
 
   const sources: SourceStatus[] = [buildSourceStatus("meteora_dlmm", poolResult)];
@@ -194,10 +214,13 @@ async function handleIndicators(request: Request): Promise<Response> {
   const start = Date.now();
   try {
     const indicatorData = await Promise.race([
-      fetchIndicators(provider, pool, timeframes as Timeframe[], indicators),
+      fetchIndicators(provider, pool, uniqueTimeframes as Timeframe[], indicators, controller.signal),
       new Promise<never>((_, reject) =>
         setTimeout(
-          () => reject(new Error("Indicator fetch timeout")),
+          () => {
+            controller.abort();
+            reject(new Error("Indicator fetch timeout"));
+          },
           30_000,
         ),
       ),
@@ -232,6 +255,7 @@ async function fetchIndicators(
   poolAddress: string,
   timeframes: Timeframe[],
   indicators: Array<{ type: IndicatorType; period: number; multiplier?: number }>,
+  signal?: AbortSignal,
 ): Promise<PoolIndicators> {
   // Fetch enough history for the longest indicator period + buffer.
   // Supertrend needs extra warmup because ATR + recursive band calc
@@ -247,7 +271,7 @@ async function fetchIndicators(
   const histories = [];
   for (let i = 0; i < timeframes.length; i++) {
     const tf = timeframes[i];
-    const history = await provider.fetchHistory(poolAddress, tf, periodsNeeded);
+    const history = await provider.fetchHistory(poolAddress, tf, periodsNeeded, signal);
     histories.push(history);
     // Short delay between timeframes to stay polite, but only when there
     // are more to fetch. The low-level cache already absorbs most calls.

@@ -67,7 +67,7 @@ export function TablePagination({
     <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-2.5 border-t border-[var(--panel-border)] bg-[var(--panel-bg)]">
       {/* Left: Page size selector */}
       <div className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-wider text-zinc-500">
+        <span className="text-[11px] uppercase tracking-wider text-zinc-400">
           Show
         </span>
         <div className="flex rounded border border-[var(--panel-border)] overflow-hidden">
@@ -128,7 +128,7 @@ export function TablePagination({
               {page}
             </button>
           )}
-          <span className="text-xs text-zinc-500 tabular-nums">/ {totalPages}</span>
+          <span className="text-xs text-zinc-400 tabular-nums">/ {totalPages}</span>
         </div>
 
         <NavButton onClick={() => onPageChange(page + 1)} disabled={!canGoForward} label="Next">
@@ -147,11 +147,11 @@ export function TablePagination({
             Loading...
           </span>
         ) : total === 0 ? (
-          <span className="text-[11px] text-zinc-500 tabular-nums">
+          <span className="text-[11px] text-zinc-400 tabular-nums">
             0 of 0
           </span>
         ) : (
-          <span className="text-[11px] text-zinc-500 tabular-nums">
+          <span className="text-[11px] text-zinc-400 tabular-nums">
             {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
           </span>
         )}

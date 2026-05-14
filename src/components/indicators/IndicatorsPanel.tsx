@@ -100,16 +100,16 @@ function IndicatorCard({
 
   return (
     <div className="rounded bg-white/[0.04] px-3 py-2">
-      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="text-xs text-zinc-400">{label}</p>
       {hasValue ? (
         <p
           className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${priceColor}`}
         >
           {formatTokenPrice(value)}{" "}
-          <span className="text-zinc-500 text-xs">{symbolY}</span>
+          <span className="text-zinc-400 text-xs">{symbolY}</span>
         </p>
       ) : (
-        <p className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-500">
+        <p className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-400">
           —
         </p>
       )}
@@ -144,7 +144,7 @@ function IndicatorCard({
         </p>
       )}
       {!hasValue && dataQuality && (
-        <p className="text-xs mt-0.5 text-zinc-500">
+        <p className="text-xs mt-0.5 text-zinc-400">
           {dataQuality === "insufficient"
             ? "No data available"
             : `Need ${minDataPoints ?? period} candles, have ${availableDataPoints ?? "?"}`}
@@ -217,7 +217,7 @@ export function IndicatorsPanel({
       {(loading || error) && (
         <div className="flex justify-end mb-2">
           {loading && (
-            <span className="text-xs text-zinc-500 animate-pulse">
+            <span className="text-xs text-zinc-400 animate-pulse">
               Loading…
             </span>
           )}
@@ -231,7 +231,7 @@ export function IndicatorsPanel({
         <div>
           {groupByIndicator(data).map(({ type, label, items }) => (
             <div key={type} className="mb-3 last:mb-0">
-              <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1.5">
+              <p className="text-xs uppercase tracking-wide text-zinc-400 mb-1.5">
                 {label}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -249,7 +249,7 @@ export function IndicatorsPanel({
           ))}
         </div>
       ) : !loading ? (
-        <p className="text-xs text-zinc-500">No indicator data available.</p>
+        <p className="text-xs text-zinc-400">No indicator data available.</p>
       ) : null}
     </div>
   );

@@ -99,7 +99,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
 
         {/* Provider */}
         <div className="mb-4">
-          <p className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">
+          <p className="mb-2 text-[10px] uppercase tracking-wider text-zinc-400">
             Data Provider
           </p>
           <div className="flex gap-2">
@@ -110,7 +110,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                 className={`flex-1 rounded px-2 py-1 text-[10px] font-medium capitalize ${
                   draftProvider === name
                     ? "bg-emerald-500/20 text-emerald-300"
-                    : "bg-white/[0.04] text-zinc-500"
+                    : "bg-white/[0.04] text-zinc-400"
                 }`}
               >
                 {name}
@@ -121,7 +121,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
 
         {/* Timeframes */}
         <div className="mb-4">
-          <p className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">
+          <p className="mb-2 text-[10px] uppercase tracking-wider text-zinc-400">
             Timeframes
           </p>
           <div className="flex flex-wrap gap-2">
@@ -132,7 +132,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                 className={`rounded px-2 py-1 text-[10px] font-medium ${
                   draftTimeframes.includes(tf)
                     ? "bg-emerald-500/20 text-emerald-300"
-                    : "bg-white/[0.04] text-zinc-500"
+                    : "bg-white/[0.04] text-zinc-400"
                 }`}
               >
                 {tf}
@@ -143,7 +143,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
 
         {/* Indicators */}
         <div className="mb-4 space-y-3">
-          <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+          <p className="text-[10px] uppercase tracking-wider text-zinc-400">
             Indicators
           </p>
           {draftIndicators.map((ind) => {
@@ -158,7 +158,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                     <p className="text-xs font-medium text-zinc-100">
                       {def.name}
                     </p>
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[10px] text-zinc-400">
                       {def.description}
                     </p>
                   </div>
@@ -167,7 +167,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                     className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
                       ind.enabled
                         ? "bg-emerald-500/20 text-emerald-300"
-                        : "bg-white/[0.04] text-zinc-500"
+                        : "bg-white/[0.04] text-zinc-400"
                     }`}
                   >
                     {ind.enabled ? "On" : "Off"}
@@ -176,7 +176,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                 {ind.enabled && (
                   <div className="space-y-2">
                     <div>
-                      <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+                      <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-400">
                         Period
                       </p>
                       <input
@@ -192,7 +192,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                     </div>
                     {def.defaultMultiplier !== undefined && (
                       <div>
-                        <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
+                        <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-400">
                           Multiplier
                         </p>
                         <input

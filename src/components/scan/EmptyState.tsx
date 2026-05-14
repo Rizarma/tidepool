@@ -5,13 +5,13 @@ export function EmptyState({ mode, onScanToken }: { mode: ScanMode; onScanToken:
   return (
     <div className="h-full grid place-items-center p-6">
       <div className="max-w-md text-center">
-        <div className="mx-auto mb-4 grid size-12 place-items-center rounded-lg border border-[var(--panel-border)] bg-[var(--panel-bg)] text-lg text-zinc-500">
+        <div className="mx-auto mb-4 grid size-12 place-items-center rounded-lg border border-[var(--panel-border)] bg-[var(--panel-bg)] text-lg text-zinc-400">
           ◇
         </div>
         <h2 className="text-base font-semibold text-zinc-200">
           {mode === "token" ? "Enter a token mint to scan" : "Enter a pool or token address"}
         </h2>
-        <p className="mt-2 text-xs leading-5 text-zinc-500 max-w-sm mx-auto">
+        <p className="mt-2 text-xs leading-5 text-zinc-400 max-w-sm mx-auto">
           {mode === "token"
             ? "Risk score, authority checks, market metrics, liquidity data, and provider health will appear here."
             : "Paste a Meteora DLMM pool address or a token mint from GMGN to find matching pools."}
@@ -30,7 +30,7 @@ export function EmptyState({ mode, onScanToken }: { mode: ScanMode; onScanToken:
             ))}
           </div>
         )}
-        <p className="mt-6 text-[10px] text-zinc-500 max-w-xs mx-auto">
+        <p className="mt-6 text-[10px] text-zinc-400 max-w-xs mx-auto">
           Informational only. Scores flag detected risk, not safety or investment quality.
         </p>
       </div>

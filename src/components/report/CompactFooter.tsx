@@ -33,9 +33,9 @@ export function CompactFooter({
       {/* ─── Sources ─── */}
       {sources && sources.length > 0 && (
         <details className="inline-block">
-          <summary className="text-xs text-zinc-500 cursor-pointer select-none list-none inline-flex items-center gap-1">
+          <summary className="text-xs text-zinc-400 cursor-pointer select-none list-none inline-flex items-center gap-1">
             Sources
-            <span aria-hidden="true" className="text-zinc-600">▼</span>
+            <span aria-hidden="true" className="text-zinc-500">▼</span>
           </summary>
           <div className="mt-2 min-w-[240px]">
             <SourcesList sources={sources} fetchedAt={fetchedAt} />
@@ -45,7 +45,7 @@ export function CompactFooter({
 
       {/* ─── Data age ─── */}
       {fetchedAt && (
-        <span className="text-xs text-zinc-600">
+        <span className="text-xs text-zinc-400">
           {new Date(fetchedAt).toLocaleString()}
         </span>
       )}

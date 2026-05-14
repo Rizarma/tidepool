@@ -10,16 +10,19 @@ import {
   ALL_COLUMN_KEYS,
   TIMEFRAMES,
   sortableColumns,
-  LS_TIMEFRAME,
   LS_VISIBLE_COLUMNS,
   LS_TABLE_DENSITY,
 } from "./new-pairs-config";
+import { useNewPairsPreferences } from "@/components/NewPairsPreferencesContext";
 import { useNewPairsData } from "./useNewPairsData";
 import { useNewPairsSorting } from "./useNewPairsSorting";
 import { useNewPairsFilters } from "./useNewPairsFilters";
 import { NewPairRow } from "./NewPairRow";
 import { NewPairsCards } from "./NewPairsCards";
 import { KeyboardHelpModal } from "./KeyboardHelpModal";
+
+const APR_TOOLTIP =
+  "APR is annualized from the past 24h of fees relative to pool TVL, sourced directly from Meteora. It's a trailing metric — not a prediction. New pools often show inflated APR due to low initial liquidity. High APR correlates with high volatility and impermanent loss risk.";
 
 // ─── SortHeader ────────────────────────────────────────────────────────────
 function SortHeader({
@@ -29,6 +32,7 @@ function SortHeader({
   align,
   onClick,
   padClass = "px-3 py-2",
+  tooltip,
 }: {
   label: string;
   active: boolean;
@@ -36,7 +40,12 @@ function SortHeader({
   align: "left" | "right";
   onClick: () => void;
   padClass?: string;
+  tooltip?: string;
 }) {
+  const tooltipId = tooltip
+    ? `tooltip-${label.toLowerCase().replace(/\s+/g, "-")}`
+    : undefined;
+
   return (
     <th
       scope="col"
@@ -48,9 +57,41 @@ function SortHeader({
       <button
         type="button"
         onClick={onClick}
-        className={`inline-flex items-center gap-1 ${padClass} cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-500"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
+        aria-describedby={tooltipId}
+        className={`inline-flex items-center gap-1 ${padClass} cursor-pointer select-none transition hover:text-zinc-300 ${active ? "text-zinc-300" : "text-zinc-400"} ${align === "right" ? "w-full justify-end" : "w-full"}`}
       >
         {label}
+        {tooltip && (
+          <span
+            className="relative inline-flex items-center ml-1 group/tooltip focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded"
+            tabIndex={0}
+            aria-label={`${label} info`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-3 text-zinc-400 group-hover/tooltip:text-zinc-400 transition"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4" />
+              <path d="M12 8h.01" />
+            </svg>
+            <span
+              id={tooltipId}
+              className="absolute right-0 top-full mt-1.5 z-50 w-64 px-3 py-2 text-[10px] normal-case tracking-normal font-normal text-zinc-300 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded shadow-lg opacity-0 pointer-events-none transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto group-focus-within/tooltip:pointer-events-auto"
+            >
+              {tooltip}
+            </span>
+          </span>
+        )}
         {active && (
           <svg
             viewBox="0 0 12 12"
@@ -192,14 +233,16 @@ export function NewPairsTable({
     newPoolIds,
     lastUpdatedText,
     liveAge,
-    autoRefresh,
+    isRefreshing,
     countdown,
     triggerRefresh,
-    toggleAutoRefresh,
   } = useNewPairsData({ page, pageSize, filters });
+  const { timeframe, setTimeframe, autoRefresh, setAutoRefresh } = useNewPairsPreferences();
+  const toggleAutoRefresh = useCallback(() => {
+    setAutoRefresh(!autoRefresh);
+  }, [autoRefresh, setAutoRefresh]);
 
   // Component state
-  const [timeframe, setTimeframe] = useState<Timeframe>("24h");
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
     if (typeof window === "undefined") return new Set(ALL_COLUMN_KEYS);
     try {
@@ -243,31 +286,9 @@ export function NewPairsTable({
 
   // ─── Effects ─────────────────────────────────────────────────────────────
 
-  // Hydration-safe timeframe sync
-  useEffect(() => {
-    Promise.resolve()
-      .then(() => {
-        try {
-          return localStorage.getItem(LS_TIMEFRAME);
-        } catch {
-          return null;
-        }
-      })
-      .then((val) => {
-        if (val && TIMEFRAMES.includes(val as Timeframe))
-          setTimeframe(val as Timeframe);
-      });
-  }, []);
+
 
   // Persist component state
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_TIMEFRAME, timeframe);
-    } catch {
-      // ignore
-    }
-  }, [timeframe]);
-
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -430,19 +451,19 @@ export function NewPairsTable({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-[var(--panel-border)]">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-y-2 px-4 py-2.5 border-b border-[var(--panel-border)]">
         <div className="flex items-center gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
             New Pools
           </h2>
           {!loading && pools.length > 0 && (
-            <span className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-500">
+            <span className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-400">
               {pools.length}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Density toggle */}
           <div className="flex items-center rounded overflow-hidden border border-white/[0.06]">
             <button
@@ -579,14 +600,22 @@ export function NewPairsTable({
 
           {/* Live timestamp */}
           {liveAge && (
-            <span className="text-[10px] text-zinc-500 tabular-nums">
+            <span className="text-[10px] text-zinc-400 tabular-nums">
               Updated {liveAge}
             </span>
           )}
           {/* Last updated (when auto is off) */}
           {!autoRefresh && lastUpdatedText && (
-            <span className="text-[10px] text-zinc-500 tabular-nums">
+            <span className="text-[10px] text-zinc-400 tabular-nums">
               {lastUpdatedText}
+            </span>
+          )}
+
+          {/* Refresh indicator */}
+          {isRefreshing && (
+            <span className="hidden sm:flex items-center gap-1.5">
+              <span className="inline-block size-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-[10px] text-zinc-400">Refreshing…</span>
             </span>
           )}
 
@@ -594,18 +623,18 @@ export function NewPairsTable({
           <button
             type="button"
             onClick={triggerRefresh}
-            disabled={loading}
-            className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${loading ? "bg-white/[0.03] text-zinc-500 opacity-50 cursor-not-allowed" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
+            disabled={loading || isRefreshing}
+            className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${loading || isRefreshing ? "bg-white/[0.03] text-zinc-400 opacity-50 cursor-not-allowed" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
           >
-            {loading ? "Loading…" : "Refresh"}
+            {isRefreshing ? "Refreshing…" : loading ? "Loading…" : "Refresh"}
           </button>
         </div>
       </div>
 
       {/* Filter bar */}
       {!loading && (pools.length > 0 || activeFilterCount > 0) && (
-        <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-[var(--panel-border)]">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <div className="shrink-0 flex flex-wrap items-center gap-3 px-4 py-2 border-b border-[var(--panel-border)]">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
             Filters
           </span>
           {activeFilterCount > 0 && (
@@ -615,7 +644,7 @@ export function NewPairsTable({
           )}
           <div className="flex items-center gap-2">
             <div className="relative">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 pointer-events-none">
                 $
               </span>
               <input
@@ -630,7 +659,7 @@ export function NewPairsTable({
                     minTvl: val && !Number.isNaN(num) ? num : null,
                   }));
                 }}
-                className="w-24 rounded border border-white/[0.06] bg-white/[0.03] pl-4 pr-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+                className="w-24 rounded border border-white/[0.06] bg-white/[0.03] pl-4 pr-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-400 focus:border-[var(--accent)]/50 focus:outline-none"
               />
             </div>
             <div className="relative">
@@ -646,9 +675,9 @@ export function NewPairsTable({
                     minApr: val && !Number.isNaN(num) ? num : null,
                   }));
                 }}
-                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-400 focus:border-[var(--accent)]/50 focus:outline-none"
               />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 pointer-events-none">
                 %
               </span>
             </div>
@@ -665,9 +694,9 @@ export function NewPairsTable({
                     maxAgeHours: val && !Number.isNaN(num) ? num : null,
                   }));
                 }}
-                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-400 focus:border-[var(--accent)]/50 focus:outline-none"
               />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-400 pointer-events-none">
                 h
               </span>
             </div>
@@ -687,7 +716,7 @@ export function NewPairsTable({
               <button
                 type="button"
                 onClick={clearFilters}
-                className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 hover:text-zinc-300 transition"
+                className="rounded px-2 py-1 text-[10px] font-medium text-zinc-400 hover:text-zinc-300 transition"
               >
                 Clear
               </button>
@@ -720,7 +749,7 @@ export function NewPairsTable({
                 {visibleColumns.has("pair") && (
                   <th
                     scope="col"
-                    className={`sticky left-0 z-20 bg-[var(--panel-bg)] ${isScrolled ? "shadow-[4px_0_12px_rgba(0,0,0,0.4)]" : ""} text-[10px] font-semibold uppercase tracking-wider text-zinc-500 ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                    className={`sticky left-0 z-20 bg-[var(--panel-bg)] ${isScrolled ? "shadow-[4px_0_12px_rgba(0,0,0,0.4)]" : ""} text-[10px] font-semibold uppercase tracking-wider text-zinc-400 ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
                   >
                     Pair
                   </th>
@@ -745,13 +774,14 @@ export function NewPairsTable({
                         padClass={
                           density === "compact" ? "px-3 py-2" : "px-4 py-3"
                         }
+                        tooltip={col.key === "apr" ? APR_TOOLTIP : undefined}
                       />
                     );
                   })}
                 {visibleColumns.has("freeze") && (
                   <th
                     scope="col"
-                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-400 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
                   >
                     Freeze
                   </th>
@@ -759,7 +789,7 @@ export function NewPairsTable({
                 {visibleColumns.has("launchpad") && (
                   <th
                     scope="col"
-                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-400 text-center ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
                   >
                     LP
                   </th>
@@ -783,7 +813,7 @@ export function NewPairsTable({
                   >
                     {activeFilterCount > 0 ? (
                       <div className="space-y-3">
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-xs text-zinc-400">
                           No pools match your filters
                         </p>
                         <button
@@ -795,7 +825,7 @@ export function NewPairsTable({
                         </button>
                       </div>
                     ) : (
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-zinc-400">
                         No new pools found
                       </p>
                     )}
@@ -836,7 +866,7 @@ export function NewPairsTable({
                 <div className="grid place-items-center p-6">
                   {activeFilterCount > 0 ? (
                     <div className="space-y-3">
-                      <p className="text-xs text-zinc-500">No pools match your filters</p>
+                      <p className="text-xs text-zinc-400">No pools match your filters</p>
                       <button
                         type="button"
                         onClick={clearFilters}
@@ -846,7 +876,7 @@ export function NewPairsTable({
                       </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-zinc-500">No new pools found</p>
+                    <p className="text-xs text-zinc-400">No new pools found</p>
                   )}
                 </div>
               ) : (

@@ -74,7 +74,7 @@ export function KeyboardHelpModal({ open, onClose }: KeyboardHelpModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300 transition"
+            className="text-zinc-400 hover:text-zinc-300 transition"
             aria-label="Close help"
           >
             ✕
