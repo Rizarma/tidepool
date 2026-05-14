@@ -89,10 +89,10 @@ export function NewPairRow({
           onSelectPool(pool.poolAddress);
         }
       }}
-      className="border-b border-[var(--panel-border)] cursor-pointer transition even:bg-white/[0.015] hover:bg-white/[0.05] border-l-2 border-transparent hover:border-l-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+      className="border-b border-[var(--panel-border)] cursor-pointer transition group even:bg-white/[0.015] hover:bg-white/[0.05] border-l-2 border-transparent hover:border-l-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
     >
       {visibleColumns.has("pair") && (
-        <td className={pad}>
+        <td className={`sticky left-0 z-10 bg-[var(--panel-bg)] ${pad}`}>
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-medium text-zinc-200">
               {pool.tokenX.symbol ?? "?"}
@@ -113,7 +113,9 @@ export function NewPairRow({
             <span className="text-[10px] text-zinc-600 font-mono tabular-nums">
               {shortenAddress(pool.poolAddress)}
             </span>
-            <CopyButton address={pool.poolAddress} />
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+              <CopyButton address={pool.poolAddress} />
+            </span>
             <ExternalIconLinks poolAddress={pool.poolAddress} primaryMint={primaryToken.mint} />
           </div>
         </td>

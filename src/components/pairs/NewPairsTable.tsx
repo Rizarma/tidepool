@@ -212,6 +212,7 @@ export function NewPairsTable({
     return "compact";
   });
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Refs
   const columnsDropdownRef = useRef<HTMLDivElement>(null);
@@ -302,6 +303,16 @@ export function NewPairsTable({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [columnsOpen]);
 
+  // Track horizontal scroll for sticky column shadow
+  useEffect(() => {
+    const el = tableBodyRef.current;
+    if (!el) return;
+    const onScroll = () => setIsScrolled(el.scrollLeft > 0);
+    el.addEventListener("scroll", onScroll);
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
   // ─── Handlers ────────────────────────────────────────────────────────────
 
   const handleTimeframeChange = (tf: Timeframe) => setTimeframe(tf);
@@ -344,14 +355,14 @@ export function NewPairsTable({
 
         <div className="flex items-center gap-2">
           {/* Density toggle */}
-          <div className="flex items-center rounded overflow-hidden border border-zinc-700/50">
+          <div className="flex items-center rounded overflow-hidden border border-white/[0.06]">
             <button
               type="button"
               onClick={() => setDensity("compact")}
               className={`px-1.5 py-0.5 text-[10px] font-medium transition ${
                 density === "compact"
-                  ? "bg-zinc-700 text-zinc-200"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                  : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"
               }`}
               aria-pressed={density === "compact"}
             >
@@ -362,8 +373,8 @@ export function NewPairsTable({
               onClick={() => setDensity("comfortable")}
               className={`px-1.5 py-0.5 text-[10px] font-medium transition ${
                 density === "comfortable"
-                  ? "bg-zinc-700 text-zinc-200"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                  : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"
               }`}
               aria-pressed={density === "comfortable"}
             >
@@ -376,10 +387,10 @@ export function NewPairsTable({
             <button
               type="button"
               onClick={() => setColumnsOpen((prev) => !prev)}
-              className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition ${
+              className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${
                 columnsOpen
-                  ? "bg-zinc-700 text-zinc-200"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
+                  ? "bg-[var(--accent)]/15 border-[var(--accent)]/30 text-[var(--accent)]"
+                  : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"
               }`}
               aria-expanded={columnsOpen}
             >
@@ -396,7 +407,7 @@ export function NewPairsTable({
               </svg>
             </button>
             {columnsOpen && (
-              <div className="absolute right-0 mt-1 w-44 rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] shadow-xl py-1 z-30">
+              <div className="absolute right-0 mt-1 w-44 rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] shadow-xl py-1 z-30 max-h-64 overflow-y-auto">
                 {ALL_COLUMN_KEYS.map((key) => {
                   const label =
                     key === "pair"
@@ -435,7 +446,7 @@ export function NewPairsTable({
           </div>
 
           {/* Timeframe toggle */}
-          <div className="flex items-center rounded overflow-hidden border border-zinc-700/50">
+          <div className="flex items-center rounded overflow-hidden border border-white/[0.06]">
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf}
@@ -443,8 +454,8 @@ export function NewPairsTable({
                 onClick={() => handleTimeframeChange(tf)}
                 className={`px-1.5 py-0.5 text-[10px] font-medium transition ${
                   timeframe === tf
-                    ? "bg-zinc-700 text-zinc-200"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                    : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"
                 }`}
                 aria-pressed={timeframe === tf}
                 aria-label={`${tf} timeframe`}
@@ -458,10 +469,10 @@ export function NewPairsTable({
           <button
             type="button"
             onClick={toggleAutoRefresh}
-            className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition ${
+            className={`flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${
               autoRefresh
-                ? "bg-emerald-500/10 text-emerald-300"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+                : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"
             }`}
             aria-pressed={autoRefresh}
             aria-label={
@@ -489,7 +500,7 @@ export function NewPairsTable({
             type="button"
             onClick={triggerRefresh}
             disabled={loading}
-            className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 transition hover:text-zinc-300 hover:bg-white/[0.04] disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${loading ? "bg-white/[0.03] text-zinc-500 opacity-50 cursor-not-allowed" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
           >
             {loading ? "Loading…" : "Refresh"}
           </button>
@@ -518,7 +529,7 @@ export function NewPairsTable({
                 {visibleColumns.has("pair") && (
                   <th
                     scope="col"
-                    className={`text-[10px] font-semibold uppercase tracking-wider text-zinc-500 ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
+                    className={`sticky left-0 z-20 bg-[var(--panel-bg)] ${isScrolled ? "shadow-[4px_0_12px_rgba(0,0,0,0.4)]" : ""} text-[10px] font-semibold uppercase tracking-wider text-zinc-500 ${density === "compact" ? "px-3 py-2" : "px-4 py-3"}`}
                   >
                     Pair
                   </th>
