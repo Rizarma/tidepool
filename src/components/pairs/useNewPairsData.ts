@@ -29,6 +29,7 @@ export function useNewPairsData({
   const [newPoolIds, setNewPoolIds] = useState<Set<string>>(new Set());
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [lastUpdatedText, setLastUpdatedText] = useState<string | null>(null);
+  const [liveAge, setLiveAge] = useState<string>("");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [tick, setTick] = useState(0);
@@ -220,6 +221,28 @@ export function useNewPairsData({
     };
   }, [lastFetchedAt]);
 
+  // ─── Live age ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const update = () => {
+      if (!lastFetchedAt) {
+        setLiveAge("");
+        return;
+      }
+      const seconds = Math.floor((Date.now() - lastFetchedAt) / 1000);
+      if (seconds < 60) {
+        setLiveAge(`${seconds}s ago`);
+      } else if (seconds < 3600) {
+        setLiveAge(`${Math.floor(seconds / 60)}m ago`);
+      } else {
+        setLiveAge(`${Math.floor(seconds / 3600)}h ago`);
+      }
+    };
+
+    update();
+    const id = setInterval(update, 10_000);
+    return () => clearInterval(id);
+  }, [lastFetchedAt]);
+
   // ─── Handlers ────────────────────────────────────────────────────────────
 
   const triggerRefresh = useCallback(() => {
@@ -241,6 +264,7 @@ export function useNewPairsData({
     newPoolIds,
     lastFetchedAt,
     lastUpdatedText,
+    liveAge,
     autoRefresh,
     countdown,
     triggerRefresh,

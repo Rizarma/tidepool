@@ -19,6 +19,7 @@ import { useNewPairsSorting } from "./useNewPairsSorting";
 import { useNewPairsFilters } from "./useNewPairsFilters";
 import { NewPairRow } from "./NewPairRow";
 import { NewPairsCards } from "./NewPairsCards";
+import { KeyboardHelpModal } from "./KeyboardHelpModal";
 
 // ─── SortHeader ────────────────────────────────────────────────────────────
 function SortHeader({
@@ -190,6 +191,7 @@ export function NewPairsTable({
     total,
     newPoolIds,
     lastUpdatedText,
+    liveAge,
     autoRefresh,
     countdown,
     triggerRefresh,
@@ -340,6 +342,65 @@ export function NewPairsTable({
       router.replace(`?${params.toString()}`);
     }
   }, [filters, page, searchParams, router]);
+
+  // Keyboard shortcuts
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === "?") {
+        e.preventDefault();
+        setHelpOpen((prev) => !prev);
+        return;
+      }
+
+      if (helpOpen) return;
+
+      if (e.key === "r" || e.key === "R") {
+        e.preventDefault();
+        triggerRefresh();
+        return;
+      }
+
+      if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        toggleAutoRefresh();
+        return;
+      }
+
+      if (e.key === "ArrowRight" && e.shiftKey) {
+        e.preventDefault();
+        if (page < totalPages) {
+          const params = new URLSearchParams(searchParams);
+          params.set("page", String(page + 1));
+          router.push(`?${params.toString()}`);
+        }
+        return;
+      }
+
+      if (e.key === "ArrowLeft" && e.shiftKey) {
+        e.preventDefault();
+        if (page > 1) {
+          const params = new URLSearchParams(searchParams);
+          params.set("page", String(page - 1));
+          router.push(`?${params.toString()}`);
+        }
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [helpOpen, triggerRefresh, toggleAutoRefresh, page, totalPages, searchParams, router]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
@@ -516,6 +577,12 @@ export function NewPairsTable({
             )}
           </button>
 
+          {/* Live timestamp */}
+          {liveAge && (
+            <span className="text-[10px] text-zinc-500 tabular-nums">
+              Updated {liveAge}
+            </span>
+          )}
           {/* Last updated (when auto is off) */}
           {!autoRefresh && lastUpdatedText && (
             <span className="text-[10px] text-zinc-500 tabular-nums">
@@ -807,6 +874,7 @@ export function NewPairsTable({
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
       />
+      <KeyboardHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
