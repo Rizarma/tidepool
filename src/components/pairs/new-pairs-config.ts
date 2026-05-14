@@ -51,3 +51,18 @@ export const LS_LAST_FETCHED_AT = "tidepool_last_fetched_at";
 export const LS_TIMEFRAME = "tidepool_timeframe";
 export const LS_VISIBLE_COLUMNS = "tidepool_visible_columns";
 export const LS_TABLE_DENSITY = "tidepool_table_density";
+export const LS_FILTERS = "tidepool_filters";
+
+export interface FilterState {
+  minTvl: number | null;
+  minApr: number | null;
+  maxAgeHours: number | null;
+  freezeOffOnly: boolean;
+}
+
+export const DEFAULT_FILTERS: FilterState = {
+  minTvl: null,
+  minApr: null,
+  maxAgeHours: null,
+  freezeOffOnly: false,
+};

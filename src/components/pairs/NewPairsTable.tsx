@@ -16,6 +16,7 @@ import {
 } from "./new-pairs-config";
 import { useNewPairsData } from "./useNewPairsData";
 import { useNewPairsSorting } from "./useNewPairsSorting";
+import { useNewPairsFilters } from "./useNewPairsFilters";
 import { NewPairRow } from "./NewPairRow";
 
 // ─── SortHeader ────────────────────────────────────────────────────────────
@@ -218,9 +219,18 @@ export function NewPairsTable({
   const columnsDropdownRef = useRef<HTMLDivElement>(null);
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
+  // Filters
+  const {
+    filters,
+    setFilters,
+    filteredPools,
+    activeFilterCount,
+    clearFilters,
+  } = useNewPairsFilters(pools);
+
   // Sorting
   const { sortKey, sortDir, sortedPools, handleSort } = useNewPairsSorting({
-    pools,
+    pools: filteredPools,
     timeframe,
   });
 
@@ -507,6 +517,100 @@ export function NewPairsTable({
         </div>
       </div>
 
+      {/* Filter bar */}
+      {!loading && pools.length > 0 && (
+        <div className="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-[var(--panel-border)]">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            Filters
+          </span>
+          {activeFilterCount > 0 && (
+            <span className="rounded bg-[var(--accent)]/15 px-1.5 py-0 text-[10px] text-[var(--accent)] font-medium">
+              {activeFilterCount}
+            </span>
+          )}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+                $
+              </span>
+              <input
+                type="number"
+                placeholder="Min TVL"
+                value={filters.minTvl ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const num = Number(val);
+                  setFilters((prev) => ({
+                    ...prev,
+                    minTvl: val && !Number.isNaN(num) ? num : null,
+                  }));
+                }}
+                className="w-24 rounded border border-white/[0.06] bg-white/[0.03] pl-4 pr-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+              />
+            </div>
+            <div className="relative">
+              <input
+                type="number"
+                placeholder="Min APR"
+                value={filters.minApr ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const num = Number(val);
+                  setFilters((prev) => ({
+                    ...prev,
+                    minApr: val && !Number.isNaN(num) ? num : null,
+                  }));
+                }}
+                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+                %
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type="number"
+                placeholder="Max Age"
+                value={filters.maxAgeHours ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const num = Number(val);
+                  setFilters((prev) => ({
+                    ...prev,
+                    maxAgeHours: val && !Number.isNaN(num) ? num : null,
+                  }));
+                }}
+                className="w-20 rounded border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[var(--accent)]/50 focus:outline-none"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 pointer-events-none">
+                h
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  freezeOffOnly: !prev.freezeOffOnly,
+                }))
+              }
+              className={`rounded px-2 py-1 text-[10px] font-medium transition border border-white/[0.06] ${filters.freezeOffOnly ? "bg-[var(--accent)]/15 border-[var(--accent)]/30 text-[var(--accent)]" : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-300"}`}
+            >
+              Freeze Off
+            </button>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="rounded px-2 py-1 text-[10px] font-medium text-zinc-500 hover:text-zinc-300 transition"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div ref={tableBodyRef} className="flex-1 overflow-auto panel-scroll">
         {error ? (
@@ -588,9 +692,26 @@ export function NewPairsTable({
                 <tr>
                   <td
                     colSpan={visibleColumns.size}
-                    className="px-3 py-8 text-center text-xs text-zinc-500"
+                    className="px-3 py-8 text-center"
                   >
-                    No new pools found
+                    {activeFilterCount > 0 ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-zinc-500">
+                          No pools match your filters
+                        </p>
+                        <button
+                          type="button"
+                          onClick={clearFilters}
+                          className="rounded px-3 py-1.5 text-[11px] font-medium bg-white/[0.06] text-zinc-300 hover:bg-white/[0.1] transition"
+                        >
+                          Clear Filters
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-500">
+                        No new pools found
+                      </p>
+                    )}
                   </td>
                 </tr>
               ) : (
