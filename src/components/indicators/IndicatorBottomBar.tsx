@@ -28,18 +28,11 @@ export function IndicatorBottomBar() {
   const [showSettings, setShowSettings] = useState(false);
   const pathname = usePathname();
 
-  const enabledIndicators = config.indicators.filter((i) => i.enabled !== false);
-  const summary =
-    enabledIndicators.length === 0
-      ? "Indicators off"
-      : `${config.timeframes.join(" · ")} · ${enabledIndicators.map((i) => `${i.type.toUpperCase()}(${i.period})`).join(" · ")}`;
-
   const lpAgentUrl = getLpAgentUrl(pathname);
 
   return (
     <>
-      <div className="shrink-0 border-t border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2 flex items-center justify-between">
-        <span className="text-[10px] text-zinc-500">{summary}</span>
+      <div className="shrink-0 border-t border-[var(--panel-border)] bg-[var(--panel-bg)] px-3 py-2 flex items-center justify-end">
         <div className="flex items-center gap-3">
           <LinkOpener
             href="https://gmgn.ai/?ref=yr2NU5dr"
