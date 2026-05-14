@@ -153,20 +153,7 @@ export function RouteScanForm() {
           </button>
         </form>
 
-        {/* Status indicator */}
-        <div className="h-5 w-px bg-[var(--panel-border)] shrink-0 hidden sm:block" />
-        <div
-          className="hidden sm:flex items-center gap-1.5 shrink-0"
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className={`inline-block size-1.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-zinc-600"}`}
-          />
-          <span className="text-[10px] text-zinc-500">
-            {loading ? "Resolving" : "Idle"}
-          </span>
-        </div>
+
       </div>
 
       {/* Error bar */}
