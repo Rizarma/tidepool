@@ -282,7 +282,7 @@ async function fetchMeteoraNewPoolsOrientation(
   filterBy: string,
   pageSize: number,
   page: number,
-): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
+): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number; _debug: unknown }> {
   return cacheFirst(`meteora:new:${filterBy}:${page}:${pageSize}`, async () => {
     const params = new URLSearchParams({
       page: String(page),
@@ -291,8 +291,8 @@ async function fetchMeteoraNewPoolsOrientation(
       filter_by: filterBy,
     });
     const url = `${BASE_URL}/pools?${params.toString()}`;
-    console.log("[DLMM] Fetching:", url);
     const data = await fetchJson(url);
+
     let _hasDataArray = false;
     let _dataLength: number | string = "n/a";
     if (isObject(data)) {
@@ -301,10 +301,14 @@ async function fetchMeteoraNewPoolsOrientation(
         _dataLength = (data.data as unknown[]).length;
       }
     }
-    console.log("[DLMM] Response type:", typeof data, "has data array:", _hasDataArray, "data length:", _dataLength);
 
     if (!isObject(data) || !Array.isArray(data.data)) {
-      throw new Error("Invalid response from DLMM pools endpoint: expected paginated object");
+      return {
+        pools: [],
+        total: 0,
+        pages: 0,
+        _debug: { url, responseType: typeof data, hasDataArray: _hasDataArray, dataLength: _dataLength, error: "Invalid response shape" },
+      };
     }
 
     const rawPools = data.data as unknown[];
@@ -313,19 +317,35 @@ async function fetchMeteoraNewPoolsOrientation(
 
     const pools: DlmmPairInfo[] = [];
     let skipped = 0;
+    let normalizationErrors: string[] = [];
     for (const raw of rawPools) {
       if (!isObject(raw)) { skipped++; continue; }
       try {
         const pair = normalizePair(raw);
         pools.push(pair);
-      } catch {
+      } catch (err) {
         skipped++;
+        if (normalizationErrors.length < 5) {
+          normalizationErrors.push((err as Error).message);
+        }
         continue;
       }
     }
-    console.log("[DLMM] Normalized:", pools.length, "pools, skipped:", skipped, "total:", total, "pages:", pages);
 
-    return { pools, total, pages };
+    return {
+      pools,
+      total,
+      pages,
+      _debug: {
+        url,
+        responseType: typeof data,
+        hasDataArray: true,
+        dataLength: rawPools.length,
+        normalized: pools.length,
+        skipped,
+        normalizationErrors: normalizationErrors.length > 0 ? normalizationErrors : undefined,
+      },
+    };
   }, { ttlMs: 15_000, rateLimiter: rateLimiters.meteoraDlmm });
 }
 
@@ -343,20 +363,15 @@ export async function fetchMeteoraDlmmNewPools(
     maxAgeHours?: number | null;
     freezeOffOnly?: boolean;
   }
-): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
+): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number; _debug: unknown }> {
   const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
   const solMint = "So11111111111111111111111111111111111111112";
 
   // Cap at 10 pages max to prevent request amplification attacks.
   const fetchPages = Math.min(page, 10);
-  // TODO: If active filters are present and page > 10, server-side filtering is preferred.
 
   // Fetch pages 1..N from both orientations to construct a correct combined page N.
-  // A pool on orientation A page 1 may be newer than orientation B page 2,
-  // so we must merge all pages up to N before slicing.
   const pageNumbers = Array.from({ length: fetchPages }, (_, i) => i + 1);
-
-  console.log("[DLMM] fetchMeteoraDlmmNewPages: pageSize=", pageSize, "page=", page, "fetchPages=", fetchPages);
 
   const [yResults, xResults] = await Promise.all([
     Promise.all(
@@ -371,9 +386,6 @@ export async function fetchMeteoraDlmmNewPools(
     ),
   ]);
 
-  console.log("[DLMM] yResults:", yResults.map(r => ({ pools: r.pools.length, total: r.total, pages: r.pages })));
-  console.log("[DLMM] xResults:", xResults.map(r => ({ pools: r.pools.length, total: r.total, pages: r.pages })));
-
   // Merge all pages, deduplicate by poolAddress
   const seen = new Map<string, DlmmPairInfo>();
   for (const result of [...yResults.flat(), ...xResults.flat()]) {
@@ -387,8 +399,6 @@ export async function fetchMeteoraDlmmNewPools(
   const allPools = Array.from(seen.values()).sort((a, b) => {
     return (b.createdAt ?? 0) - (a.createdAt ?? 0);
   });
-
-  console.log("[DLMM] allPools after merge:", allPools.length);
 
   // Apply server-side filters
   let filteredPools = allPools;
@@ -421,9 +431,21 @@ export async function fetchMeteoraDlmmNewPools(
   const start = (page - 1) * pageSize;
   const pools = filteredPools.slice(start, start + pageSize);
 
-  console.log("[DLMM] Returning:", pools.length, "pools, total:", total, "pages:", pages);
-
-  return { pools, total, pages };
+  return {
+    pools,
+    total,
+    pages,
+    _debug: {
+      pageSize,
+      page,
+      fetchPages,
+      yOrientations: yResults.map((r) => r._debug),
+      xOrientations: xResults.map((r) => r._debug),
+      allPoolsCount: allPools.length,
+      filteredPoolsCount: filteredPools.length,
+      filters,
+    },
+  };
 }
 
 /**

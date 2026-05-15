@@ -83,7 +83,7 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
 
-    const { pools, total, pages } = result.value.data;
+    const { pools, total, pages, _debug } = result.value.data;
 
     return cacheableJson({
       pools,
@@ -91,6 +91,7 @@ export async function GET(request: Request): Promise<Response> {
       pages,
       source,
       fetchedAt: new Date().toISOString(),
+      debug: _debug,
     }, 10, 30);
   } catch (err) {
     console.error("Unhandled new pools error", err);

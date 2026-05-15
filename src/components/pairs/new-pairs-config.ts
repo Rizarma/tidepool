@@ -6,6 +6,7 @@ export interface NewPairsResponse {
   pages: number;
   source?: unknown;
   fetchedAt?: string;
+  debug?: unknown;
 }
 
 export type SortKey =
