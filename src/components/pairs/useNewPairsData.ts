@@ -11,6 +11,17 @@ import {
   FilterState,
 } from "./new-pairs-config";
 import { useNewPairsPreferences } from "@/components/NewPairsPreferencesContext";
+import { fetchMeteoraDlmmNewPoolsBrowser } from "@/lib/providers-dlmm-browser";
+
+function hasActiveFilters(filters?: FilterState): boolean {
+  if (!filters) return false;
+  return (
+    filters.minTvl != null ||
+    filters.minApr != null ||
+    filters.maxAgeHours != null ||
+    filters.freezeOffOnly
+  );
+}
 
 function timeframeMapsEqual(
   a: Record<string, number> | undefined,
@@ -167,7 +178,29 @@ export function useNewPairsData({
             data.error?.message || `Failed to load pools (${res.status})`
           );
         }
-        const data = (await res.json()) as NewPairsResponse;
+        let data = (await res.json()) as NewPairsResponse;
+
+        // Fallback: if server returns empty pools with no active filters,
+        // fetch directly from Meteora in the browser (bypasses Vercel IP blocking)
+        if (data.pools.length === 0 && !hasActiveFilters(filters)) {
+          try {
+            const browserData = await fetchMeteoraDlmmNewPoolsBrowser(
+              pageSize,
+              page,
+              filters,
+              controller.signal,
+            );
+            data = {
+              pools: browserData.pools,
+              total: browserData.total,
+              pages: browserData.pages,
+            };
+          } catch (browserErr) {
+            // Browser fallback failed — keep empty server data
+            console.warn("Browser fallback fetch failed:", browserErr);
+          }
+        }
+
         const now = Date.now();
         const oneHour = 3600000;
         const ids = new Set(
