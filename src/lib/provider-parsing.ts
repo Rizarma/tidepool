@@ -71,7 +71,7 @@ export function toStringArray(v: unknown): string[] | undefined {
 // ─── Fetch Helpers ───────────────────────────────────────────────────────────
 
 /** Fetch a URL and parse JSON, returning unknown. Throws classifiable errors. */
-export async function fetchJson(url: string, timeoutMs = 10_000, signal?: AbortSignal): Promise<unknown> {
+export async function fetchJson(url: string, timeoutMs = 10_000, signal?: AbortSignal, onResponse?: (res: Response) => void): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -80,6 +80,7 @@ export async function fetchJson(url: string, timeoutMs = 10_000, signal?: AbortS
 
   try {
     const res = await fetch(url, { signal: controller.signal });
+    if (onResponse) onResponse(res);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     try {
