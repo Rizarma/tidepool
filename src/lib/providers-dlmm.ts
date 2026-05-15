@@ -295,7 +295,7 @@ async function fetchMeteoraNewPoolsOrientation(
     const data = await fetchJson(url, 10_000, undefined, (res) => {
       resMeta.status = res.status;
       const h: Record<string, string> = {};
-      res.headers.forEach((v, k) => { h[k] = v; });
+      res.headers.forEach((value: string, name: string) => { h[name] = value; });
       resMeta.headers = h;
     });
 
