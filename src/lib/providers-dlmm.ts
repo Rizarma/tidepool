@@ -291,7 +291,13 @@ async function fetchMeteoraNewPoolsOrientation(
       filter_by: filterBy,
     });
     const url = `${BASE_URL}/pools?${params.toString()}`;
-    const data = await fetchJson(url);
+    const resMeta: { status?: number; headers?: Record<string, string> } = {};
+    const data = await fetchJson(url, 10_000, undefined, (res) => {
+      resMeta.status = res.status;
+      const h: Record<string, string> = {};
+      res.headers.forEach((v, k) => { h[k] = v; });
+      resMeta.headers = h;
+    });
 
     let _hasDataArray = false;
     let _dataLength: number | string = "n/a";
@@ -307,7 +313,15 @@ async function fetchMeteoraNewPoolsOrientation(
         pools: [],
         total: 0,
         pages: 0,
-        _debug: { url, responseType: typeof data, hasDataArray: _hasDataArray, dataLength: _dataLength, error: "Invalid response shape" },
+        _debug: {
+          url,
+          status: resMeta.status,
+          headers: resMeta.headers,
+          responseType: typeof data,
+          hasDataArray: _hasDataArray,
+          dataLength: _dataLength,
+          error: "Invalid response shape",
+        },
       };
     }
 
@@ -338,9 +352,13 @@ async function fetchMeteoraNewPoolsOrientation(
       pages,
       _debug: {
         url,
+        status: resMeta.status,
+        headers: resMeta.headers,
         responseType: typeof data,
         hasDataArray: true,
         dataLength: rawPools.length,
+        rawTotal: toNumber((data as Record<string, unknown>).total),
+        rawPages: toNumber((data as Record<string, unknown>).pages),
         normalized: pools.length,
         skipped,
         normalizationErrors: normalizationErrors.length > 0 ? normalizationErrors : undefined,
