@@ -79,12 +79,12 @@ export function PoolHeader({
         <div className="mt-2 space-y-0.5">
           <p className="text-base font-semibold text-zinc-100">
             1 {symbolX} = {formatTokenPrice(priceTokenYPerTokenX)} {symbolY}
+            {priceUsdX != null && (
+              <span className="text-xs text-zinc-500 font-normal ml-1">
+                (${formatTokenPrice(priceUsdX)} USD)
+              </span>
+            )}
           </p>
-          {priceUsdX != null && (
-            <p className="text-xs text-zinc-500">
-              ≈ ${formatTokenPrice(priceUsdX)} USD
-            </p>
-          )}
           <p className="text-sm text-zinc-300">
             1 {symbolY} = {formatTokenPrice(inversePrice)} {symbolX}
           </p>
@@ -102,7 +102,7 @@ export function PoolHeader({
         <Metric label="Bin Step" value={numberOrDash(pair?.binStep)} />
         <Metric label="APR" value={pctValue(pair?.apr)} />
         <Metric label="Base Fee" value={feePct(pair?.baseFeePct)} />
-        <Metric label="Dynamic Fee" value={feePct(pair?.dynamicFeePct)} />
+
       </div>
     </div>
   );
