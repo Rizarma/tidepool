@@ -5,13 +5,12 @@ import type { PoolDiscoveryReport, PoolReport } from "@/lib/api-types";
 
 import { DiscoveryPanel } from "@/components/report/DiscoveryPanel";
 import { PoolHeader } from "@/components/report/PoolHeader";
-import { ComparisonZone } from "@/components/report/ComparisonZone";
-import { PoolPriceBlock } from "@/components/report/PoolPriceBlock";
+import { PoolComparisonSection } from "@/components/report/PoolComparisonSection";
+
 import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanel";
 import { TerminalSection } from "@/components/report/report-atoms";
 import { ExternalLinks } from "@/components/report/ExternalLinks";
 import { TokenCard } from "@/components/report/TokenCard";
-import { RankedPoolsTable } from "@/components/report/RelatedPoolsPanel";
 import { CompactFooter } from "@/components/report/CompactFooter";
 import { TokenAnalysisMatrix } from "@/components/report/TokenAnalysisMatrix";
 
@@ -50,32 +49,28 @@ export function PairReportLayout({
   return (
     <div className="min-h-full">
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-8">
-        {/* 1. Pool Header */}
-        <PoolHeader
-          pair={pair}
-          name={name}
-          discoverySlot={
-            discovery ? (
-              <DiscoveryPanel
-                variant="compact"
-                discovery={discovery}
-                selectedPoolAddress={
-                  selectedPoolAddress ?? pair?.poolAddress ?? null
-                }
-                onSelectPool={onSelectPool}
-                onRunTokenScan={onRunTokenScan}
-              />
-            ) : null
-          }
-        />
-
-        {/* 2. Pool Price & External Links (sticky) */}
-        <div className="sticky top-0 z-30 bg-background border-b border-white/[0.03] py-3 space-y-2">
-          <PoolPriceBlock
+        {/* 1. Pool Header + Links (sticky on desktop) */}
+        <div className="space-y-3 lg:sticky lg:top-0 lg:z-30 lg:bg-background lg:py-3 lg:border-b lg:border-white/[0.03]">
+          <PoolHeader
+            pair={pair}
+            name={name}
             priceTokenYPerTokenX={pair?.priceTokenYPerTokenX}
             inversePrice={pair?.inversePrice}
             symbolX={symbolX}
             symbolY={symbolY}
+            discoverySlot={
+              discovery ? (
+                <DiscoveryPanel
+                  variant="compact"
+                  discovery={discovery}
+                  selectedPoolAddress={
+                    selectedPoolAddress ?? pair?.poolAddress ?? null
+                  }
+                  onSelectPool={onSelectPool}
+                  onRunTokenScan={onRunTokenScan}
+                />
+              ) : null
+            }
           />
           <ExternalLinks
             pair={pair}
@@ -98,9 +93,9 @@ export function PairReportLayout({
           </TerminalSection>
         )}
 
-        {/* 5. Ranked Pools Table */}
+        {/* 5. Pool Comparison */}
         {normalizedPools.length > 0 && (
-          <RankedPoolsTable
+          <PoolComparisonSection
             pools={normalizedPools}
             currentPoolAddress={pair?.poolAddress}
             currentPair={pair}
@@ -113,16 +108,6 @@ export function PairReportLayout({
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
-
-        {/* 7. Comparison Zone */}
-        {normalizedPools.length > 0 && (
-          <ComparisonZone
-            pools={normalizedPools}
-            currentPoolAddress={pair?.poolAddress}
-            currentPair={pair}
-            pairName={name}
-          />
-        )}
 
         {/* 8. Compact Footer */}
         <CompactFooter

@@ -195,7 +195,7 @@ async function fetchMeteoraNewPoolsOrientation(
 
     const pools: DlmmPairInfo[] = [];
     let skipped = 0;
-    let normalizationErrors: string[] = [];
+    const normalizationErrors: string[] = [];
     for (const raw of rawPools) {
       if (!isObject(raw)) { skipped++; continue; }
       try {

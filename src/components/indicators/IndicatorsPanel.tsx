@@ -1,162 +1,23 @@
 /**
- * Indicators panel — fetches from /api/indicators and renders cards.
+ * Indicators panel — fetches from /api/indicators and renders a matrix table.
  *
  * Self-contained: reads config from context, fetches data, handles loading/error states.
+ * Uses a dense matrix layout (rows = indicators, columns = timeframes) for
+ * terminal-style scannability.
  */
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useIndicatorConfig } from "./IndicatorConfigContext";
 import { serializeConfig } from "@/lib/indicator-config";
-import { formatTokenPrice } from "@/lib/format";
-import type { IndicatorValue, PoolIndicators, SourceStatus } from "@/lib/types";
+import { buildIndicatorMatrixView } from "./indicator-view-model";
+import { IndicatorMatrix } from "./IndicatorMatrix";
+import type { PoolIndicators, SourceStatus } from "@/lib/types";
 
 interface IndicatorApiResponse {
   indicators: PoolIndicators;
   sources?: SourceStatus[];
-}
-
-function indicatorLabel(indicator: IndicatorValue): string {
-  if (indicator.type === "supertrend") {
-    return `Supertrend(${indicator.period}${indicator.multiplier ? `,${indicator.multiplier}` : ""})`;
-  }
-  return `SMA(${indicator.period})`;
-}
-
-function groupByIndicator(data: PoolIndicators): Array<{
-  type: string;
-  label: string;
-  items: Array<{ timeframe: string; indicator: IndicatorValue }>;
-}> {
-  if (!data.timeframes.length) return [];
-
-  const result: Array<{
-    type: string;
-    label: string;
-    items: Array<{ timeframe: string; indicator: IndicatorValue }>;
-  }> = [];
-
-  const numIndicators = data.timeframes[0].values.length;
-
-  for (let i = 0; i < numIndicators; i++) {
-    const firstIndicator = data.timeframes[0].values[i];
-    if (!firstIndicator) continue;
-
-    const label = indicatorLabel(firstIndicator);
-    const items = data.timeframes.map((tf) => ({
-      timeframe: tf.timeframe,
-      indicator: tf.values[i]!,
-    }));
-
-    result.push({ type: firstIndicator.type, label, items });
-  }
-
-  return result;
-}
-
-function IndicatorCard({
-  label,
-  indicator,
-  currentPrice,
-  symbolY,
-}: {
-  label: string;
-  indicator: IndicatorValue;
-  currentPrice?: number;
-  symbolY: string;
-}) {
-  const {
-    type,
-    value,
-    period,
-    dataQuality,
-    availableDataPoints,
-    trend,
-    isApproximate,
-    unreliableReason,
-    minDataPoints,
-  } = indicator;
-  const isAbove = value != null && currentPrice != null && currentPrice > value;
-  const isBelow = value != null && currentPrice != null && currentPrice < value;
-  const hasValue = value != null && !Number.isNaN(value);
-
-  // Colour logic: SMA uses price-vs-indicator; Supertrend uses its own trend
-  // direction, but falls back to neutral when the signal is unreliable.
-  const priceColor =
-    type === "supertrend"
-      ? unreliableReason
-        ? "text-zinc-100"
-        : trend === "up"
-          ? "text-emerald-300"
-          : trend === "down"
-            ? "text-red-300"
-            : "text-zinc-100"
-      : isAbove
-        ? "text-emerald-300"
-        : isBelow
-          ? "text-red-300"
-          : "text-zinc-100";
-
-  return (
-    <div className="rounded bg-white/[0.04] px-3 py-2">
-      <p className="text-xs text-zinc-400">{label}</p>
-      {hasValue ? (
-        <p
-          className={`mt-0.5 text-sm font-semibold tabular-nums truncate ${priceColor}`}
-        >
-          {formatTokenPrice(value)}{" "}
-          <span className="text-zinc-400 text-xs">{symbolY}</span>
-        </p>
-      ) : (
-        <p className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-400">
-          —
-        </p>
-      )}
-      {type === "supertrend" && trend && !unreliableReason && (
-        <p
-          className={`text-xs mt-0.5 ${
-            trend === "up" ? "text-emerald-300" : "text-red-300"
-          }`}
-        >
-          {trend === "up" ? "▲ Uptrend" : "▼ Downtrend"}
-        </p>
-      )}
-      {type === "supertrend" && unreliableReason && (
-        <p className="text-xs mt-0.5 text-amber-300">
-          {unreliableReason === "low_volatility"
-            ? "Flat / low volatility"
-            : unreliableReason}
-        </p>
-      )}
-      {type === "sma" && hasValue && (isAbove || isBelow) && (
-        <p
-          className={`text-xs mt-0.5 ${
-            isAbove ? "text-emerald-300" : "text-red-300"
-          }`}
-        >
-          {isAbove ? "▲ Above current price" : "▼ Below current price"}
-        </p>
-      )}
-      {isApproximate && hasValue && (
-        <p className="text-xs mt-0.5 text-amber-300">
-          Approximated (no OHLC)
-        </p>
-      )}
-      {!hasValue && dataQuality && (
-        <p className="text-xs mt-0.5 text-zinc-400">
-          {dataQuality === "insufficient"
-            ? "No data available"
-            : `Need ${minDataPoints ?? period} candles, have ${availableDataPoints ?? "?"}`}
-        </p>
-      )}
-      {hasValue && dataQuality === "partial" && availableDataPoints != null && (
-        <p className="text-xs mt-0.5 text-amber-300">
-          Limited history — {availableDataPoints} candles
-        </p>
-      )}
-    </div>
-  );
 }
 
 export function IndicatorsPanel({
@@ -177,11 +38,19 @@ export function IndicatorsPanel({
     (i) => i.enabled !== false,
   );
 
+  // Compute matrix view model on the client — stable identity keys,
+  // deviation percentages, signal/tone/quality classification.
+  const matrixView = useMemo(() => {
+    if (!data) return null;
+    return buildIndicatorMatrixView(data, currentPrice);
+  }, [data, currentPrice]);
+
   useEffect(() => {
     if (!poolAddress || !isReady) return;
     if (config.timeframes.length === 0) return;
     if (!hasEnabledIndicators) return;
 
+    const controller = new AbortController();
     let cancelled = false;
 
     (async () => {
@@ -189,13 +58,17 @@ export function IndicatorsPanel({
       setError(null);
       try {
         const qs = serializeConfig(config);
-        const res = await fetch(`/api/indicators?pool=${poolAddress}&${qs}`);
+        const res = await fetch(
+          `/api/indicators?pool=${poolAddress}&${qs}`,
+          { signal: controller.signal },
+        );
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
         const body: IndicatorApiResponse = await res.json();
         if (!cancelled) setData(body.indicators);
       } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
         const msg = err instanceof Error ? err.message : String(err);
         if (!cancelled) setError(msg);
       } finally {
@@ -205,6 +78,7 @@ export function IndicatorsPanel({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [poolAddress, config, isReady, hasEnabledIndicators]);
 
@@ -215,39 +89,24 @@ export function IndicatorsPanel({
   return (
     <div>
       {(loading || error) && (
-        <div className="flex justify-end mb-2">
+        <div className="flex justify-end mb-3">
           {loading && (
-            <span className="text-xs text-zinc-400 animate-pulse">
-              Loading…
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400">
+              <span className="inline-block size-1.5 rounded-full bg-zinc-400 animate-pulse" />
+              Fetching indicators…
             </span>
           )}
           {error && !loading && (
-            <span className="text-xs text-red-400">{error}</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-red-400">
+              <span className="inline-block size-1.5 rounded-full bg-red-400" />
+              {error}
+            </span>
           )}
         </div>
       )}
 
-      {data?.timeframes && data.timeframes.length > 0 ? (
-        <div>
-          {groupByIndicator(data).map(({ type, label, items }) => (
-            <div key={type} className="mb-3 last:mb-0">
-              <p className="text-xs uppercase tracking-wide text-zinc-400 mb-1.5">
-                {label}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {items.map(({ timeframe, indicator }) => (
-                  <IndicatorCard
-                    key={timeframe}
-                    label={timeframe}
-                    indicator={indicator}
-                    currentPrice={currentPrice}
-                    symbolY={symbolY}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+      {matrixView && matrixView.rows.length > 0 ? (
+        <IndicatorMatrix view={matrixView} symbolY={symbolY} />
       ) : !loading ? (
         <p className="text-xs text-zinc-400">No indicator data available.</p>
       ) : null}

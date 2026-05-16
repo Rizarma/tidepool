@@ -10,19 +10,30 @@
 
 import { useState } from "react";
 import { useIndicatorConfig } from "./IndicatorConfigContext";
-import { AVAILABLE_TIMEFRAMES, type OhlcvProviderName } from "@/lib/indicator-config";
+import {
+  AVAILABLE_TIMEFRAMES,
+  PROVIDER_SUPPORTED_TIMEFRAMES,
+  type OhlcvProviderName,
+} from "@/lib/indicator-config";
 import { getAvailableIndicators, getIndicator } from "@/lib/indicators/registry";
 
 export function IndicatorSettings({ onClose }: { onClose: () => void }) {
   const { config, updateConfig } = useIndicatorConfig();
 
   // Local draft state — changes here don't affect global config until Apply
-  const [draftTimeframes, setDraftTimeframes] = useState<string[]>(
-    config.timeframes,
-  );
   const [draftProvider, setDraftProvider] = useState<OhlcvProviderName>(
     config.provider ?? "meteora",
   );
+
+  // Initialise draft timeframes, filtering out any that are unsupported
+  // by the current provider (e.g. 30m on Meteora).
+  const [draftTimeframes, setDraftTimeframes] = useState<string[]>(() => {
+    const supported = PROVIDER_SUPPORTED_TIMEFRAMES[draftProvider];
+    const filtered = config.timeframes.filter((tf) =>
+      supported.includes(tf),
+    );
+    return filtered.length > 0 ? filtered : [...supported.slice(0, 3)];
+  });
 
   // Initialise draft indicators with all registered types so new indicators
   // automatically appear even if they weren't in the saved config.
@@ -106,7 +117,18 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
             {(["meteora", "birdeye"] as OhlcvProviderName[]).map((name) => (
               <button
                 key={name}
-                onClick={() => setDraftProvider(name)}
+                onClick={() => {
+                  setDraftProvider(name);
+                  const supported = PROVIDER_SUPPORTED_TIMEFRAMES[name];
+                  setDraftTimeframes((prev) => {
+                    const filtered = prev.filter((tf) =>
+                      supported.includes(tf),
+                    );
+                    return filtered.length > 0
+                      ? filtered
+                      : [...supported.slice(0, 3)];
+                  });
+                }}
                 className={`flex-1 rounded px-2 py-1 text-[10px] font-medium capitalize ${
                   draftProvider === name
                     ? "bg-emerald-500/20 text-emerald-300"
@@ -125,7 +147,9 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
             Timeframes
           </p>
           <div className="flex flex-wrap gap-2">
-            {AVAILABLE_TIMEFRAMES.map((tf) => (
+            {AVAILABLE_TIMEFRAMES.filter((tf) =>
+              PROVIDER_SUPPORTED_TIMEFRAMES[draftProvider].includes(tf),
+            ).map((tf) => (
               <button
                 key={tf}
                 onClick={() => handleToggleTimeframe(tf)}
@@ -151,7 +175,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
             return (
               <div
                 key={ind.type}
-                className="rounded border border-[var(--panel-border)] bg-[var(--background)] p-2.5"
+                className="rounded border border-[var(--panel-border)] bg-white/[0.02] p-2.5"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div>
@@ -164,10 +188,10 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                   </div>
                   <button
                     onClick={() => handleToggleIndicator(ind.type)}
-                    className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                    className={`rounded px-2.5 py-1 text-[10px] font-medium transition-colors ${
                       ind.enabled
-                        ? "bg-emerald-500/20 text-emerald-300"
-                        : "bg-white/[0.04] text-zinc-400"
+                        ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30"
+                        : "bg-zinc-800 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700"
                     }`}
                   >
                     {ind.enabled ? "On" : "Off"}
@@ -187,7 +211,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                         }
                         min={def.minPeriod ?? 1}
                         max={200}
-                        className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm text-zinc-100"
+                        className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-xs text-zinc-100 focus:border-zinc-500 focus:outline-none"
                       />
                     </div>
                     {def.defaultMultiplier !== undefined && (
@@ -203,7 +227,7 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
                           }
                           min={1}
                           max={20}
-                          className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-sm text-zinc-100"
+                          className="w-full rounded border border-[var(--panel-border)] bg-[var(--panel-bg)] px-2 py-1 text-xs text-zinc-100 focus:border-zinc-500 focus:outline-none"
                         />
                       </div>
                     )}
@@ -218,13 +242,13 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
         <div className="flex gap-2">
           <button
             onClick={handleApply}
-            className="flex-1 rounded bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-300"
+            className="flex-1 rounded bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/30 transition-colors"
           >
             Apply
           </button>
           <button
             onClick={onClose}
-            className="flex-1 rounded bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-zinc-400"
+            className="flex-1 rounded bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/[0.08] hover:text-zinc-300 transition-colors"
           >
             Cancel
           </button>
