@@ -346,24 +346,11 @@ export function TokenAnalysisMatrix({
           badWhenTrue
         />
         <PctRow
-          label="Rug Ratio"
-          description="GMGN's estimated probability of a rug pull. Values above 30% are high-risk."
-          tokenX={tokenX?.rugRatio}
-          tokenY={tokenY?.rugRatio}
-          warnThreshold={0.3}
-        />
-        <PctRow
           label="Top 10 Holders"
           description="Percentage of total supply held by the top 10 wallets. Above 50% means high concentration risk."
           tokenX={tokenX?.top10HolderRate}
           tokenY={tokenY?.top10HolderRate}
           warnThreshold={0.5}
-        />
-        <NumberRow
-          label="Snipers"
-          description="Wallets that bought within seconds of token launch. High count indicates bot activity."
-          tokenX={tokenX?.sniperCount}
-          tokenY={tokenY?.sniperCount}
         />
       </div>
     </div>
