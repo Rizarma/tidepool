@@ -40,11 +40,12 @@ The pool detail page (`/pool/[address]`) uses a terminal-style layout rendered b
 1. `PoolHeader` — Pool identity (name, address, launchpad), status badge (Active/Blacklisted), metrics grid (TVL, 24h Vol, 24h Fees, Bin Step), and fee row (APR, Base Fee, Dynamic Fee). Includes a discovery slot for the pool chooser when multiple pools exist.
 2. `PoolPriceBlock` (sticky) — Token price display: "1 X = price Y" and inverse. Stays visible while scrolling.
 3. `ExternalLinks` (sticky) — Links to Meteora, DexTools, DexScreener, GMGN, Jupiter, LPAgent. Uses hardcoded referral codes `GMGN_REFERRAL = "yr2NU5dr"` and `LPAGENT_REFERRAL = "URq8gm4"`.
-4. `ComparisonZone` — Bar chart comparison of TVL, 24h Volume, and APR across related pools. Collapsible when more than 6 pools. Uses `pctCompact` for APR labels. Pool labels use Meteora-style format: "Bin Step {n} · Fee {x}%".
+4. `TokenAnalysisMatrix` — On-Chain Analysis panel comparing Token X and Token Y across five security criteria: mint authority status, freeze authority status, CTO flag, honeypot check, and top-10 holder concentration. Data sourced from GMGN API (preferred) with Solana RPC fallback for raw authority addresses.
 5. `IndicatorsPanel` — SMA technical indicators at configurable timeframes.
-6. `TokenCard` × 2 — Token X and Token Y detail cards showing price, market cap, reserve, holders, and mint address.
-7. `RankedPoolsTable` — Sortable table of all related pools. Columns: Pool, TVL Share (micro-bar), TVL, 24h Vol, APR, Bin Step, Base Fee, 24h Fees, Age. The Dynamic Fee column was removed. Current pool is highlighted with an amber "You are here" badge.
-8. `CompactFooter` — Pool tags, collapsible sources list, and data timestamp.
+6. `RankedPoolsTable` — Sortable table of all related pools. Columns: Pool, TVL Share (micro-bar), TVL, 24h Vol, APR, Bin Step, Base Fee, 24h Fees, Age. The Dynamic Fee column was removed. Current pool is highlighted with an amber "You are here" badge.
+7. `TokenCard` × 2 — Token X and Token Y detail cards showing price, market cap, reserve, holders, and mint address.
+8. `ComparisonZone` — Bar chart comparison of TVL, 24h Volume, and APR across related pools. Collapsible when more than 6 pools. Uses `pctCompact` for APR labels. Pool labels use Meteora-style format: "Bin Step {n} · Fee {x}%".
+9. `CompactFooter` — Pool tags, collapsible sources list, and data timestamp.
 
 `DiscoveryPanel` supports a `variant="compact"` prop used when embedded inside `PoolHeader`.
 
@@ -79,7 +80,9 @@ The app uses Next.js 16 App Router with segmented routes. The root `layout.tsx` 
 - `src/components/report/RelatedPoolsPanel.tsx` — Sortable related pools table (`RankedPoolsTable`) and compatibility wrapper (`RelatedPoolsPanel`)
 - `src/components/report/TokenCard.tsx` — Token detail card for Token X / Token Y
 - `src/components/report/CompactFooter.tsx` — Tags, sources, data age footer
+- `src/components/report/TokenAnalysisMatrix.tsx` — On-Chain Analysis comparison matrix for Token X / Token Y
 - `src/components/report/report-atoms.tsx` — Reusable UI atoms: `TerminalSection`, `TerminalDataRow`, `TerminalMetric`, `DataRow`, `RiskBadge`, `MetricCell`, `PanelSection`, `TokenSummaryCompact`
+- `src/lib/providers-gmgn.ts` — GMGN token security provider. Unified `fetchGmgnTokenSecurity(mint)` calls both `/v1/token/security` and `/v1/token/info`, merges results, caches for 5 minutes.
 
 **Deleted SPA files (do not reference or re-create):**
 - `src/components/scan/ScanClient.tsx`
@@ -105,6 +108,10 @@ The app uses Next.js 16 App Router with segmented routes. The root `layout.tsx` 
   - SPL Token: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`
   - Token-2022: `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`
 - **Birdeye API** (`https://public-api.birdeye.so`): Used in `src/lib/providers-ohlcv.ts` for token price history (OHLCV) at 1m/5m/15m/1h/4h/1d timeframes. Endpoint: `GET /defi/history_price?address=<mint>&type=<timeframe>&time_from=<unix>&time_to=<unix>`. Requires `BIRDEYE_API_KEY` header and `x-chain: solana`. Implements retry with exponential backoff on 429 rate limits. Uses the shared cache (`src/lib/cache.ts`) instead of local Maps. Gracefully degrades (omits indicators) when the key is missing.
+- **GMGN API** (`https://openapi.gmgn.ai`): Used in `src/lib/providers-gmgn.ts` for enriched token security data. Calls two endpoints per token:
+  - `GET /v1/token/security?chain=sol&address=<mint>` — returns `renounced_mint`, `renounced_freeze_account`, `is_honeypot`, `honeypot` (numeric fallback for Solana), `top_10_holder_rate`, `rug_ratio`, `sniper_count`
+  - `GET /v1/token/info?chain=sol&address=<mint>` — returns `dev.cto_flag`, `stat.top_10_holder_rate`
+  Both endpoints require `X-APIKEY` header, plus `timestamp` (Unix seconds) and `client_id` (UUID) query params for anti-replay. Responses are wrapped in `{"code":0,"data":{...}}` — `gmgnFetch` validates `code === 0` before returning to prevent cache poisoning on error responses. Requires `GMGN_API_KEY` env var; gracefully skipped when absent. Cloudflare may block datacenter/IPv6 IPs — local dev works, production serverless may need client-side proxying.
 
 The app does not use Solana or Meteora SDK packages. It calls these services with native `fetch` and a small JSON-RPC helper.
 
@@ -118,7 +125,7 @@ All 3rd-party fetches now pass through a shared caching, deduplication, and rate
 |------|---------|
 | `src/lib/cache.ts` | Unified cache interface. `cache.get<T>(key)` / `cache.set(key, value, ttlMs)`. Auto-detects Upstash Redis when `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are set; otherwise falls back to `MemoryCache` (in-memory Map with TTL). Cache errors are silently swallowed — the app never crashes if Redis is unavailable. |
 | `src/lib/dedup.ts` | In-flight request deduplication. `dedup(key, factory, ttlMs)` ensures identical concurrent requests share one promise. Default window is 5s. `clearDedup()` is exported for test use. |
-| `src/lib/rate-limit.ts` | Token bucket rate limiters per provider. `rateLimiters.dexscreener`, `.rugcheck`, `.jupiter`, `.solanaRpc`, `.meteoraDlmm`, `.birdeye`. Call `await rateLimiter.acquire()` before the fetch. |
+| `src/lib/rate-limit.ts` | Token bucket rate limiters per provider. `rateLimiters.dexscreener`, `.rugcheck`, `.jupiter`, `.solanaRpc`, `.meteoraDlmm`, `.birdeye`, `.gmgn`. Call `await rateLimiter.acquire()` before the fetch. |
 | `src/lib/fetch-guard.ts` | `cacheFirst(key, factory, options)` — the standard pattern for wrapping a provider fetch. It does: cache hit → dedup → rate limit → execute → cache set. Use this for all new provider fetchers. |
 | `src/lib/api-cache.ts` | HTTP `Cache-Control` helpers. `cacheableJson(data, maxAge, staleWhileRevalidate)` returns a `Response` with `public, s-maxage=N, stale-while-revalidate=M`. All API route success responses should use this instead of `Response.json()`. |
 
@@ -157,6 +164,7 @@ Use provider-prefixed keys to avoid collisions:
 - Meteora pair by mints: `meteora:pair:${sortedA}:${sortedB}`
 - Birdeye OHLCV: `birdeye:${mint}:${timeframe}:${periods}`
 - Meteora OHLCV: `meteora:ohlcv:${pool}:${timeframe}:${periods}`
+- GMGN security: `gmgn:security:${mint}`
 
 ### API Route Cache Headers
 
