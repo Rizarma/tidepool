@@ -1,5 +1,5 @@
 import type { PairToken, RiskLevel } from "@/lib/api-types";
-import { formatCompactNumber, formatCompactUsd, formatNumber, formatUsd, shortenAddress } from "@/lib/format";
+import { formatCompactNumber, formatCompactUsd, formatNumber, formatTokenPrice, formatUsd, shortenAddress } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
 
 export function DataRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
@@ -65,7 +65,7 @@ export function TokenSummaryCompact({ token }: { token?: PairToken }) {
         </div>
       )}
       {/* — Value — */}
-      <DataRow label="Price (USD)" value={formatUsd(token?.priceUsd)} />
+      <DataRow label="Price (USD)" value={token?.priceUsd == null ? "—" : `$${formatTokenPrice(token.priceUsd)}`} />
       <DataRow label="Market Cap" value={formatCompactUsd(token?.marketCap)} />
       {/* — Pool — */}
       <DataRow label="Reserve" value={formatNumber(token?.amount)} />

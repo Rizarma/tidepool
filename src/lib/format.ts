@@ -18,8 +18,8 @@ export function formatNumber(value?: number): string {
 export function formatTokenPrice(value?: number): string {
   if (value == null || Number.isNaN(value)) return "—";
   if (value === 0) return "0";
-  if (Math.abs(value) < 0.000001 || Math.abs(value) >= 1_000_000) return value.toExponential(4);
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: value > 1 ? 6 : 10 }).format(value);
+  if (Math.abs(value) < 1e-10 || Math.abs(value) >= 1e15) return value.toExponential(4);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: Math.abs(value) > 1 ? 6 : 12 }).format(value);
 }
 
 export function feePct(value?: number): string {

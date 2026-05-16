@@ -5,6 +5,7 @@ import {
   formatCompactNumber,
   formatCompactUsd,
   formatNumber,
+  formatTokenPrice,
   formatUsd,
   shortenAddress,
 } from "@/lib/format";
@@ -37,7 +38,7 @@ export function TokenCard({
       <div>
         <TerminalDataRow
           label="Price USD"
-          value={formatUsd(token?.priceUsd)}
+          value={token?.priceUsd == null ? "—" : `$${formatTokenPrice(token.priceUsd)}`}
         />
         <TerminalDataRow
           label="Market Cap"

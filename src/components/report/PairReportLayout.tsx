@@ -76,6 +76,7 @@ export function PairReportLayout({
             inversePrice={pair?.inversePrice}
             symbolX={symbolX}
             symbolY={symbolY}
+            priceUsdX={pair?.tokenX?.priceUsd}
           />
           <ExternalLinks
             pair={pair}
