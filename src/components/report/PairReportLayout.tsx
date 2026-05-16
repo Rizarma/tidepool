@@ -84,15 +84,8 @@ export function PairReportLayout({
           />
         </div>
 
-        {/* 3. Comparison Zone */}
-        {normalizedPools.length > 0 && (
-          <ComparisonZone
-            pools={normalizedPools}
-            currentPoolAddress={pair?.poolAddress}
-            currentPair={pair}
-            pairName={name}
-          />
-        )}
+        {/* 3. On-Chain Analysis */}
+        <TokenAnalysisMatrix tokenX={tokenX} tokenY={tokenY} />
 
         {/* 4. Indicators */}
         {pair?.poolAddress && (
@@ -105,18 +98,25 @@ export function PairReportLayout({
           </TerminalSection>
         )}
 
-        {/* 5. Token Cards */}
+        {/* 5. Ranked Pools Table */}
+        {normalizedPools.length > 0 && (
+          <RankedPoolsTable
+            pools={normalizedPools}
+            currentPoolAddress={pair?.poolAddress}
+            currentPair={pair}
+            pairName={name}
+          />
+        )}
+
+        {/* 6. Token Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
 
-        {/* 6. Analysis: On-Chain Security Audit */}
-        <TokenAnalysisMatrix tokenX={tokenX} tokenY={tokenY} />
-
-        {/* 7. Ranked Pools Table */}
+        {/* 7. Comparison Zone */}
         {normalizedPools.length > 0 && (
-          <RankedPoolsTable
+          <ComparisonZone
             pools={normalizedPools}
             currentPoolAddress={pair?.poolAddress}
             currentPair={pair}
