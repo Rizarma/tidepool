@@ -3,6 +3,7 @@
 import type { PoolReport } from "@/lib/api-types";
 import {
   feePct,
+  formatTokenPrice,
   formatUsd,
   numberOrDash,
   pctValue,
@@ -13,18 +14,28 @@ import { CopyButton } from "@/components/CopyButton";
 export function PoolHeader({
   pair,
   name,
+  priceTokenYPerTokenX,
+  inversePrice,
+  symbolX,
+  symbolY,
+  priceUsdX,
   discoverySlot,
 }: {
   pair?: PoolReport["pair"];
   name: string;
+  priceTokenYPerTokenX?: number;
+  inversePrice?: number;
+  symbolX: string;
+  symbolY: string;
+  priceUsdX?: number;
   discoverySlot?: React.ReactNode;
 }) {
   const poolAddress = pair?.poolAddress;
 
   return (
-    <div className="p-6 rounded-xl bg-white/[0.03]">
-      {/* ─── Identity ─── */}
-      <div className="flex flex-col gap-2">
+    <div className="p-5 rounded-xl bg-white/[0.03]">
+      {/* ─── Identity + Price ─── */}
+      <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-3">
           <h1 className="min-w-0 text-xl font-bold text-zinc-100">{name}</h1>
 
@@ -63,68 +74,45 @@ export function PoolHeader({
             <CopyButton address={poolAddress} />
           </div>
         )}
+
+        {/* Price */}
+        <div className="mt-2 space-y-0.5">
+          <p className="text-base font-semibold text-zinc-100">
+            1 {symbolX} = {formatTokenPrice(priceTokenYPerTokenX)} {symbolY}
+          </p>
+          {priceUsdX != null && (
+            <p className="text-xs text-zinc-500">
+              ≈ ${formatTokenPrice(priceUsdX)} USD
+            </p>
+          )}
+          <p className="text-sm text-zinc-300">
+            1 {symbolY} = {formatTokenPrice(inversePrice)} {symbolX}
+          </p>
+        </div>
       </div>
 
       {/* ─── Discovery slot ─── */}
       {discoverySlot && <div className="mt-4">{discoverySlot}</div>}
 
-      {/* ─── Metrics grid ─── */}
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-400 uppercase tracking-wide">
-            TVL
-          </span>
-          <span className="text-lg font-bold tabular-nums text-zinc-100">
-            {formatUsd(pair?.tvlUsd)}
-          </span>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-400 uppercase tracking-wide">
-            24h Vol
-          </span>
-          <span className="text-lg font-bold tabular-nums text-zinc-100">
-            {formatUsd(pair?.volume24h)}
-          </span>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-400 uppercase tracking-wide">
-            24h Fees
-          </span>
-          <span className="text-lg font-bold tabular-nums text-zinc-100">
-            {formatUsd(pair?.fees24h)}
-          </span>
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-400 uppercase tracking-wide">
-            Bin Step
-          </span>
-          <span className="text-lg font-bold tabular-nums text-zinc-100">
-            {numberOrDash(pair?.binStep)}
-          </span>
-        </div>
-      </div>
-
-      {/* ─── Fee row ─── */}
-      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-400">APR</span>
-          <span className="text-sm font-semibold tabular-nums text-zinc-200">
-            {pctValue(pair?.apr)}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-400">Base Fee</span>
-          <span className="text-sm font-semibold tabular-nums text-zinc-200">
-            {feePct(pair?.baseFeePct)}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-400">Dynamic Fee</span>
-          <span className="text-sm font-semibold tabular-nums text-zinc-200">
-            {feePct(pair?.dynamicFeePct)}
-          </span>
-        </div>
+      {/* ─── Metrics ─── */}
+      <div className="mt-4 pt-4 border-t border-white/[0.03] flex flex-wrap gap-x-5 gap-y-2">
+        <Metric label="TVL" value={formatUsd(pair?.tvlUsd)} />
+        <Metric label="24h Vol" value={formatUsd(pair?.volume24h)} />
+        <Metric label="24h Fees" value={formatUsd(pair?.fees24h)} />
+        <Metric label="Bin Step" value={numberOrDash(pair?.binStep)} />
+        <Metric label="APR" value={pctValue(pair?.apr)} />
+        <Metric label="Base Fee" value={feePct(pair?.baseFeePct)} />
+        <Metric label="Dynamic Fee" value={feePct(pair?.dynamicFeePct)} />
       </div>
     </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="text-xs text-zinc-400">
+      {label}{" "}
+      <span className="font-semibold tabular-nums text-zinc-200">{value}</span>
+    </span>
   );
 }
