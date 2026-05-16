@@ -3,7 +3,9 @@
  * Base URL: https://dlmm.datapi.meteora.ag
  */
 
-import type { DlmmPairInfo, PairToken } from "@/lib/types";
+import type { DlmmPairInfo } from "@/lib/types";
+import { fetchJson } from "@/lib/provider-parsing";
+import { normalizePair } from "./providers-dlmm-pure";
 import {
   isObject,
   prop,
@@ -11,151 +13,13 @@ import {
   toString,
   toBool,
   toStringArray,
-  fetchJson,
-} from "@/lib/provider-parsing";
+} from "./provider-parsing-pure";
 import { cacheFirst } from "@/lib/fetch-guard";
 import { rateLimiters } from "@/lib/rate-limit";
 
+export { normalizePair, parsePairToken } from "./providers-dlmm-pure";
+
 const BASE_URL = "https://dlmm.datapi.meteora.ag";
-
-// ─── Normalization ───────────────────────────────────────────────────────────
-
-export function parsePairToken(raw: unknown, amountField?: number): PairToken {
-  if (!isObject(raw)) {
-    return { mint: "" };
-  }
-  const result: PairToken = {
-    mint: toString(raw.mint) ?? toString(raw.address) ?? "",
-    name: toString(raw.name),
-    symbol: toString(raw.symbol),
-    decimals: toNumber(raw.decimals),
-    // Meteora payloads use `price` as the USD price field; `price_usd` is not present.
-    // Keep `price_usd` first so we don't break if Meteora ever adds it.
-    priceUsd: toNumber(raw.price_usd) ?? toNumber(raw.price),
-    verified: toBool(raw.verified) ?? toBool(raw.is_verified),
-    amount: Number.isFinite(amountField) ? amountField : undefined,
-    holders: toNumber(raw.holders),
-    freezeAuthorityDisabled: toBool(raw.freeze_authority_disabled),
-    totalSupply: toNumber(raw.total_supply),
-    marketCap: toNumber(raw.market_cap),
-  };
-
-  // Fallback: compute market cap from price × total_supply when Meteora returns 0/falsy
-  const price = result.priceUsd;
-  const supply = result.totalSupply;
-  const rawMarketCap = result.marketCap;
-  if (!rawMarketCap && price && supply) {
-    result.marketCap = price * supply;
-    result.marketCapFallback = true;
-  }
-
-  return result;
-}
-
-export function normalizePair(raw: unknown): DlmmPairInfo {
-  if (!isObject(raw)) {
-    throw new Error("Invalid pool data: expected an object");
-  }
-
-  const poolAddress: string =
-    toString(raw.pool_address) ?? toString(raw.address) ?? toString(raw.pair) ?? "";
-  if (!poolAddress) {
-    throw new Error("Invalid pool data: missing pool address");
-  }
-
-  const currentPrice = toNumber(raw.current_price);
-  const inversePrice =
-    currentPrice && currentPrice > 0 ? 1 / currentPrice : undefined;
-
-  const tokenXAmount = toNumber(raw.token_x_amount);
-  const tokenYAmount = toNumber(raw.token_y_amount);
-
-  const tokenXRaw = prop(raw, "token_x") ?? prop(raw, "mint_x_info");
-  const tokenYRaw = prop(raw, "token_y") ?? prop(raw, "mint_y_info");
-
-  const tokenX = parsePairToken(tokenXRaw, tokenXAmount);
-  const tokenY = parsePairToken(tokenYRaw, tokenYAmount);
-
-  // Fallback: if token objects don't have mint, use top-level mint_x / mint_y
-  if (!tokenX.mint) {
-    const mintX = toString(raw.mint_x);
-    if (mintX) tokenX.mint = mintX;
-  }
-  if (!tokenY.mint) {
-    const mintY = toString(raw.mint_y);
-    if (mintY) tokenY.mint = mintY;
-  }
-
-  // Token mints are required for a valid pool
-  if (!tokenX.mint) {
-    throw new Error("Invalid pool data: missing token X mint");
-  }
-  if (!tokenY.mint) {
-    throw new Error("Invalid pool data: missing token Y mint");
-  }
-
-  return {
-    poolAddress,
-    name: toString(raw.name),
-    tokenX,
-    tokenY,
-    priceTokenYPerTokenX:
-      currentPrice && !isNaN(currentPrice) ? currentPrice : undefined,
-    inversePrice:
-      inversePrice && !isNaN(inversePrice) ? inversePrice : undefined,
-    binStep:
-      toNumber(raw.bin_step) ?? toNumber(prop(raw, "pool_config", "bin_step")),
-    baseFeePct:
-      toNumber(raw.base_fee_percentage) ??
-      toNumber(raw.base_fee_pct) ??
-      toNumber(prop(raw, "pool_config", "base_fee_pct")),
-    maxFeePct:
-      toNumber(raw.max_fee_percentage) ??
-      toNumber(raw.max_fee_pct) ??
-      toNumber(prop(raw, "pool_config", "max_fee_pct")),
-    protocolFeePct:
-      toNumber(raw.protocol_fee_percentage) ??
-      toNumber(raw.protocol_fee_pct) ??
-      toNumber(prop(raw, "pool_config", "protocol_fee_pct")),
-    dynamicFeePct:
-      toNumber(raw.dynamic_fee_percentage) ?? toNumber(raw.dynamic_fee_pct),
-    tvlUsd: toNumber(raw.tvl) ?? toNumber(raw.liquidity),
-    volume24h: toNumber(prop(raw, "volume", "24h")) ?? toNumber(raw.trade_volume_24h),
-    fees24h: toNumber(prop(raw, "fees", "24h")) ?? toNumber(raw.fee_volume_24h),
-    // Build timeframe records from nested volume/fees objects
-    volume: (() => {
-      const out: Record<string, number> = {};
-      const nested = isObject(raw.volume) ? raw.volume : undefined;
-      if (nested) {
-        for (const key of Object.keys(nested)) {
-          const val = toNumber(nested[key]);
-          if (val !== undefined) out[key] = val;
-        }
-      }
-      return Object.keys(out).length > 0 ? out : undefined;
-    })(),
-    fees: (() => {
-      const out: Record<string, number> = {};
-      const nested = isObject(raw.fees) ? raw.fees : undefined;
-      if (nested) {
-        for (const key of Object.keys(nested)) {
-          const val = toNumber(nested[key]);
-          if (val !== undefined) out[key] = val;
-        }
-      }
-      return Object.keys(out).length > 0 ? out : undefined;
-    })(),
-    apr: toNumber(raw.apr),
-    apy: toNumber(raw.apy),
-    isBlacklisted: toBool(raw.is_blacklisted),
-    tags: toStringArray(raw.tags),
-    launchpad: toString(raw.launchpad),
-    createdAt:
-      toNumber(raw.created_at) ??
-      toNumber(raw.createdAt) ??
-      toNumber(raw.pool_created_at),
-  };
-}
 
 // ─── Pool Discovery ─────────────────────────────────────────────────────────
 
@@ -282,7 +146,7 @@ async function fetchMeteoraNewPoolsOrientation(
   filterBy: string,
   pageSize: number,
   page: number,
-): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
+): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number; _debug: unknown }> {
   return cacheFirst(`meteora:new:${filterBy}:${page}:${pageSize}`, async () => {
     const params = new URLSearchParams({
       page: String(page),
@@ -291,10 +155,38 @@ async function fetchMeteoraNewPoolsOrientation(
       filter_by: filterBy,
     });
     const url = `${BASE_URL}/pools?${params.toString()}`;
-    const data = await fetchJson(url);
+    const resMeta: { status?: number; headers?: Record<string, string> } = {};
+    const data = await fetchJson(url, 10_000, undefined, (res) => {
+      resMeta.status = res.status;
+      const h: Record<string, string> = {};
+      res.headers.forEach((value: string, name: string) => { h[name] = value; });
+      resMeta.headers = h;
+    });
+
+    let _hasDataArray = false;
+    let _dataLength: number | string = "n/a";
+    if (isObject(data)) {
+      _hasDataArray = Array.isArray(data.data);
+      if (_hasDataArray) {
+        _dataLength = (data.data as unknown[]).length;
+      }
+    }
 
     if (!isObject(data) || !Array.isArray(data.data)) {
-      throw new Error("Invalid response from DLMM pools endpoint: expected paginated object");
+      return {
+        pools: [],
+        total: 0,
+        pages: 0,
+        _debug: {
+          url,
+          status: resMeta.status,
+          headers: resMeta.headers,
+          responseType: typeof data,
+          hasDataArray: _hasDataArray,
+          dataLength: _dataLength,
+          error: "Invalid response shape",
+        },
+      };
     }
 
     const rawPools = data.data as unknown[];
@@ -302,17 +194,40 @@ async function fetchMeteoraNewPoolsOrientation(
     const pages = toNumber(data.pages) ?? 1;
 
     const pools: DlmmPairInfo[] = [];
+    let skipped = 0;
+    let normalizationErrors: string[] = [];
     for (const raw of rawPools) {
-      if (!isObject(raw)) continue;
+      if (!isObject(raw)) { skipped++; continue; }
       try {
         const pair = normalizePair(raw);
         pools.push(pair);
-      } catch {
+      } catch (err) {
+        skipped++;
+        if (normalizationErrors.length < 5) {
+          normalizationErrors.push((err as Error).message);
+        }
         continue;
       }
     }
 
-    return { pools, total, pages };
+    return {
+      pools,
+      total,
+      pages,
+      _debug: {
+        url,
+        status: resMeta.status,
+        headers: resMeta.headers,
+        responseType: typeof data,
+        hasDataArray: true,
+        dataLength: rawPools.length,
+        rawTotal: toNumber((data as Record<string, unknown>).total),
+        rawPages: toNumber((data as Record<string, unknown>).pages),
+        normalized: pools.length,
+        skipped,
+        normalizationErrors: normalizationErrors.length > 0 ? normalizationErrors : undefined,
+      },
+    };
   }, { ttlMs: 15_000, rateLimiter: rateLimiters.meteoraDlmm });
 }
 
@@ -330,17 +245,14 @@ export async function fetchMeteoraDlmmNewPools(
     maxAgeHours?: number | null;
     freezeOffOnly?: boolean;
   }
-): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number }> {
+): Promise<{ pools: DlmmPairInfo[]; total: number; pages: number; _debug: unknown }> {
   const baseFilter = "is_blacklisted=false && volume_30m>=1 && tvl>=100";
   const solMint = "So11111111111111111111111111111111111111112";
 
   // Cap at 10 pages max to prevent request amplification attacks.
   const fetchPages = Math.min(page, 10);
-  // TODO: If active filters are present and page > 10, server-side filtering is preferred.
 
   // Fetch pages 1..N from both orientations to construct a correct combined page N.
-  // A pool on orientation A page 1 may be newer than orientation B page 2,
-  // so we must merge all pages up to N before slicing.
   const pageNumbers = Array.from({ length: fetchPages }, (_, i) => i + 1);
 
   const [yResults, xResults] = await Promise.all([
@@ -401,7 +313,21 @@ export async function fetchMeteoraDlmmNewPools(
   const start = (page - 1) * pageSize;
   const pools = filteredPools.slice(start, start + pageSize);
 
-  return { pools, total, pages };
+  return {
+    pools,
+    total,
+    pages,
+    _debug: {
+      pageSize,
+      page,
+      fetchPages,
+      yOrientations: yResults.map((r) => r._debug),
+      xOrientations: xResults.map((r) => r._debug),
+      allPoolsCount: allPools.length,
+      filteredPoolsCount: filteredPools.length,
+      filters,
+    },
+  };
 }
 
 /**

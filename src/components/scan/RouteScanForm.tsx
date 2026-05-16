@@ -13,7 +13,11 @@ export function RouteScanForm() {
   // Single universal address input — restored lazily from localStorage
   const [address, setAddress] = useState(() => {
     if (typeof window === "undefined") return "";
-    return localStorage.getItem(LS_ADDRESS) ?? "";
+    try {
+      return localStorage.getItem(LS_ADDRESS) ?? "";
+    } catch {
+      return "";
+    }
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,7 +26,11 @@ export function RouteScanForm() {
 
   // Persist to localStorage
   useEffect(() => {
-    localStorage.setItem(LS_ADDRESS, address);
+    try {
+      localStorage.setItem(LS_ADDRESS, address);
+    } catch {
+      // ignore — storage may be blocked in this context
+    }
   }, [address]);
 
   // Keyboard shortcut: `/` focuses input
