@@ -5,13 +5,12 @@ import type { PoolDiscoveryReport, PoolReport } from "@/lib/api-types";
 
 import { DiscoveryPanel } from "@/components/report/DiscoveryPanel";
 import { PoolHeader } from "@/components/report/PoolHeader";
-import { ComparisonZone } from "@/components/report/ComparisonZone";
+import { PoolComparisonSection } from "@/components/report/PoolComparisonSection";
 
 import { IndicatorsPanel } from "@/components/indicators/IndicatorsPanel";
 import { TerminalSection } from "@/components/report/report-atoms";
 import { ExternalLinks } from "@/components/report/ExternalLinks";
 import { TokenCard } from "@/components/report/TokenCard";
-import { RankedPoolsTable } from "@/components/report/RelatedPoolsPanel";
 import { CompactFooter } from "@/components/report/CompactFooter";
 import { TokenAnalysisMatrix } from "@/components/report/TokenAnalysisMatrix";
 
@@ -94,9 +93,9 @@ export function PairReportLayout({
           </TerminalSection>
         )}
 
-        {/* 5. Ranked Pools Table */}
+        {/* 5. Pool Comparison */}
         {normalizedPools.length > 0 && (
-          <RankedPoolsTable
+          <PoolComparisonSection
             pools={normalizedPools}
             currentPoolAddress={pair?.poolAddress}
             currentPair={pair}
@@ -109,16 +108,6 @@ export function PairReportLayout({
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
-
-        {/* 7. Comparison Zone */}
-        {normalizedPools.length > 0 && (
-          <ComparisonZone
-            pools={normalizedPools}
-            currentPoolAddress={pair?.poolAddress}
-            currentPair={pair}
-            pairName={name}
-          />
-        )}
 
         {/* 8. Compact Footer */}
         <CompactFooter
