@@ -136,22 +136,50 @@ function SourceDot({ source }: { source: AuthoritySource }) {
   );
 }
 
+// ─── Info Icon ─────────────────────────────────────────────────────────────
+
+function InfoIcon() {
+  return (
+    <svg
+      className="size-3.5 text-zinc-600 group-hover:text-amber-400/70 transition-colors cursor-help shrink-0"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path strokeLinecap="round" d="M12 16v-4M12 8h.01" />
+    </svg>
+  );
+}
+
+function CriteriaLabel({ label, description }: { label: string; description: string }) {
+  return (
+    <span className="group inline-flex items-center gap-1.5 text-sm text-zinc-300" title={description}>
+      {label}
+      <InfoIcon />
+    </span>
+  );
+}
+
 // ─── Row Components ─────────────────────────────────────────────────────────
 
 function AuthorityRow({
   label,
+  description,
   tokenX,
   tokenY,
 }: {
   label: string;
+  description: string;
   tokenX: AuthorityStatus;
   tokenY: AuthorityStatus;
 }) {
   const allSafe = tokenX.revoked && tokenY.revoked;
   return (
     <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
-      <span className="text-sm text-zinc-300 flex items-center gap-1.5">
-        {label}
+      <span className="flex items-center gap-1.5">
+        <CriteriaLabel label={label} description={description} />
         <SourceDot source={tokenX.source !== "none" ? tokenX.source : tokenY.source} />
       </span>
       <div>
@@ -167,11 +195,13 @@ function AuthorityRow({
 
 function BooleanRow({
   label,
+  description,
   tokenX,
   tokenY,
   badWhenTrue,
 }: {
   label: string;
+  description: string;
   tokenX?: boolean;
   tokenY?: boolean;
   badWhenTrue?: boolean;
@@ -180,7 +210,7 @@ function BooleanRow({
   const yBad = badWhenTrue ? tokenY === true : tokenY === false;
   return (
     <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
-      <span className="text-sm text-zinc-300">{label}</span>
+      <CriteriaLabel label={label} description={description} />
       <div>{badWhenTrue ? <YesNoBadge value={tokenX} /> : <YesNoBadge value={tokenX} />}</div>
       <div>{badWhenTrue ? <YesNoBadge value={tokenY} /> : <YesNoBadge value={tokenY} />}</div>
       <StandardCell good={!xBad && !yBad} />
@@ -190,6 +220,7 @@ function BooleanRow({
 
 function NumberRow({
   label,
+  description,
   tokenX,
   tokenY,
   suffix,
@@ -197,6 +228,7 @@ function NumberRow({
   warnThreshold,
 }: {
   label: string;
+  description: string;
   tokenX?: number;
   tokenY?: number;
   suffix?: string;
@@ -205,7 +237,7 @@ function NumberRow({
 }) {
   return (
     <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
-      <span className="text-sm text-zinc-300">{label}</span>
+      <CriteriaLabel label={label} description={description} />
       <NumberBadge value={tokenX} suffix={suffix} decimals={decimals} />
       <NumberBadge value={tokenY} suffix={suffix} decimals={decimals} />
       <StandardCell good={
@@ -218,18 +250,20 @@ function NumberRow({
 
 function PctRow({
   label,
+  description,
   tokenX,
   tokenY,
   warnThreshold,
 }: {
   label: string;
+  description: string;
   tokenX?: number;
   tokenY?: number;
   warnThreshold?: number;
 }) {
   return (
     <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
-      <span className="text-sm text-zinc-300">{label}</span>
+      <CriteriaLabel label={label} description={description} />
       <PctBadge value={tokenX} warnThreshold={warnThreshold} />
       <PctBadge value={tokenY} warnThreshold={warnThreshold} />
       <StandardCell good={
@@ -284,15 +318,53 @@ export function TokenAnalysisMatrix({
         </div>
 
         {/* Authority rows */}
-        <AuthorityRow label="Mint Authority" tokenX={xMint} tokenY={yMint} />
-        <AuthorityRow label="Freeze Authority" tokenX={xFreeze} tokenY={yFreeze} />
+        <AuthorityRow
+          label="Mint Authority"
+          description="If active, the dev can mint unlimited new tokens. Revoked = safe."
+          tokenX={xMint}
+          tokenY={yMint}
+        />
+        <AuthorityRow
+          label="Freeze Authority"
+          description="If active, the dev can freeze any wallet from trading. Revoked = safe."
+          tokenX={xFreeze}
+          tokenY={yFreeze}
+        />
 
         {/* GMGN Security rows */}
-        <BooleanRow label="CTO" tokenX={tokenX?.ctoFlag} tokenY={tokenY?.ctoFlag} />
-        <BooleanRow label="Honeypot" tokenX={tokenX?.isHoneypot === "yes"} tokenY={tokenY?.isHoneypot === "yes"} badWhenTrue />
-        <PctRow label="Rug Ratio" tokenX={tokenX?.rugRatio} tokenY={tokenY?.rugRatio} warnThreshold={0.3} />
-        <PctRow label="Top 10 Holders" tokenX={tokenX?.top10HolderRate} tokenY={tokenY?.top10HolderRate} warnThreshold={0.5} />
-        <NumberRow label="Snipers" tokenX={tokenX?.sniperCount} tokenY={tokenY?.sniperCount} />
+        <BooleanRow
+          label="CTO"
+          description="Community Takeover — the original dev abandoned the project and the community took control."
+          tokenX={tokenX?.ctoFlag}
+          tokenY={tokenY?.ctoFlag}
+        />
+        <BooleanRow
+          label="Honeypot"
+          description="Token where buys work but sells always fail. Funds become permanently trapped."
+          tokenX={tokenX?.isHoneypot === "yes"}
+          tokenY={tokenY?.isHoneypot === "yes"}
+          badWhenTrue
+        />
+        <PctRow
+          label="Rug Ratio"
+          description="GMGN's estimated probability of a rug pull. Values above 30% are high-risk."
+          tokenX={tokenX?.rugRatio}
+          tokenY={tokenY?.rugRatio}
+          warnThreshold={0.3}
+        />
+        <PctRow
+          label="Top 10 Holders"
+          description="Percentage of total supply held by the top 10 wallets. Above 50% means high concentration risk."
+          tokenX={tokenX?.top10HolderRate}
+          tokenY={tokenY?.top10HolderRate}
+          warnThreshold={0.5}
+        />
+        <NumberRow
+          label="Snipers"
+          description="Wallets that bought within seconds of token launch. High count indicates bot activity."
+          tokenX={tokenX?.sniperCount}
+          tokenY={tokenY?.sniperCount}
+        />
       </div>
     </div>
   );
