@@ -15,12 +15,19 @@ import { apiErrorResponse, classifyProviderError, sanitizeSourceError } from "@/
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import { cacheableJson } from "@/lib/api-cache";
 import type { IndicatorType, PoolIndicators, SourceStatus } from "@/lib/types";
+import { PROVIDER_SUPPORTED_TIMEFRAMES } from "@/lib/indicator-config";
 import type { OhlcvProviderName } from "@/lib/indicator-config";
 
-const VALID_TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
 const VALID_PROVIDERS: OhlcvProviderName[] = ["meteora", "birdeye"];
 
-type Timeframe = (typeof VALID_TIMEFRAMES)[number];
+/** All unique timeframes across all providers — used for format validation. */
+const VALID_TIMEFRAMES = Array.from(
+  new Set(
+    (["meteora", "birdeye"] as OhlcvProviderName[]).flatMap(
+      (p) => PROVIDER_SUPPORTED_TIMEFRAMES[p],
+    ),
+  ),
+);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,7 +89,7 @@ async function handleIndicators(request: Request): Promise<Response> {
   const uniqueTimeframes = [...new Set(timeframes)];
 
   const invalidTimeframes = uniqueTimeframes.filter(
-    (tf): tf is string => !VALID_TIMEFRAMES.includes(tf as Timeframe),
+    (tf) => !VALID_TIMEFRAMES.includes(tf),
   );
   if (invalidTimeframes.length > 0) {
     return apiErrorResponse(
@@ -96,6 +103,19 @@ async function handleIndicators(request: Request): Promise<Response> {
     return apiErrorResponse(
       "INVALID_PARAMETER",
       "Maximum 5 timeframes allowed",
+      400,
+    );
+  }
+
+  // Validate timeframes are supported by the selected provider.
+  const providerSupported = PROVIDER_SUPPORTED_TIMEFRAMES[providerName];
+  const unsupportedByProvider = uniqueTimeframes.filter(
+    (tf) => !providerSupported.includes(tf),
+  );
+  if (unsupportedByProvider.length > 0) {
+    return apiErrorResponse(
+      "INVALID_PARAMETER",
+      `Timeframes not supported by ${providerName}: ${unsupportedByProvider.join(", ")}`,
       400,
     );
   }
@@ -214,7 +234,7 @@ async function handleIndicators(request: Request): Promise<Response> {
   const start = Date.now();
   try {
     const indicatorData = await Promise.race([
-      fetchIndicators(provider, pool, uniqueTimeframes as Timeframe[], indicators, controller.signal),
+      fetchIndicators(provider, pool, uniqueTimeframes, indicators, controller.signal),
       new Promise<never>((_, reject) =>
         setTimeout(
           () => {
@@ -253,7 +273,7 @@ async function handleIndicators(request: Request): Promise<Response> {
 async function fetchIndicators(
   provider: OhlcvProvider,
   poolAddress: string,
-  timeframes: Timeframe[],
+  timeframes: string[],
   indicators: Array<{ type: IndicatorType; period: number; multiplier?: number }>,
   signal?: AbortSignal,
 ): Promise<PoolIndicators> {

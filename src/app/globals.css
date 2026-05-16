@@ -69,3 +69,39 @@ button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+
+/* ─── Indicator Matrix ─────────────────────────────────────────────────── */
+
+/* Cell flash animation for live data updates */
+@keyframes cell-flash {
+  0%   { background-color: color-mix(in oklch, var(--accent) 10%, transparent); }
+  100% { background-color: transparent; }
+}
+
+.cell-updated {
+  animation: cell-flash 500ms ease-out forwards;
+}
+
+/* Horizontal scroll container for indicator matrix */
+.matrix-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2d36 transparent;
+}
+.matrix-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.matrix-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.matrix-scroll::-webkit-scrollbar-thumb {
+  background: #2a2d36;
+  border-radius: 2px;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .cell-updated {
+    animation: none;
+  }
+}

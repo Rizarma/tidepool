@@ -10,19 +10,30 @@
 
 import { useState } from "react";
 import { useIndicatorConfig } from "./IndicatorConfigContext";
-import { AVAILABLE_TIMEFRAMES, type OhlcvProviderName } from "@/lib/indicator-config";
+import {
+  AVAILABLE_TIMEFRAMES,
+  PROVIDER_SUPPORTED_TIMEFRAMES,
+  type OhlcvProviderName,
+} from "@/lib/indicator-config";
 import { getAvailableIndicators, getIndicator } from "@/lib/indicators/registry";
 
 export function IndicatorSettings({ onClose }: { onClose: () => void }) {
   const { config, updateConfig } = useIndicatorConfig();
 
   // Local draft state — changes here don't affect global config until Apply
-  const [draftTimeframes, setDraftTimeframes] = useState<string[]>(
-    config.timeframes,
-  );
   const [draftProvider, setDraftProvider] = useState<OhlcvProviderName>(
     config.provider ?? "meteora",
   );
+
+  // Initialise draft timeframes, filtering out any that are unsupported
+  // by the current provider (e.g. 30m on Meteora).
+  const [draftTimeframes, setDraftTimeframes] = useState<string[]>(() => {
+    const supported = PROVIDER_SUPPORTED_TIMEFRAMES[draftProvider];
+    const filtered = config.timeframes.filter((tf) =>
+      supported.includes(tf),
+    );
+    return filtered.length > 0 ? filtered : [...supported.slice(0, 3)];
+  });
 
   // Initialise draft indicators with all registered types so new indicators
   // automatically appear even if they weren't in the saved config.
@@ -106,7 +117,18 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
             {(["meteora", "birdeye"] as OhlcvProviderName[]).map((name) => (
               <button
                 key={name}
-                onClick={() => setDraftProvider(name)}
+                onClick={() => {
+                  setDraftProvider(name);
+                  const supported = PROVIDER_SUPPORTED_TIMEFRAMES[name];
+                  setDraftTimeframes((prev) => {
+                    const filtered = prev.filter((tf) =>
+                      supported.includes(tf),
+                    );
+                    return filtered.length > 0
+                      ? filtered
+                      : [...supported.slice(0, 3)];
+                  });
+                }}
                 className={`flex-1 rounded px-2 py-1 text-[10px] font-medium capitalize ${
                   draftProvider === name
                     ? "bg-emerald-500/20 text-emerald-300"
@@ -125,7 +147,9 @@ export function IndicatorSettings({ onClose }: { onClose: () => void }) {
             Timeframes
           </p>
           <div className="flex flex-wrap gap-2">
-            {AVAILABLE_TIMEFRAMES.map((tf) => (
+            {AVAILABLE_TIMEFRAMES.filter((tf) =>
+              PROVIDER_SUPPORTED_TIMEFRAMES[draftProvider].includes(tf),
+            ).map((tf) => (
               <button
                 key={tf}
                 onClick={() => handleToggleTimeframe(tf)}

@@ -24,6 +24,15 @@ export const DEFAULT_CONFIG: IndicatorConfig = {
 
 export const AVAILABLE_TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
 
+/** Timeframes supported by each OHLCV provider. Used by both UI and API. */
+export const PROVIDER_SUPPORTED_TIMEFRAMES: Record<
+  OhlcvProviderName,
+  readonly string[]
+> = {
+  meteora: ["5m", "1h", "4h", "24h"],
+  birdeye: ["5m", "30m", "1h", "2h", "4h", "12h", "24h"],
+};
+
 /** Map UI-friendly timeframe names to Birdeye API casing.
  * @deprecated Kept for internal Birdeye provider use only.
  */
@@ -85,10 +94,15 @@ export function loadConfig(): IndicatorConfig {
       if (isValidConfig(parsed)) {
         const config = parsed as IndicatorConfig;
         if (needsMigration(config)) {
+          const provider = config.provider ?? "meteora";
           const migrated: IndicatorConfig = {
             ...config,
-            provider: config.provider ?? "meteora",
-            timeframes: config.timeframes.filter((tf) => !OLD_TIMEFRAMES.has(tf)),
+            provider,
+            timeframes: config.timeframes.filter(
+              (tf) =>
+                !OLD_TIMEFRAMES.has(tf) &&
+                PROVIDER_SUPPORTED_TIMEFRAMES[provider].includes(tf),
+            ),
           };
           if (migrated.timeframes.length === 0) {
             migrated.timeframes = [...DEFAULT_CONFIG.timeframes];
@@ -132,5 +146,9 @@ function isValidConfig(raw: unknown): raw is IndicatorConfig {
 function needsMigration(config: IndicatorConfig): boolean {
   const hasOldTimeframe = config.timeframes.some((tf) => OLD_TIMEFRAMES.has(tf));
   const hasMissingProvider = !config.provider;
-  return hasOldTimeframe || hasMissingProvider;
+  const provider = config.provider ?? "meteora";
+  const hasUnsupportedTimeframes = config.timeframes.some(
+    (tf) => !PROVIDER_SUPPORTED_TIMEFRAMES[provider].includes(tf),
+  );
+  return hasOldTimeframe || hasMissingProvider || hasUnsupportedTimeframes;
 }
