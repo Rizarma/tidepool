@@ -124,18 +124,6 @@ function PctBadge({ value, warnThreshold }: { value?: number; warnThreshold?: nu
   );
 }
 
-function SourceDot({ source }: { source: AuthoritySource }) {
-  if (source === "none") return null;
-  const color = source === "gmgn" ? "bg-amber-400/60" : "bg-blue-400/60";
-  const label = source === "gmgn" ? "GMGN" : "On-chain";
-  return (
-    <span
-      className={`ml-1 inline-block size-1.5 rounded-full ${color}`}
-      title={`Source: ${label}`}
-    />
-  );
-}
-
 // ─── Info Icon ─────────────────────────────────────────────────────────────
 
 function InfoIcon() {
@@ -178,10 +166,7 @@ function AuthorityRow({
   const allSafe = tokenX.revoked && tokenY.revoked;
   return (
     <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
-      <span className="flex items-center gap-1.5">
-        <CriteriaLabel label={label} description={description} />
-        <SourceDot source={tokenX.source !== "none" ? tokenX.source : tokenY.source} />
-      </span>
+      <CriteriaLabel label={label} description={description} />
       <div>
         {tokenX.source === "none" ? <UnknownBadge /> : tokenX.revoked ? <RevokedBadge /> : <ActiveBadge address={tokenX.address} />}
       </div>
