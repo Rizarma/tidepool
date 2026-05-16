@@ -141,6 +141,20 @@ export interface PairToken {
   freezeAuthorityDisabled?: boolean;
   mintAuthority?: string | null;
   freezeAuthority?: string | null;
+  /** GMGN: mint authority renounced (true = safe) */
+  renouncedMint?: boolean;
+  /** GMGN: freeze authority renounced (true = safe) */
+  renouncedFreeze?: boolean;
+  /** GMGN: Community Takeover flag */
+  ctoFlag?: boolean;
+  /** GMGN: honeypot check result ("yes" | "no" | "unknown") */
+  isHoneypot?: string;
+  /** GMGN: rug probability ratio 0-1 */
+  rugRatio?: number;
+  /** GMGN: top 10 holder concentration 0-1 */
+  top10HolderRate?: number;
+  /** GMGN: number of sniper wallets */
+  sniperCount?: number;
   marketCap?: number;
   marketCapFallback?: boolean;
   totalSupply?: number;

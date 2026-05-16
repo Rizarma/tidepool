@@ -3,26 +3,45 @@
 import type { PairToken } from "@/lib/api-types";
 import { shortenAddress } from "@/lib/format";
 
-function StatusCell({
-  authority,
-}: {
-  authority?: string | null;
-}) {
-  const isRevoked = authority === null || authority === undefined;
+// ─── Types ─────────────────────────────────────────────────────────────────
 
-  if (isRevoked) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-300">
-        <span className="inline-flex size-5 items-center justify-center rounded-full bg-emerald-500/10">
-          <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        </span>
-        Revoked
+type AuthoritySource = "gmgn" | "solana" | "none";
+
+interface AuthorityStatus {
+  source: AuthoritySource;
+  revoked: boolean;
+  address?: string | null;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function resolveAuthority(
+  renounced?: boolean,
+  authority?: string | null,
+): AuthorityStatus {
+  // GMGN boolean takes precedence
+  if (renounced === true) return { source: "gmgn", revoked: true };
+  if (renounced === false) return { source: "gmgn", revoked: false };
+  // Fall back to Solana RPC
+  if (authority === null) return { source: "solana", revoked: true };
+  if (authority != null) return { source: "solana", revoked: false, address: authority };
+  return { source: "none", revoked: false };
+}
+
+function RevokedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-300">
+      <span className="inline-flex size-5 items-center justify-center rounded-full bg-emerald-500/10">
+        <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
       </span>
-    );
-  }
+      Revoked
+    </span>
+  );
+}
 
+function ActiveBadge({ address }: { address?: string | null }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-300">
       <span className="inline-flex size-5 items-center justify-center rounded-full bg-red-500/10">
@@ -31,42 +50,205 @@ function StatusCell({
         </svg>
       </span>
       Active
-      <span className="font-mono text-[10px] text-zinc-500" title={authority}>
-        {shortenAddress(authority, 3, 3)}
-      </span>
+      {address && (
+        <span className="font-mono text-[10px] text-zinc-500" title={address}>
+          {shortenAddress(address, 3, 3)}
+        </span>
+      )}
     </span>
+  );
+}
+
+function UnknownBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+      <span className="inline-flex size-5 items-center justify-center rounded-full bg-zinc-500/10">
+        <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </span>
+      Unknown
+    </span>
+  );
+}
+
+function YesNoBadge({ value }: { value?: boolean }) {
+  if (value === true) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-300">
+        <span className="inline-flex size-5 items-center justify-center rounded-full bg-red-500/10">
+          <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </span>
+        Yes
+      </span>
+    );
+  }
+  if (value === false) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-300">
+        <span className="inline-flex size-5 items-center justify-center rounded-full bg-emerald-500/10">
+          <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </span>
+        No
+      </span>
+    );
+  }
+  return <UnknownBadge />;
+}
+
+function NumberBadge({ value, suffix, decimals = 1 }: { value?: number; suffix?: string; decimals?: number }) {
+  if (value == null) return <span className="text-xs text-zinc-500">—</span>;
+  const formatted = value.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return (
+    <span className="text-xs font-medium tabular-nums text-zinc-200">
+      {formatted}{suffix ? ` ${suffix}` : ""}
+    </span>
+  );
+}
+
+function PctBadge({ value, warnThreshold }: { value?: number; warnThreshold?: number }) {
+  if (value == null) return <span className="text-xs text-zinc-500">—</span>;
+  const pct = (value * 100).toFixed(1);
+  const isWarn = warnThreshold != null && value > warnThreshold;
+  return (
+    <span className={`text-xs font-medium tabular-nums ${isWarn ? "text-amber-300" : "text-zinc-200"}`}>
+      {pct}%
+    </span>
+  );
+}
+
+function SourceDot({ source }: { source: AuthoritySource }) {
+  if (source === "none") return null;
+  const color = source === "gmgn" ? "bg-amber-400/60" : "bg-blue-400/60";
+  const label = source === "gmgn" ? "GMGN" : "On-chain";
+  return (
+    <span
+      className={`ml-1 inline-block size-1.5 rounded-full ${color}`}
+      title={`Source: ${label}`}
+    />
+  );
+}
+
+// ─── Row Components ─────────────────────────────────────────────────────────
+
+function AuthorityRow({
+  label,
+  tokenX,
+  tokenY,
+}: {
+  label: string;
+  tokenX: AuthorityStatus;
+  tokenY: AuthorityStatus;
+}) {
+  const allSafe = tokenX.revoked && tokenY.revoked;
+  return (
+    <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
+      <span className="text-sm text-zinc-300 flex items-center gap-1.5">
+        {label}
+        <SourceDot source={tokenX.source !== "none" ? tokenX.source : tokenY.source} />
+      </span>
+      <div>
+        {tokenX.source === "none" ? <UnknownBadge /> : tokenX.revoked ? <RevokedBadge /> : <ActiveBadge address={tokenX.address} />}
+      </div>
+      <div>
+        {tokenY.source === "none" ? <UnknownBadge /> : tokenY.revoked ? <RevokedBadge /> : <ActiveBadge address={tokenY.address} />}
+      </div>
+      <StandardCell good={allSafe && tokenX.source !== "none" && tokenY.source !== "none"} />
+    </div>
+  );
+}
+
+function BooleanRow({
+  label,
+  tokenX,
+  tokenY,
+  badWhenTrue,
+}: {
+  label: string;
+  tokenX?: boolean;
+  tokenY?: boolean;
+  badWhenTrue?: boolean;
+}) {
+  const xBad = badWhenTrue ? tokenX === true : tokenX === false;
+  const yBad = badWhenTrue ? tokenY === true : tokenY === false;
+  return (
+    <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
+      <span className="text-sm text-zinc-300">{label}</span>
+      <div>{badWhenTrue ? <YesNoBadge value={tokenX} /> : <YesNoBadge value={tokenX} />}</div>
+      <div>{badWhenTrue ? <YesNoBadge value={tokenY} /> : <YesNoBadge value={tokenY} />}</div>
+      <StandardCell good={!xBad && !yBad} />
+    </div>
+  );
+}
+
+function NumberRow({
+  label,
+  tokenX,
+  tokenY,
+  suffix,
+  decimals,
+  warnThreshold,
+}: {
+  label: string;
+  tokenX?: number;
+  tokenY?: number;
+  suffix?: string;
+  decimals?: number;
+  warnThreshold?: number;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
+      <span className="text-sm text-zinc-300">{label}</span>
+      <NumberBadge value={tokenX} suffix={suffix} decimals={decimals} />
+      <NumberBadge value={tokenY} suffix={suffix} decimals={decimals} />
+      <StandardCell good={
+        (warnThreshold == null || (tokenX != null && tokenX <= warnThreshold)) &&
+        (warnThreshold == null || (tokenY != null && tokenY <= warnThreshold))
+      } />
+    </div>
+  );
+}
+
+function PctRow({
+  label,
+  tokenX,
+  tokenY,
+  warnThreshold,
+}: {
+  label: string;
+  tokenX?: number;
+  tokenY?: number;
+  warnThreshold?: number;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
+      <span className="text-sm text-zinc-300">{label}</span>
+      <PctBadge value={tokenX} warnThreshold={warnThreshold} />
+      <PctBadge value={tokenY} warnThreshold={warnThreshold} />
+      <StandardCell good={
+        (warnThreshold == null || (tokenX != null && tokenX <= warnThreshold)) &&
+        (warnThreshold == null || (tokenY != null && tokenY <= warnThreshold))
+      } />
+    </div>
   );
 }
 
 function StandardCell({ good }: { good: boolean }) {
   return (
     <span className={`text-xs font-medium ${good ? "text-emerald-400/70" : "text-zinc-500"}`}>
-      {good ? "✓ Should be Revoked" : "Should be Revoked"}
+      {good ? "✓ Safe" : "Check"}
     </span>
   );
 }
 
-function MatrixRow({
-  label,
-  tokenXValue,
-  tokenYValue,
-}: {
-  label: string;
-  tokenXValue?: string | null;
-  tokenYValue?: string | null;
-}) {
-  const xGood = tokenXValue === null || tokenXValue === undefined;
-  const yGood = tokenYValue === null || tokenYValue === undefined;
-
-  return (
-    <div className="grid grid-cols-[1fr_1fr_1fr_1.2fr] gap-3 px-4 py-3 border-b border-white/[0.04] last:border-b-0 items-center">
-      <span className="text-sm text-zinc-300">{label}</span>
-      <StatusCell authority={tokenXValue} />
-      <StatusCell authority={tokenYValue} />
-      <StandardCell good={xGood && yGood} />
-    </div>
-  );
-}
+// ─── Main Component ────────────────────────────────────────────────────────
 
 export function TokenAnalysisMatrix({
   tokenX,
@@ -77,6 +259,11 @@ export function TokenAnalysisMatrix({
 }) {
   const symbolX = tokenX?.symbol ?? "Token X";
   const symbolY = tokenY?.symbol ?? "Token Y";
+
+  const xMint = resolveAuthority(tokenX?.renouncedMint, tokenX?.mintAuthority);
+  const yMint = resolveAuthority(tokenY?.renouncedMint, tokenY?.mintAuthority);
+  const xFreeze = resolveAuthority(tokenX?.renouncedFreeze, tokenX?.freezeAuthority);
+  const yFreeze = resolveAuthority(tokenY?.renouncedFreeze, tokenY?.freezeAuthority);
 
   return (
     <div className="space-y-4">
@@ -96,17 +283,16 @@ export function TokenAnalysisMatrix({
           <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500">Standard</span>
         </div>
 
-        {/* Data rows */}
-        <MatrixRow
-          label="Mint Authority"
-          tokenXValue={tokenX?.mintAuthority}
-          tokenYValue={tokenY?.mintAuthority}
-        />
-        <MatrixRow
-          label="Freeze Authority"
-          tokenXValue={tokenX?.freezeAuthority}
-          tokenYValue={tokenY?.freezeAuthority}
-        />
+        {/* Authority rows */}
+        <AuthorityRow label="Mint Authority" tokenX={xMint} tokenY={yMint} />
+        <AuthorityRow label="Freeze Authority" tokenX={xFreeze} tokenY={yFreeze} />
+
+        {/* GMGN Security rows */}
+        <BooleanRow label="CTO" tokenX={tokenX?.ctoFlag} tokenY={tokenY?.ctoFlag} />
+        <BooleanRow label="Honeypot" tokenX={tokenX?.isHoneypot === "yes"} tokenY={tokenY?.isHoneypot === "yes"} badWhenTrue />
+        <PctRow label="Rug Ratio" tokenX={tokenX?.rugRatio} tokenY={tokenY?.rugRatio} warnThreshold={0.3} />
+        <PctRow label="Top 10 Holders" tokenX={tokenX?.top10HolderRate} tokenY={tokenY?.top10HolderRate} warnThreshold={0.5} />
+        <NumberRow label="Snipers" tokenX={tokenX?.sniperCount} tokenY={tokenY?.sniperCount} />
       </div>
     </div>
   );
