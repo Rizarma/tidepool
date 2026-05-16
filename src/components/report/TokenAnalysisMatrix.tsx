@@ -340,7 +340,7 @@ export function TokenAnalysisMatrix({
         />
         <BooleanRow
           label="Honeypot"
-          description="Token where buys work but sells always fail. Funds become permanently trapped."
+          description="Token where buys work but sells always fail. Primarily applicable to BSC/Base chains; not applicable on Solana."
           tokenX={tokenX?.isHoneypot === "yes"}
           tokenY={tokenY?.isHoneypot === "yes"}
           badWhenTrue

@@ -27,14 +27,7 @@ export interface GmgnSecurityResult {
   top10HolderRate?: number;
   /** Number of sniper wallets */
   sniperCount?: number;
-  /** Contract ownership renounced (EVM-style) */
-  ownerRenounced?: string;
-  /** Creator token status, e.g. "creator_close" */
-  creatorTokenStatus?: string;
-}
 
-function randomUUID(): string {
-  return crypto.randomUUID();
 }
 
 async function gmgnFetch(path: string, mint: string): Promise<unknown> {
@@ -45,7 +38,7 @@ async function gmgnFetch(path: string, mint: string): Promise<unknown> {
 
   // GMGN requires timestamp + client_id as anti-replay query params
   const timestamp = Math.floor(Date.now() / 1000);
-  const clientId = randomUUID();
+  const clientId = crypto.randomUUID();
 
   const url = new URL(`${BASE_URL}${path}`);
   url.searchParams.set("chain", "sol");
@@ -57,15 +50,24 @@ async function gmgnFetch(path: string, mint: string): Promise<unknown> {
     headers: {
       "X-APIKEY": apiKey,
       Accept: "application/json",
+      "Content-Type": "application/json",
     },
   });
 
+  const resetAt = res.headers.get("X-RateLimit-Reset");
+  const resetHint = resetAt ? ` (reset at ${resetAt})` : "";
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`GMGN ${path} ${res.status}: ${text}`);
+    throw new Error(`GMGN ${path} ${res.status}${resetHint}: ${text}`);
   }
 
   const data = await res.json();
+  if (isObject(data) && data.code !== 0) {
+    throw new Error(
+      `GMGN ${path} error ${data.code}${resetHint}: ${data.message || data.error || "unknown"}`
+    );
+  }
   return data;
 }
 
@@ -91,14 +93,13 @@ async function fetchGmgnSecurityRaw(mint: string): Promise<Partial<GmgnSecurityR
   }
 
   return {
-    renouncedMint: toBool(prop(raw, "renounced_mint")) ?? undefined,
-    renouncedFreeze: toBool(prop(raw, "renounced_freeze_account")) ?? undefined,
+    renouncedMint: toBool(prop(raw, "renounced_mint")),
+    renouncedFreeze: toBool(prop(raw, "renounced_freeze_account")),
     isHoneypot,
     rugRatio: toNumber(prop(raw, "rug_ratio")) ?? undefined,
     top10HolderRate: toNumber(prop(raw, "top_10_holder_rate")) ?? undefined,
     sniperCount: toNumber(prop(raw, "sniper_count")) ?? undefined,
-    ownerRenounced: toString(prop(raw, "owner_renounced")) ?? undefined,
-    creatorTokenStatus: toString(prop(raw, "creator_token_status")) ?? undefined,
+
   };
 }
 
@@ -145,6 +146,6 @@ export async function fetchGmgnTokenSecurity(mint: string): Promise<GmgnSecurity
         ...security,
       };
     },
-    { ttlMs: 60_000 },
+    { ttlMs: 300_000 },
   );
 }
