@@ -6,7 +6,6 @@ import {
   formatCompactUsd,
   formatNumber,
   formatTokenPrice,
-  formatUsd,
   shortenAddress,
 } from "@/lib/format";
 import { TerminalDataRow } from "@/components/report/report-atoms";

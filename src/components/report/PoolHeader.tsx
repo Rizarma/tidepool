@@ -35,11 +35,14 @@ export function PoolHeader({
       {/* ─── Identity ─── */}
       <div className="flex items-start gap-3">
         {pair?.tokenX?.imageUrl && (
-          <img
-            src={pair.tokenX.imageUrl}
-            alt={symbolX}
-            className="w-10 h-10 rounded-lg shrink-0 object-cover bg-white/[0.05]"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={pair.tokenX.imageUrl}
+              alt={symbolX}
+              className="w-10 h-10 rounded-lg shrink-0 object-cover bg-white/[0.05]"
+            />
+          </>
         )}
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">

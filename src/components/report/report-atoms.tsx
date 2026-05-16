@@ -1,5 +1,5 @@
 import type { PairToken, RiskLevel } from "@/lib/api-types";
-import { formatCompactNumber, formatCompactUsd, formatNumber, formatTokenPrice, formatUsd, shortenAddress } from "@/lib/format";
+import { formatCompactNumber, formatCompactUsd, formatNumber, formatTokenPrice, shortenAddress } from "@/lib/format";
 import { CopyButton } from "@/components/CopyButton";
 
 export function DataRow({ label, value, bad = false }: { label: string; value: string; bad?: boolean }) {
