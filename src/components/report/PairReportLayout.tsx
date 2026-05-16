@@ -13,7 +13,6 @@ import { ExternalLinks } from "@/components/report/ExternalLinks";
 import { TokenCard } from "@/components/report/TokenCard";
 import { RankedPoolsTable } from "@/components/report/RelatedPoolsPanel";
 import { CompactFooter } from "@/components/report/CompactFooter";
-import { TokenAnalysisCards } from "@/components/report/TokenAnalysisCards";
 import { TokenAnalysisMatrix } from "@/components/report/TokenAnalysisMatrix";
 
 export function PairReportLayout({
@@ -106,19 +105,16 @@ export function PairReportLayout({
           </TerminalSection>
         )}
 
-        {/* 5. Analysis — Option 2: Twin Audit Cards */}
-        <TokenAnalysisCards tokenX={tokenX} tokenY={tokenY} />
-
-        {/* 6. Token Cards */}
+        {/* 5. Token Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TokenCard token={tokenX} label="Token X" />
           <TokenCard token={tokenY} label="Token Y" />
         </div>
 
-        {/* 7. Analysis — Option 3: Audit Comparison Matrix */}
+        {/* 6. Analysis: On-Chain Security Audit */}
         <TokenAnalysisMatrix tokenX={tokenX} tokenY={tokenY} />
 
-        {/* 8. Ranked Pools Table */}
+        {/* 7. Ranked Pools Table */}
         {normalizedPools.length > 0 && (
           <RankedPoolsTable
             pools={normalizedPools}
@@ -128,7 +124,7 @@ export function PairReportLayout({
           />
         )}
 
-        {/* 7. Compact Footer */}
+        {/* 8. Compact Footer */}
         <CompactFooter
           pair={pair}
           tags={pair?.tags}
