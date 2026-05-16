@@ -12,7 +12,8 @@ import {
   fetchMeteoraDlmmPairByMints,
   fetchMeteoraDlmmGroupPools,
 } from "@/lib/providers-dlmm";
-import { fetchJupiter } from "@/lib/providers";
+import { fetchJupiter, fetchSolanaRpc } from "@/lib/providers";
+import { fetchGmgnTokenSecurity } from "@/lib/providers-gmgn";
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
 import { cacheableJson } from "@/lib/api-cache";
@@ -68,6 +69,99 @@ async function enrichPairWithJupiterPrices(
     const { x, y } = jupiterResult.value.data;
     if (x?.priceUsd != null) pair.tokenX.priceUsd = x.priceUsd;
     if (y?.priceUsd != null) pair.tokenY.priceUsd = y.priceUsd;
+  }
+}
+
+async function enrichPairWithSolanaAuthorities(
+  pair: DlmmPairInfo,
+  sources: SourceStatus[],
+): Promise<void> {
+  const mintX = pair.tokenX.mint;
+  const mintY = pair.tokenY.mint;
+
+  if (!mintX || !mintY) return;
+
+  const result = await timedFetch("solana_rpc", async () => {
+    const [xRes, yRes] = await Promise.allSettled([
+      fetchSolanaRpc(mintX),
+      fetchSolanaRpc(mintY),
+    ]);
+
+    const x = xRes.status === "fulfilled" ? xRes.value : undefined;
+    const y = yRes.status === "fulfilled" ? yRes.value : undefined;
+
+    if (!x && !y) {
+      throw new Error("No Solana RPC data");
+    }
+
+    return { x, y };
+  });
+
+  sources.push(buildSourceStatus("solana_rpc", result));
+
+  if (result.status === "fulfilled") {
+    const { x, y } = result.value.data;
+    if (x) {
+      pair.tokenX.mintAuthority = x.mintAuthority;
+      pair.tokenX.freezeAuthority = x.freezeAuthority;
+    }
+    if (y) {
+      pair.tokenY.mintAuthority = y.mintAuthority;
+      pair.tokenY.freezeAuthority = y.freezeAuthority;
+    }
+  }
+}
+
+async function enrichPairWithGmgnSecurity(
+  pair: DlmmPairInfo,
+  sources: SourceStatus[],
+): Promise<void> {
+  const mintX = pair.tokenX.mint;
+  const mintY = pair.tokenY.mint;
+
+  if (!mintX || !mintY) return;
+
+  // Skip if no API key is configured — gracefully degrade
+  if (!process.env.GMGN_API_KEY) return;
+
+  const result = await timedFetch("gmgn", async () => {
+    const [xRes, yRes] = await Promise.allSettled([
+      fetchGmgnTokenSecurity(mintX),
+      fetchGmgnTokenSecurity(mintY),
+    ]);
+
+    const x = xRes.status === "fulfilled" ? xRes.value : undefined;
+    const y = yRes.status === "fulfilled" ? yRes.value : undefined;
+
+    if (!x && !y) {
+      throw new Error("No GMGN security data");
+    }
+
+    return { x, y };
+  });
+
+  sources.push(buildSourceStatus("gmgn", result));
+
+  if (result.status === "fulfilled") {
+    const { x, y } = result.value.data;
+    if (x) {
+      pair.tokenX.renouncedMint = x.renouncedMint;
+      pair.tokenX.renouncedFreeze = x.renouncedFreeze;
+      pair.tokenX.ctoFlag = x.ctoFlag;
+      pair.tokenX.isHoneypot = x.isHoneypot;
+      pair.tokenX.rugRatio = x.rugRatio;
+      pair.tokenX.top10HolderRate = x.top10HolderRate;
+      pair.tokenX.sniperCount = x.sniperCount;
+    }
+    if (y) {
+      pair.tokenY.renouncedMint = y.renouncedMint;
+      pair.tokenY.renouncedFreeze = y.renouncedFreeze;
+      pair.tokenY.ctoFlag = y.ctoFlag;
+      pair.tokenY.isHoneypot = y.isHoneypot;
+      pair.tokenY.rugRatio = y.rugRatio;
+      pair.tokenY.top10HolderRate = y.top10HolderRate;
+      pair.tokenY.sniperCount = y.sniperCount;
+    }
   }
 }
 
@@ -144,6 +238,8 @@ async function handlePairScan(request: Request): Promise<Response> {
         fetchMeteoraDlmmGroupPools(pair.tokenX.mint, pair.tokenY.mint),
       ),
       enrichPairWithJupiterPrices(pair, sources),
+      enrichPairWithSolanaAuthorities(pair, sources),
+      enrichPairWithGmgnSecurity(pair, sources),
     ]);
 
     if (groupResult.status === "fulfilled") {
@@ -151,7 +247,11 @@ async function handlePairScan(request: Request): Promise<Response> {
     }
     // On rejection: silently degrade to []
   } else {
-    await enrichPairWithJupiterPrices(pair, sources);
+    await Promise.all([
+      enrichPairWithJupiterPrices(pair, sources),
+      enrichPairWithSolanaAuthorities(pair, sources),
+      enrichPairWithGmgnSecurity(pair, sources),
+    ]);
   }
 
   const report: PoolReport = {

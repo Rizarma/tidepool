@@ -14,7 +14,7 @@ Paste a Solana token mint address to see:
 - A risk level: low, medium, high, or critical
 - Token name, symbol, image, and mint address
 - Price, liquidity, daily volume, and market cap when available
-- Mint authority and freeze authority status
+- Mint authority and freeze authority status (fetched directly from Solana RPC, with GMGN-derived booleans when available)
 - Holder concentration and RugCheck signals
 - Whether Jupiter lists the token on its strict list
 - Which data sources answered the scan
@@ -32,6 +32,7 @@ Pool scans show:
 - Pool name and token pair
 - Price, TVL, daily volume, fees, APR, and APY when available
 - Bin step and fee settings
+- **On-Chain Analysis** — side-by-side security comparison of Token X and Token Y: mint authority status, freeze authority status, CTO flag, honeypot check, and top-10 holder concentration
 - Token details for both sides of the pair
 - Related pools for the same token pair, with a comparison chart and sortable table
 - Blacklist status and pool tags
@@ -66,6 +67,7 @@ Tidepool collects live data from public services:
 - Solana RPC
 - Meteora DLMM
 - Birdeye (price history for SMA indicators)
+- GMGN (token security: CTO flag, honeypot, holder concentration, mint/freeze authority status)
 
 If a source is slow or unavailable, Tidepool still shows what it can and lists the source status in the report.
 
@@ -107,6 +109,8 @@ This section is for people who want to run the app on their own computer.
    ```
 
 Tidepool uses public data sources by default. You can set `SOLANA_RPC_URL` (server-side only) if you want to use your own Solana RPC endpoint. You can also set `BIRDEYE_API_KEY` if you want SMA indicators on pool scans. Without it, pool scans still work but indicators are omitted.
+
+You can set `GMGN_API_KEY` for enriched token security data (CTO flag, honeypot detection, holder concentration, mint/freeze authority status). Without it, the app falls back to raw Solana RPC for authority data. Get a free key at https://gmgn.ai/ai.
 
 > ⚠️ **Security note:** `NEXT_PUBLIC_SOLANA_RPC_URL` is exposed to the client-side JavaScript bundle. Never put private RPC URLs with API keys (e.g. Helius, QuickNode, Alchemy) into a `NEXT_PUBLIC_*` variable — anyone can read them in the browser dev tools. Use `SOLANA_RPC_URL` or `SOLANA_RPC_URLS` for private endpoints.
 

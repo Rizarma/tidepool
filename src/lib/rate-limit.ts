@@ -110,4 +110,7 @@ export const rateLimiters = {
 
   /** Birdeye depends on your plan; 10 req/s is a safe default. */
   birdeye: new TokenBucket(10, 10),
+
+  /** GMGN Agent API — read-only token/security endpoints ~20 req/s. */
+  gmgn: new TokenBucket(20, 20),
 };

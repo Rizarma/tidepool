@@ -15,6 +15,7 @@ vi.mock("@/lib/providers-dlmm", () => ({
 
 vi.mock("@/lib/providers", () => ({
   fetchJupiter: vi.fn(),
+  fetchSolanaRpc: vi.fn(),
 }));
 
 import {
@@ -23,7 +24,7 @@ import {
   fetchMeteoraDlmmGroupPools,
 } from "@/lib/providers-dlmm";
 
-import { fetchJupiter } from "@/lib/providers";
+import { fetchJupiter, fetchSolanaRpc } from "@/lib/providers";
 import type { DlmmPairInfo } from "@/lib/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,6 +66,14 @@ describe("GET /api/scan/pair", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(fetchMeteoraDlmmGroupPools).mockResolvedValue([]);
+    vi.mocked(fetchSolanaRpc).mockResolvedValue({
+      decimals: 6,
+      supply: "1000000000000",
+      uiAmount: 1000000,
+      mintAuthority: null,
+      freezeAuthority: null,
+      tokenProgram: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    });
   });
 
   // ─── Parameter Validation ────────────────────────────────────────────────
@@ -291,15 +300,18 @@ describe("GET /api/scan/pair", () => {
       expect(vi.mocked(fetchJupiter)).toHaveBeenCalledWith(VALID_MINT_A);
       expect(vi.mocked(fetchJupiter)).toHaveBeenCalledWith(VALID_MINT_B);
 
-      // Sources: Meteora + Jupiter
-      expect(body.sources).toHaveLength(2);
+      // Sources: Meteora + Jupiter + Solana RPC
+      expect(body.sources).toHaveLength(3);
       const meteora = body.sources.find((s: { provider: string }) => s.provider === "meteora_dlmm");
       const jupiter = body.sources.find((s: { provider: string }) => s.provider === "jupiter");
+      const solanaRpc = body.sources.find((s: { provider: string }) => s.provider === "solana_rpc");
       expect(meteora).toBeDefined();
       expect(meteora?.success).toBe(true);
       expect(typeof meteora?.latencyMs).toBe("number");
       expect(jupiter).toBeDefined();
       expect(jupiter?.success).toBe(true);
+      expect(solanaRpc).toBeDefined();
+      expect(solanaRpc?.success).toBe(true);
 
       // fetchedAt is ISO string
       expect(body.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
@@ -317,9 +329,10 @@ describe("GET /api/scan/pair", () => {
 
       expect(body.kind).toBe("pair");
       expect(body.pair.poolAddress).toBe(VALID_POOL);
-      expect(body.sources).toHaveLength(2);
+      expect(body.sources).toHaveLength(3);
       expect(body.sources.some((s: { provider: string; success: boolean }) => s.provider === "meteora_dlmm" && s.success)).toBe(true);
       expect(body.sources.some((s: { provider: string; success: boolean }) => s.provider === "jupiter" && s.success)).toBe(true);
+      expect(body.sources.some((s: { provider: string; success: boolean }) => s.provider === "solana_rpc" && s.success)).toBe(true);
     });
 
     it("accepts pair= as alias for pool=", async () => {
@@ -457,7 +470,7 @@ describe("GET /api/scan/pair", () => {
 
       expect(body.relatedPools).toEqual([]);
       expect(body.pair.poolAddress).toBe(VALID_POOL);
-      expect(body.sources).toHaveLength(2);
+      expect(body.sources).toHaveLength(3);
     });
   });
 
