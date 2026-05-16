@@ -18,7 +18,6 @@ export function PoolHeader({
   inversePrice,
   symbolX,
   symbolY,
-  priceUsdX,
   discoverySlot,
 }: {
   pair?: PoolReport["pair"];
@@ -27,7 +26,6 @@ export function PoolHeader({
   inversePrice?: number;
   symbolX: string;
   symbolY: string;
-  priceUsdX?: number;
   discoverySlot?: React.ReactNode;
 }) {
   const poolAddress = pair?.poolAddress;
@@ -90,11 +88,6 @@ export function PoolHeader({
       <div className="mt-2 space-y-0.5">
         <p className="text-base font-semibold text-zinc-100">
           1 {symbolX} = {formatTokenPrice(priceTokenYPerTokenX)} {symbolY}
-          {priceUsdX != null && (
-            <span className="text-xs text-zinc-500 font-normal ml-1">
-              (${formatTokenPrice(priceUsdX)} USD)
-            </span>
-          )}
         </p>
         <p className="text-sm text-zinc-300">
           1 {symbolY} = {formatTokenPrice(inversePrice)} {symbolX}
