@@ -34,61 +34,71 @@ export function PoolHeader({
 
   return (
     <div className="p-5 rounded-xl bg-white/[0.03]">
-      {/* ─── Identity + Price ─── */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="min-w-0 text-xl font-bold text-zinc-100">{name}</h1>
-
-          {/* Status */}
-          <div
-            className={`shrink-0 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-semibold ${
-              pair?.isBlacklisted
-                ? "bg-red-500/10 text-red-300"
-                : "bg-emerald-500/10 text-emerald-300"
-            }`}
-          >
-            <span
-              className={`size-1.5 rounded-full ${
-                pair?.isBlacklisted ? "bg-red-400" : "bg-emerald-400"
-              }`}
-            />
-            {pair?.isBlacklisted ? "Blacklisted" : "Active"}
-          </div>
-        </div>
-
-        {/* Address */}
-        {poolAddress && (
-          <div className="flex items-center gap-1.5">
-            {pair?.launchpad && (
-              <>
-                <span className="text-xs text-zinc-400">{pair.launchpad}</span>
-                <span className="text-zinc-400 shrink-0">·</span>
-              </>
-            )}
-            <span
-              className="font-mono text-xs text-zinc-400"
-              title={poolAddress}
-            >
-              {shortenAddress(poolAddress)}
-            </span>
-            <CopyButton address={poolAddress} />
-          </div>
+      {/* ─── Identity ─── */}
+      <div className="flex items-start gap-3">
+        {pair?.tokenX?.imageUrl && (
+          <img
+            src={pair.tokenX.imageUrl}
+            alt={symbolX}
+            className="w-10 h-10 rounded-lg shrink-0 object-cover bg-white/[0.05]"
+          />
         )}
 
-        {/* Price */}
-        <div className="mt-2 space-y-0.5">
-          <p className="text-base font-semibold text-zinc-100">
-            1 {symbolX} = {formatTokenPrice(priceTokenYPerTokenX)} {symbolY}
-            {priceUsdX != null && (
-              <span className="text-xs text-zinc-500 font-normal ml-1">
-                (${formatTokenPrice(priceUsdX)} USD)
+        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="min-w-0 text-xl font-bold text-zinc-100">{name}</h1>
+
+            {/* Status */}
+            <div
+              className={`shrink-0 inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-semibold ${
+                pair?.isBlacklisted
+                  ? "bg-red-500/10 text-red-300"
+                  : "bg-emerald-500/10 text-emerald-300"
+              }`}
+            >
+              <span
+                className={`size-1.5 rounded-full ${
+                  pair?.isBlacklisted ? "bg-red-400" : "bg-emerald-400"
+                }`}
+              />
+              {pair?.isBlacklisted ? "Blacklisted" : "Active"}
+            </div>
+          </div>
+
+          {/* Address */}
+          {poolAddress && (
+            <div className="flex items-center gap-1.5">
+              {pair?.launchpad && (
+                <>
+                  <span className="text-xs text-zinc-400">{pair.launchpad}</span>
+                  <span className="text-zinc-400 shrink-0">·</span>
+                </>
+              )}
+              <span
+                className="font-mono text-xs text-zinc-400"
+                title={poolAddress}
+              >
+                {shortenAddress(poolAddress)}
               </span>
-            )}
-          </p>
-          <p className="text-sm text-zinc-300">
-            1 {symbolY} = {formatTokenPrice(inversePrice)} {symbolX}
-          </p>
+              <CopyButton address={poolAddress} />
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Price */}
+      <div className="mt-2 space-y-0.5">
+        <p className="text-base font-semibold text-zinc-100">
+          1 {symbolX} = {formatTokenPrice(priceTokenYPerTokenX)} {symbolY}
+          {priceUsdX != null && (
+            <span className="text-xs text-zinc-500 font-normal ml-1">
+              (${formatTokenPrice(priceUsdX)} USD)
+            </span>
+          )}
+        </p>
+        <p className="text-sm text-zinc-300">
+          1 {symbolY} = {formatTokenPrice(inversePrice)} {symbolX}
+        </p>
       </div>
 
       {/* ─── Discovery slot ─── */}

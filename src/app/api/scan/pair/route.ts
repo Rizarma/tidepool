@@ -12,7 +12,7 @@ import {
   fetchMeteoraDlmmPairByMints,
   fetchMeteoraDlmmGroupPools,
 } from "@/lib/providers-dlmm";
-import { fetchJupiter, fetchSolanaRpc } from "@/lib/providers";
+import { fetchDexScreener, fetchJupiter, fetchSolanaRpc } from "@/lib/providers";
 import { fetchGmgnTokenSecurity } from "@/lib/providers-gmgn";
 import { apiErrorResponse, classifyProviderError } from "@/lib/api-errors";
 import { timedFetch, buildSourceStatus } from "@/lib/provider-status";
@@ -69,6 +69,43 @@ async function enrichPairWithJupiterPrices(
     const { x, y } = jupiterResult.value.data;
     if (x?.priceUsd != null) pair.tokenX.priceUsd = x.priceUsd;
     if (y?.priceUsd != null) pair.tokenY.priceUsd = y.priceUsd;
+    if (x?.imageUrl) pair.tokenX.imageUrl = x.imageUrl;
+    if (y?.imageUrl) pair.tokenY.imageUrl = y.imageUrl;
+  }
+}
+
+async function enrichPairWithDexScreenerImages(
+  pair: DlmmPairInfo,
+  sources: SourceStatus[],
+): Promise<void> {
+  const mintX = pair.tokenX.mint;
+  const mintY = pair.tokenY.mint;
+
+  if (!mintX || !mintY) return;
+
+  const dexResult = await timedFetch("dexscreener", async () => {
+    const [xRes, yRes] = await Promise.allSettled([
+      fetchDexScreener(mintX),
+      fetchDexScreener(mintY),
+    ]);
+
+    const x = xRes.status === "fulfilled" ? xRes.value : undefined;
+    const y = yRes.status === "fulfilled" ? yRes.value : undefined;
+
+    if (!x && !y) {
+      throw new Error("No DexScreener data");
+    }
+
+    return { x, y };
+  });
+
+  sources.push(buildSourceStatus("dexscreener", dexResult));
+
+  if (dexResult.status === "fulfilled") {
+    const { x, y } = dexResult.value.data;
+    // Only fill imageUrl if Jupiter didn't already provide one
+    if (x?.imageUrl && !pair.tokenX.imageUrl) pair.tokenX.imageUrl = x.imageUrl;
+    if (y?.imageUrl && !pair.tokenY.imageUrl) pair.tokenY.imageUrl = y.imageUrl;
   }
 }
 
@@ -240,6 +277,7 @@ async function handlePairScan(request: Request): Promise<Response> {
       enrichPairWithJupiterPrices(pair, sources),
       enrichPairWithSolanaAuthorities(pair, sources),
       enrichPairWithGmgnSecurity(pair, sources),
+      enrichPairWithDexScreenerImages(pair, sources),
     ]);
 
     if (groupResult.status === "fulfilled") {
@@ -251,6 +289,7 @@ async function handlePairScan(request: Request): Promise<Response> {
       enrichPairWithJupiterPrices(pair, sources),
       enrichPairWithSolanaAuthorities(pair, sources),
       enrichPairWithGmgnSecurity(pair, sources),
+      enrichPairWithDexScreenerImages(pair, sources),
     ]);
   }
 

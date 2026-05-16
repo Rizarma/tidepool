@@ -158,6 +158,7 @@ export interface PairToken {
   marketCap?: number;
   marketCapFallback?: boolean;
   totalSupply?: number;
+  imageUrl?: string;
 }
 
 export interface DlmmPairInfo {
