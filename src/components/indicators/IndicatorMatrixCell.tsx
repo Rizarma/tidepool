@@ -3,28 +3,34 @@ import { SignalBadge } from "./IndicatorSignalBadge";
 import { QualityDot } from "./IndicatorQualityDot";
 import { pctValue } from "@/lib/format";
 
-function toneColorClass(tone: string, isUnavailable: boolean, isDimmed: boolean): string {
+function toneTextClass(tone: string, isUnavailable: boolean): string {
   if (isUnavailable) return "text-zinc-600";
-  if (isDimmed) return "text-zinc-400";
   switch (tone) {
     case "bullish":
       return "text-emerald-300";
     case "bearish":
       return "text-red-300";
     default:
-      return "text-zinc-100";
+      return "text-zinc-300";
   }
 }
 
 function bgClass(tone: string): string {
   switch (tone) {
     case "bullish":
-      return "bg-emerald-500/[0.03] rounded-sm";
+      return "bg-emerald-500/[0.06] rounded-sm";
     case "bearish":
-      return "bg-red-500/[0.03] rounded-sm";
+      return "bg-red-500/[0.06] rounded-sm";
     default:
       return "";
   }
+}
+
+function DeviationDisplay({ pct }: { pct: number }) {
+  if (pct >= 0) {
+    return <span className="text-emerald-300">↑ +{pctValue(pct)}</span>;
+  }
+  return <span className="text-red-300">↓ {pctValue(pct)}</span>;
 }
 
 export function IndicatorMatrixCell({
@@ -34,43 +40,38 @@ export function IndicatorMatrixCell({
   cell: IndicatorCellView;
   symbolY: string;
 }) {
-  const textColor = toneColorClass(cell.tone, cell.isUnavailable, cell.isDimmed);
+  const textClass = toneTextClass(cell.tone, cell.isUnavailable);
   const background = bgClass(cell.tone);
   const isApproximated = cell.quality === "approximate";
 
   return (
-    <div className={`${background} px-2 py-1.5`} aria-label={cell.ariaLabel}>
-        {/* Value line */}
-        <div
-          className={`text-right text-sm font-semibold font-mono tabular-nums ${textColor} ${
-            isApproximated ? "border-b border-dashed border-zinc-600" : ""
-          }`}
+    <div className={`${background} px-2 py-2`} aria-label={cell.ariaLabel}>
+      {/* Value row */}
+      <div className="flex items-center justify-end gap-1.5">
+        <QualityDot quality={cell.quality} tooltip={cell.qualityLabel} />
+        <span
+          className={`text-sm font-semibold font-mono tabular-nums ${textClass}`}
         >
-          {cell.valueFormatted}
-          {!cell.isUnavailable && (
-            <span className="ml-1 text-xs text-zinc-500">{symbolY}</span>
+          {isApproximated && (
+            <span className="text-amber-400 mr-0.5">~</span>
           )}
-        </div>
-
-        {/* Signal line */}
+          {cell.valueFormatted}
+        </span>
         {!cell.isUnavailable && (
-          <div className={`text-right text-xs font-mono tabular-nums ${textColor}`}>
-            {cell.indicator?.type === "sma" && cell.deviationPct != null ? (
-              cell.deviationPct >= 0 ? (
-                `▲ +${pctValue(cell.deviationPct)}`
-              ) : (
-                `▼ ${pctValue(Math.abs(cell.deviationPct))}`
-              )
-            ) : cell.indicator?.type === "supertrend" ? (
-              <SignalBadge signal={cell.signal} />
-            ) : null}
-          </div>
+          <span className="text-[10px] text-zinc-500">{symbolY}</span>
         )}
+      </div>
 
-        {/* Quality dot line */}
-        <div className="mt-1 flex justify-end">
-          <QualityDot quality={cell.quality} tooltip={cell.qualityLabel} />
+      {/* Signal / deviation row */}
+      {!cell.isUnavailable && (
+        <div className={`text-right text-xs font-mono tabular-nums ${textClass} mt-0.5`}>
+          {cell.indicator?.type === "sma" && cell.deviationPct != null ? (
+            <DeviationDisplay pct={cell.deviationPct} />
+          ) : cell.indicator?.type === "supertrend" ? (
+            <SignalBadge signal={cell.signal} />
+          ) : null}
         </div>
+      )}
     </div>
   );
 }

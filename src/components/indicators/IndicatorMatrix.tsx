@@ -1,5 +1,4 @@
 import type { IndicatorMatrixView } from "./indicator-view-model";
-import { timeframeWeight } from "./indicator-view-model";
 import { IndicatorMatrixCell } from "./IndicatorMatrixCell";
 
 export function IndicatorMatrix({
@@ -29,22 +28,17 @@ export function IndicatorMatrix({
           <tr className="border-b border-[var(--panel-border)]">
             <th
               scope="col"
-              className="sticky left-0 bg-[var(--panel-bg)] z-10 text-left py-2 pr-4"
+              className="sticky left-0 bg-[var(--panel-bg)] z-10 text-left py-2 pr-4 pl-2 border-r border-[var(--panel-border)]"
             >
               <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
                 Indicator
               </span>
             </th>
             {view.timeframes.map((tf) => (
-              <th key={tf} scope="col" className="py-2 px-3 align-bottom">
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-medium">
-                    {tf}
-                  </span>
-                  <span className="text-[9px] text-zinc-600">
-                    {timeframeWeight(tf)}
-                  </span>
-                </div>
+              <th key={tf} scope="col" className="py-2 px-3 text-right">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-medium">
+                  {tf}
+                </span>
               </th>
             ))}
           </tr>
@@ -57,7 +51,7 @@ export function IndicatorMatrix({
             >
               <th
                 scope="row"
-                className="sticky left-0 bg-[var(--panel-bg)] z-10 text-left py-3 pr-4 pl-2"
+                className="sticky left-0 bg-[var(--panel-bg)] z-10 text-left py-3 pr-4 pl-2 border-r border-[var(--panel-border)] hover:bg-white/[0.02]"
               >
                 <div className="text-xs font-medium text-zinc-300">
                   {row.label}

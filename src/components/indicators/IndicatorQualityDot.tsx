@@ -12,7 +12,7 @@ export function QualityDot({ quality, tooltip }: { quality: IndicatorQuality; to
 
   return (
     <span
-      className={`inline-block size-1 rounded-full ${colorClass}`}
+      className={`inline-block size-1.5 rounded-full ring-1 ring-white/10 ${colorClass}`}
       title={tooltip}
       aria-label={tooltip}
     />

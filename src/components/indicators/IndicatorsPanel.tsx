@@ -89,14 +89,18 @@ export function IndicatorsPanel({
   return (
     <div>
       {(loading || error) && (
-        <div className="flex justify-end mb-2">
+        <div className="flex justify-end mb-3">
           {loading && (
-            <span className="text-xs text-zinc-400 animate-pulse">
-              Loading…
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400">
+              <span className="inline-block size-1.5 rounded-full bg-zinc-400 animate-pulse" />
+              Fetching indicators…
             </span>
           )}
           {error && !loading && (
-            <span className="text-xs text-red-400">{error}</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-red-400">
+              <span className="inline-block size-1.5 rounded-full bg-red-400" />
+              {error}
+            </span>
           )}
         </div>
       )}
